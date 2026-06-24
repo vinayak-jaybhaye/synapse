@@ -15,6 +15,7 @@ import (
 	"github.com/synapse/api/internal/invites"
 	"github.com/synapse/api/internal/messages"
 	"github.com/synapse/api/internal/middleware"
+	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/roles"
 	"github.com/synapse/api/internal/router"
 	"github.com/synapse/api/internal/snowflake"
@@ -63,7 +64,13 @@ func main() {
 	roleService := roles.NewService(roleRepo)
 	guildService := guilds.NewService(guildRepo, roleRepo)
 	channelService := channels.NewService(channelRepo, roleRepo)
-	messageService := messages.NewService(messageRepo, channelRepo, roleRepo, db.Redis)
+
+	// Permissions Service
+	permRoleRepo := permissions.NewPGRoleRepository(db.PG)
+	permChannelRepo := permissions.NewPGChannelPermissionRepository(db.PG)
+	permissionService := permissions.NewService(permRoleRepo, permChannelRepo)
+
+	messageService := messages.NewService(messageRepo, channelRepo, permissionService, db.Redis)
 	inviteService := invites.NewService(inviteRepo, roleRepo)
 
 	// 7. Instantiate Handlers

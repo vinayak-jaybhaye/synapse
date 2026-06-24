@@ -3,23 +3,21 @@ package messages
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/synapse/api/internal/snowflake"
 )
 
 type Repository interface {
 	GetByID(ctx context.Context, id int64) (*Message, error)
 	ListMessagesCursor(ctx context.Context, channelID, beforeID int64, limit int) ([]MessageResponse, error)
-	CreateTx(ctx context.Context, msg *Message) error
+	CreateMessageWithOutbox(ctx context.Context, msg *Message, event *OutboxEvent) error
 	Update(ctx context.Context, msg *Message) error
 	SoftDelete(ctx context.Context, id int64) error
 	AddReaction(ctx context.Context, messageID, userID int64, emoji string) error
 	RemoveReaction(ctx context.Context, messageID, userID int64, emoji string) error
 	UpdateReadStatePostgres(ctx context.Context, channelID, userID, lastReadMessageID int64) error
+	IsDMParticipant(ctx context.Context, channelID int64, userID int64) (bool, error)
 }
 
 type pgRepository struct {
@@ -122,7 +120,7 @@ func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, before
 	return list, nil
 }
 
-func (r *pgRepository) CreateTx(ctx context.Context, msg *Message) error {
+func (r *pgRepository) CreateMessageWithOutbox(ctx context.Context, msg *Message, event *OutboxEvent) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin message tx: %w", err)
@@ -146,24 +144,11 @@ func (r *pgRepository) CreateTx(ctx context.Context, msg *Message) error {
 	}
 
 	// 2. Insert Outbox Event
-	eventID := snowflake.GenerateID()
-	payloadMap := map[string]interface{}{
-		"id":         msg.ID,
-		"channel_id": msg.ChannelID,
-		"author_id":  msg.AuthorID,
-		"content":    msg.Content,
-		"created_at": msg.CreatedAt,
-	}
-	payloadBytes, err := json.Marshal(payloadMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal outbox event payload: %w", err)
-	}
-
 	insertOutbox := `
 		INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status) 
-		VALUES ($1, 'channel', $2, 'MESSAGE_CREATE', $3, 0)
+		VALUES ($1, $2, $3, $4, $5, 0)
 	`
-	_, err = tx.ExecContext(ctx, insertOutbox, eventID, msg.ChannelID, payloadBytes)
+	_, err = tx.ExecContext(ctx, insertOutbox, event.ID, event.AggregateType, event.AggregateID, event.EventType, event.Payload)
 	if err != nil {
 		return fmt.Errorf("failed to insert outbox event inside tx: %w", err)
 	}
@@ -223,4 +208,19 @@ func (r *pgRepository) UpdateReadStatePostgres(ctx context.Context, channelID, u
 		return fmt.Errorf("failed to upsert channel read marker in postgres: %w", err)
 	}
 	return nil
+}
+
+func (r *pgRepository) IsDMParticipant(ctx context.Context, channelID int64, userID int64) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1 FROM direct_conversations
+			WHERE channel_id = $1 AND (user1_id = $2 OR user2_id = $2)
+		)
+	`
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, channelID, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check DM participant: %w", err)
+	}
+	return exists, nil
 }

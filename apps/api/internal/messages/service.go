@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -10,10 +11,10 @@ import (
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/permissions"
-	"github.com/synapse/api/internal/roles"
 	"github.com/synapse/api/internal/snowflake"
 )
 
+// Service defines the interface for core message actions.
 type Service interface {
 	GetMessages(ctx context.Context, channelID, userID, beforeID int64, limit int) ([]MessageResponse, error)
 	SendMessage(ctx context.Context, channelID, userID int64, req *CreateMessageRequest) (*MessageResponse, error)
@@ -25,55 +26,24 @@ type Service interface {
 }
 
 type service struct {
-	repo        Repository
-	channelRepo channels.Repository
-	roleRepo    roles.Repository
-	rdb         *redis.Client
+	repo              Repository
+	channelRepo       channels.Repository
+	permissionService permissions.Service
+	rdb               *redis.Client
 }
 
-func NewService(repo Repository, channelRepo channels.Repository, roleRepo roles.Repository, rdb *redis.Client) Service {
+// NewService creates a new messages Service using clean architecture dependencies.
+func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, rdb *redis.Client) Service {
 	return &service{
-		repo:        repo,
-		channelRepo: channelRepo,
-		roleRepo:    roleRepo,
-		rdb:         rdb,
+		repo:              repo,
+		channelRepo:       channelRepo,
+		permissionService: permissionService,
+		rdb:               rdb,
 	}
 }
 
-func (s *service) checkPermissions(ctx context.Context, guildID int64, userID int64, channelID int64, perm permissions.Permission) (bool, error) {
-	// Owner check
-	ownerID, err := s.roleRepo.GetGuildOwner(ctx, guildID)
-	if err != nil {
-		return false, err
-	}
-	if ownerID == userID {
-		return true, nil
-	}
-
-	// Try Redis Permission Cache First
-	cacheKey := fmt.Sprintf("perm:%d:%d:%d", userID, guildID, channelID)
-	cachedVal, err := s.rdb.Get(ctx, cacheKey).Int64()
-	if err == nil {
-		return permissions.HasPermission(permissions.Permission(cachedVal), perm), nil
-	}
-
-	rlist, err := s.roleRepo.GetMemberRoles(ctx, guildID, userID)
-	if err != nil {
-		return false, err
-	}
-
-	var combined permissions.Permission
-	for _, rl := range rlist {
-		combined |= permissions.Permission(rl.Permissions)
-	}
-
-	// Save mask in cache for 5 minutes
-	_ = s.rdb.Set(ctx, cacheKey, int64(combined), 5*time.Minute).Err()
-
-	return permissions.HasPermission(combined, perm), nil
-}
-
-func (s *service) verifyChannelAccess(ctx context.Context, channelID, userID int64, perm permissions.Permission) (*channels.Channel, error) {
+// verifyChannelAccess checks that a user has access to a channel (view & specified permissions for guild channels; member verification for DMs).
+func (s *service) verifyChannelAccess(ctx context.Context, channelID, userID int64, perms ...permissions.Permission) (*channels.Channel, error) {
 	ch, err := s.channelRepo.GetByID(ctx, channelID)
 	if err != nil {
 		return nil, err
@@ -83,23 +53,30 @@ func (s *service) verifyChannelAccess(ctx context.Context, channelID, userID int
 	}
 
 	if ch.GuildID != nil {
-		allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, channelID, perm)
+		// Guild Channel: Verify permission bitmask through the permissions engine
+		mask, err := s.permissionService.ResolveChannelPermissions(ctx, *ch.GuildID, channelID, userID)
 		if err != nil {
 			return nil, err
 		}
-		if !allowed {
+		if !permissions.HasAllPermissions(mask, perms...) {
 			return nil, errors.NewForbidden("access denied: insufficient permissions in this channel")
 		}
 	} else {
-		// DM channel check: verify user is part of DM conversation
-		// In DMs, standard users automatically have basic read/write
+		// DM Channel: Verify direct conversation membership
+		isParticipant, err := s.repo.IsDMParticipant(ctx, channelID, userID)
+		if err != nil {
+			return nil, err
+		}
+		if !isParticipant {
+			return nil, errors.NewForbidden("access denied: not a participant in this DM channel")
+		}
 	}
 
 	return ch, nil
 }
 
 func (s *service) GetMessages(ctx context.Context, channelID, userID, beforeID int64, limit int) ([]MessageResponse, error) {
-	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL|permissions.READ_MESSAGE_HISTORY)
+	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL, permissions.READ_MESSAGE_HISTORY)
 	if err != nil {
 		return nil, err
 	}
@@ -112,21 +89,35 @@ func (s *service) GetMessages(ctx context.Context, channelID, userID, beforeID i
 }
 
 func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req *CreateMessageRequest) (*MessageResponse, error) {
+	// 1. Content Length Validation
+	if len(req.Content) == 0 {
+		return nil, ErrContentEmpty
+	}
+	if len(req.Content) > 2000 {
+		return nil, ErrContentTooLong
+	}
+
+	// 2. Channel Authorization Verification
 	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.SEND_MESSAGES)
 	if err != nil {
 		return nil, err
 	}
 
+	// 3. Optional Reply Parent Validation
 	if req.ReplyToMessageID != nil {
 		parent, err := s.repo.GetByID(ctx, *req.ReplyToMessageID)
 		if err != nil {
 			return nil, err
 		}
-		if parent == nil || parent.ChannelID != channelID {
-			return nil, errors.NewBadRequest("invalid reply_to message ID")
+		if parent == nil {
+			return nil, ErrReplyTargetNotFound
+		}
+		if parent.ChannelID != channelID {
+			return nil, ErrReplyTargetMismatch
 		}
 	}
 
+	// 4. Construct Message
 	msg := &Message{
 		ID:               snowflake.GenerateID(),
 		ChannelID:        channelID,
@@ -138,7 +129,28 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 		CreatedAt:        time.Now(),
 	}
 
-	if err := s.repo.CreateTx(ctx, msg); err != nil {
+	// 5. Build Outbox Event
+	payloadMap := map[string]interface{}{
+		"event_type": MessageCreatedEvent,
+		"message_id": strconv.FormatInt(msg.ID, 10),
+		"channel_id": strconv.FormatInt(msg.ChannelID, 10),
+		"author_id":  strconv.FormatInt(msg.AuthorID, 10),
+	}
+	payloadBytes, err := json.Marshal(payloadMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal outbox event payload: %w", err)
+	}
+
+	event := &OutboxEvent{
+		ID:            snowflake.GenerateID(),
+		AggregateType: "channel",
+		AggregateID:   channelID,
+		EventType:     MessageCreatedEvent,
+		Payload:       payloadBytes,
+	}
+
+	// 6. Persist Message and Outbox Event Atomically
+	if err := s.repo.CreateMessageWithOutbox(ctx, msg, event); err != nil {
 		return nil, err
 	}
 
@@ -154,6 +166,15 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 }
 
 func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID int64, req *UpdateMessageRequest) (*MessageResponse, error) {
+	// 1. Content Length Validation
+	if len(req.Content) == 0 {
+		return nil, ErrContentEmpty
+	}
+	if len(req.Content) > 2000 {
+		return nil, ErrContentTooLong
+	}
+
+	// 2. Load Message
 	msg, err := s.repo.GetByID(ctx, messageID)
 	if err != nil {
 		return nil, err
@@ -162,7 +183,13 @@ func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID 
 		return nil, errors.NewNotFound("message not found")
 	}
 
-	// Verify requester is the author (only authors can edit messages)
+	// 3. Verify Channel Access
+	_, err = s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Verify Requester is Message Author
 	if msg.AuthorID != userID {
 		return nil, errors.NewForbidden("cannot edit other user's message")
 	}
@@ -188,6 +215,7 @@ func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID 
 }
 
 func (s *service) DeleteMessage(ctx context.Context, channelID, messageID, userID int64) error {
+	// 1. Load Message
 	msg, err := s.repo.GetByID(ctx, messageID)
 	if err != nil {
 		return err
@@ -196,25 +224,25 @@ func (s *service) DeleteMessage(ctx context.Context, channelID, messageID, userI
 		return errors.NewNotFound("message not found")
 	}
 
-	// Permission checks: either author, or user with MANAGE_MESSAGES
+	// 2. Verify Channel Access (Requires VIEW_CHANNEL / DM member verification)
+	ch, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL)
+	if err != nil {
+		return err
+	}
+
+	// 3. Verify Deletion Permissions
 	if msg.AuthorID != userID {
-		ch, err := s.channelRepo.GetByID(ctx, channelID)
+		// Non-authors can never delete other users' messages in DM channels
+		if ch.GuildID == nil {
+			return errors.NewForbidden("cannot delete another user's message in a DM")
+		}
+
+		// In Guild Channels, deleting someone else's message requires MANAGE_MESSAGES permission
+		mask, err := s.permissionService.ResolveChannelPermissions(ctx, *ch.GuildID, channelID, userID)
 		if err != nil {
 			return err
 		}
-		if ch == nil {
-			return errors.NewNotFound("channel not found")
-		}
-
-		if ch.GuildID != nil {
-			allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, channelID, permissions.MANAGE_MESSAGES)
-			if err != nil {
-				return err
-			}
-			if !allowed {
-				return errors.NewForbidden("insufficient permissions to delete message")
-			}
-		} else {
+		if !permissions.HasAllPermissions(mask, permissions.MANAGE_MESSAGES) {
 			return errors.NewForbidden("insufficient permissions to delete message")
 		}
 	}
@@ -229,28 +257,23 @@ func (s *service) SyncReadState(ctx context.Context, channelID, userID, lastRead
 		return err
 	}
 
-	// 2. Redis First update HSET
+	// 2. Update read receipt cache in Redis (Source of Truth for unread checks)
 	redisKey := fmt.Sprintf("channel_reads:%d", userID)
 	field := strconv.FormatInt(channelID, 10)
 	val := strconv.FormatInt(lastReadMessageID, 10)
 
-	err = s.rdb.HSet(ctx, redisKey, field, val).Err()
-	if err != nil {
-		// Log warning, but fallback to Postgres sync (graceful degradation)
+	if s.rdb != nil {
+		err = s.rdb.HSet(ctx, redisKey, field, val).Err()
+		if err != nil {
+			return fmt.Errorf("failed to write read marker to redis cache: %w", err)
+		}
 	}
-
-	// 3. Write to PostgreSQL in a non-blocking background goroutine to prevent latency spikes
-	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = s.repo.UpdateReadStatePostgres(bgCtx, channelID, userID, lastReadMessageID)
-	}()
 
 	return nil
 }
 
 func (s *service) AddMessageReaction(ctx context.Context, channelID, messageID, userID int64, emoji string) error {
-	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL|permissions.ADD_REACTIONS)
+	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL, permissions.ADD_REACTIONS)
 	if err != nil {
 		return err
 	}

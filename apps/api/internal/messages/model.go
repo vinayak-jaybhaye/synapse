@@ -44,3 +44,19 @@ type UpdateMessageRequest struct {
 type ReadMarkerRequest struct {
 	LastReadMessageID int64 `json:"last_read_message_id,string" binding:"required"`
 }
+
+// Outbox event types centralized
+const (
+	MessageCreatedEvent = "MESSAGE_CREATED"
+	MessageUpdatedEvent = "MESSAGE_UPDATED"
+	MessageDeletedEvent = "MESSAGE_DELETED"
+)
+
+// OutboxEvent represents a transactional outbox record
+type OutboxEvent struct {
+	ID            int64
+	AggregateType string
+	AggregateID   int64
+	EventType     string
+	Payload       []byte
+}

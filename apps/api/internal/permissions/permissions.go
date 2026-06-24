@@ -27,3 +27,31 @@ func ApplyChannelOverrides(base Permission, allow Permission, deny Permission) P
 	}
 	return (base & ^deny) | allow
 }
+
+// HasAllPermissions checks if a bitmask contains all of the specified permissions.
+// Administrator permission automatically grants everything.
+func HasAllPermissions(mask Permission, perms ...Permission) bool {
+	if (mask & ADMINISTRATOR) == ADMINISTRATOR {
+		return true
+	}
+	for _, perm := range perms {
+		if (mask & perm) != perm {
+			return false
+		}
+	}
+	return true
+}
+
+// HasAnyPermission checks if a bitmask contains any of the specified permissions.
+// Administrator permission automatically grants everything.
+func HasAnyPermission(mask Permission, perms ...Permission) bool {
+	if (mask & ADMINISTRATOR) == ADMINISTRATOR {
+		return len(perms) > 0
+	}
+	for _, perm := range perms {
+		if (mask & perm) == perm {
+			return true
+		}
+	}
+	return false
+}
