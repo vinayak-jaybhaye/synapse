@@ -24,7 +24,7 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm int64) (bool, error) {
+func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm permissions.Permission) (bool, error) {
 	ownerID, err := s.repo.GetGuildOwner(ctx, guildID)
 	if err != nil {
 		return false, err
@@ -38,9 +38,9 @@ func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, p
 		return false, err
 	}
 
-	var combined int64
+	var combined permissions.Permission
 	for _, rl := range rlist {
-		combined |= rl.Permissions
+		combined |= permissions.Permission(rl.Permissions)
 	}
 
 	return permissions.HasPermission(combined, perm), nil

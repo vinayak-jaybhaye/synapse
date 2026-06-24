@@ -40,7 +40,7 @@ func NewService(repo Repository, channelRepo channels.Repository, roleRepo roles
 	}
 }
 
-func (s *service) checkPermissions(ctx context.Context, guildID int64, userID int64, channelID int64, perm int64) (bool, error) {
+func (s *service) checkPermissions(ctx context.Context, guildID int64, userID int64, channelID int64, perm permissions.Permission) (bool, error) {
 	// Owner check
 	ownerID, err := s.roleRepo.GetGuildOwner(ctx, guildID)
 	if err != nil {
@@ -54,7 +54,7 @@ func (s *service) checkPermissions(ctx context.Context, guildID int64, userID in
 	cacheKey := fmt.Sprintf("perm:%d:%d:%d", userID, guildID, channelID)
 	cachedVal, err := s.rdb.Get(ctx, cacheKey).Int64()
 	if err == nil {
-		return permissions.HasPermission(cachedVal, perm), nil
+		return permissions.HasPermission(permissions.Permission(cachedVal), perm), nil
 	}
 
 	rlist, err := s.roleRepo.GetMemberRoles(ctx, guildID, userID)
@@ -62,18 +62,18 @@ func (s *service) checkPermissions(ctx context.Context, guildID int64, userID in
 		return false, err
 	}
 
-	var combined int64
+	var combined permissions.Permission
 	for _, rl := range rlist {
-		combined |= rl.Permissions
+		combined |= permissions.Permission(rl.Permissions)
 	}
 
 	// Save mask in cache for 5 minutes
-	_ = s.rdb.Set(ctx, cacheKey, combined, 5*time.Minute).Err()
+	_ = s.rdb.Set(ctx, cacheKey, int64(combined), 5*time.Minute).Err()
 
 	return permissions.HasPermission(combined, perm), nil
 }
 
-func (s *service) verifyChannelAccess(ctx context.Context, channelID, userID int64, perm int64) (*channels.Channel, error) {
+func (s *service) verifyChannelAccess(ctx context.Context, channelID, userID int64, perm permissions.Permission) (*channels.Channel, error) {
 	ch, err := s.channelRepo.GetByID(ctx, channelID)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (s *service) SyncReadState(ctx context.Context, channelID, userID, lastRead
 	redisKey := fmt.Sprintf("channel_reads:%d", userID)
 	field := strconv.FormatInt(channelID, 10)
 	val := strconv.FormatInt(lastReadMessageID, 10)
-	
+
 	err = s.rdb.HSet(ctx, redisKey, field, val).Err()
 	if err != nil {
 		// Log warning, but fallback to Postgres sync (graceful degradation)
