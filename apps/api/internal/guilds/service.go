@@ -1,0 +1,166 @@
+package guilds
+
+import (
+	"context"
+	"time"
+
+	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/permissions"
+	"github.com/synapse/api/internal/roles"
+	"github.com/synapse/api/internal/snowflake"
+)
+
+type Service interface {
+	CreateGuild(ctx context.Context, ownerID int64, req *CreateGuildRequest) (*Guild, error)
+	GetGuild(ctx context.Context, guildID, userID int64) (*Guild, error)
+	GetGuildMembers(ctx context.Context, guildID, userID, afterUserID int64, limit int) ([]MemberWithUser, error)
+	UpdateGuildMember(ctx context.Context, guildID, targetUserID, requesterUserID int64, req *UpdateMemberRequest) (*GuildMember, error)
+}
+
+type service struct {
+	repo     Repository
+	roleRepo roles.Repository
+}
+
+func NewService(repo Repository, roleRepo roles.Repository) Service {
+	return &service{repo: repo, roleRepo: roleRepo}
+}
+
+func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm int64) (bool, error) {
+	ownerID, err := s.roleRepo.GetGuildOwner(ctx, guildID)
+	if err != nil {
+		return false, err
+	}
+	if ownerID == userID {
+		return true, nil
+	}
+
+	rlist, err := s.roleRepo.GetMemberRoles(ctx, guildID, userID)
+	if err != nil {
+		return false, err
+	}
+
+	var combined int64
+	for _, rl := range rlist {
+		combined |= rl.Permissions
+	}
+
+	return permissions.HasPermission(combined, perm), nil
+}
+
+func (s *service) CreateGuild(ctx context.Context, ownerID int64, req *CreateGuildRequest) (*Guild, error) {
+	g := &Guild{
+		ID:          snowflake.GenerateID(),
+		OwnerID:     ownerID,
+		Name:        req.Name,
+		Description: req.Description,
+		IconKey:     nil,
+		Version:     1,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := s.repo.CreateGuildTx(ctx, g); err != nil {
+		return nil, err
+	}
+
+	return g, nil
+}
+
+func (s *service) GetGuild(ctx context.Context, guildID, userID int64) (*Guild, error) {
+	// Verify user is a member of this guild
+	member, err := s.repo.GetMember(ctx, guildID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil {
+		return nil, errors.NewForbidden("access denied: not a member of this guild")
+	}
+
+	g, err := s.repo.GetByID(ctx, guildID)
+	if err != nil {
+		return nil, err
+	}
+	if g == nil {
+		return nil, errors.NewNotFound("guild not found")
+	}
+
+	return g, nil
+}
+
+func (s *service) GetGuildMembers(ctx context.Context, guildID, userID, afterUserID int64, limit int) ([]MemberWithUser, error) {
+	// Verify requester is a member of this guild
+	member, err := s.repo.GetMember(ctx, guildID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil {
+		return nil, errors.NewForbidden("access denied: not a member of this guild")
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	return s.repo.ListMembersCursor(ctx, guildID, afterUserID, limit)
+}
+
+func (s *service) UpdateGuildMember(ctx context.Context, guildID, targetUserID, requesterUserID int64, req *UpdateMemberRequest) (*GuildMember, error) {
+	// Verify target member exists
+	m, err := s.repo.GetMember(ctx, guildID, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, errors.NewNotFound("member not found")
+	}
+
+	// 1. Nickname modification permission check
+	if req.Nickname != nil {
+		if requesterUserID == targetUserID {
+			// Changing own nickname requires CHANGE_NICKNAME or MANAGE_NICKNAMES
+			allowed, err := s.checkPermissions(ctx, guildID, requesterUserID, permissions.CHANGE_NICKNAME)
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				// Also try MANAGE_NICKNAMES
+				allowed, err = s.checkPermissions(ctx, guildID, requesterUserID, permissions.MANAGE_NICKNAMES)
+				if err != nil {
+					return nil, err
+				}
+				if !allowed {
+					return nil, errors.NewForbidden("insufficient permissions to change own nickname")
+				}
+			}
+		} else {
+			// Changing other member's nickname requires MANAGE_NICKNAMES
+			allowed, err := s.checkPermissions(ctx, guildID, requesterUserID, permissions.MANAGE_NICKNAMES)
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				return nil, errors.NewForbidden("insufficient permissions to change member nickname")
+			}
+		}
+		m.Nickname = req.Nickname
+	}
+
+	// 2. Mute status modification permission check
+	if req.IsMuted != nil {
+		allowed, err := s.checkPermissions(ctx, guildID, requesterUserID, permissions.MUTE_MEMBERS)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, errors.NewForbidden("insufficient permissions to mute members")
+		}
+		m.IsMuted = *req.IsMuted
+	}
+
+	if err := s.repo.UpdateMember(ctx, m); err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}

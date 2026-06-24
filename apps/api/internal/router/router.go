@@ -1,0 +1,80 @@
+package router
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/synapse/api/internal/auth"
+	"github.com/synapse/api/internal/channels"
+	"github.com/synapse/api/internal/guilds"
+	"github.com/synapse/api/internal/invites"
+	"github.com/synapse/api/internal/messages"
+	"github.com/synapse/api/internal/middleware"
+	"github.com/synapse/api/internal/roles"
+	"github.com/synapse/api/internal/users"
+)
+
+func SetupRoutes(
+	r *gin.Engine,
+	tokenService auth.TokenService,
+	authHandler *auth.AuthHandler,
+	userHandler *users.Handler,
+	guildHandler *guilds.Handler,
+	roleHandler *roles.Handler,
+	channelHandler *channels.Handler,
+	messageHandler *messages.Handler,
+	inviteHandler *invites.Handler,
+) {
+	// Root Group
+	v1 := r.Group("/api/v1")
+
+	// Authentication (Unprotected)
+	authGroup := v1.Group("/auth")
+	{
+		authGroup.POST("/register", authHandler.Register)
+		authGroup.POST("/login", authHandler.Login)
+	}
+
+	// Protected Routes Group
+	protected := v1.Group("/")
+	protected.Use(middleware.AuthMiddleware(tokenService))
+	{
+		// Users
+		protected.GET("/users/@me", userHandler.GetMe)
+		protected.GET("/users/@me/guilds", userHandler.GetMeGuilds)
+		protected.POST("/dms", userHandler.CreateDM)
+
+		// Guilds
+		protected.POST("/guilds", guildHandler.CreateGuild)
+		protected.GET("/guilds/:guildID", guildHandler.GetGuild)
+		protected.GET("/guilds/:guildID/members", guildHandler.GetGuildMembers)
+		protected.PATCH("/guilds/:guildID/members/:userID", guildHandler.PatchGuildMember)
+
+		// Roles
+		protected.GET("/guilds/:guildID/roles", roleHandler.GetRoles)
+		protected.POST("/guilds/:guildID/roles", roleHandler.CreateRole)
+		protected.PATCH("/guilds/:guildID/roles/:roleID", roleHandler.UpdateRole)
+		protected.DELETE("/guilds/:guildID/roles/:roleID", roleHandler.DeleteRole)
+		protected.PUT("/guilds/:guildID/members/:userID/roles/:roleID", roleHandler.PutMemberRole)
+
+		// Channels
+		protected.GET("/guilds/:guildID/channels", channelHandler.GetChannels)
+		protected.POST("/guilds/:guildID/channels", channelHandler.CreateChannel)
+		protected.PATCH("/channels/:channelID", channelHandler.UpdateChannel)
+		protected.DELETE("/channels/:channelID", channelHandler.DeleteChannel)
+
+		// Messages
+		protected.GET("/channels/:channelID/messages", messageHandler.GetMessages)
+		protected.POST("/channels/:channelID/messages", messageHandler.SendMessage)
+		protected.PATCH("/channels/:channelID/messages/:messageID", messageHandler.EditMessage)
+		protected.DELETE("/channels/:channelID/messages/:messageID", messageHandler.DeleteMessage)
+		protected.POST("/channels/:channelID/read", messageHandler.SyncReadState)
+
+		// Reactions
+		protected.PUT("/channels/:channelID/messages/:messageID/reactions/:emoji", messageHandler.PutReaction)
+		protected.DELETE("/channels/:channelID/messages/:messageID/reactions/:emoji", messageHandler.DeleteReaction)
+
+		// Invites
+		protected.POST("/guilds/:guildID/invites", inviteHandler.CreateInvite)
+		protected.GET("/invites/:code", inviteHandler.GetInvite)
+		protected.POST("/invites/:code/join", inviteHandler.JoinGuild)
+	}
+}

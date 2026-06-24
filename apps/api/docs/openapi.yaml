@@ -1,0 +1,509 @@
+openapi: 3.0.3
+info:
+  title: Synapse API Specification
+  description: Core HTTP REST API for Synapse, a Discord-scale real-time communication platform.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local API Server
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 32
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/login:
+    post:
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Logged in successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /users/@me:
+    get:
+      summary: Retrieve current authenticated user profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/@me/guilds:
+    get:
+      summary: List guilds the user belongs to
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of guilds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserGuildDTO'
+
+  /dms:
+    post:
+      summary: Create or retrieve a DM conversation channel
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - recipient_id
+              properties:
+                recipient_id:
+                  type: string
+                  description: Snowflake ID as string
+      responses:
+        '201':
+          description: DM channel retrieved or created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DMChannelResponse'
+
+  /guilds:
+    post:
+      summary: Create a new guild
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Guild created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guild'
+
+  /guilds/{guildID}:
+    get:
+      summary: Fetch guild metadata
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guildID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Guild metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guild'
+
+  /guilds/{guildID}/members:
+    get:
+      summary: List members in guild (cursor-based pagination)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guildID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: after
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of guild members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MemberWithUser'
+
+  /guilds/{guildID}/members/{userID}:
+    patch:
+      summary: Update member settings (nickname, mute status)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guildID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname:
+                  type: string
+                is_muted:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated member profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuildMember'
+
+  /guilds/{guildID}/channels:
+    get:
+      summary: Fetch all guild channels
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guildID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of channels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Channel'
+    post:
+      summary: Create a new channel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guildID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - type
+              properties:
+                name:
+                  type: string
+                type:
+                  type: integer
+                  description: '0: Text, 1: Voice, 2: Category'
+                parent_channel_id:
+                  type: string
+                topic:
+                  type: string
+      responses:
+        '201':
+          description: Channel created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channel'
+
+  /channels/{channelID}/messages:
+    get:
+      summary: Fetch channel messages (cursor-based pagination)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: channelID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageResponse'
+    post:
+      summary: Send a message in a channel (DB + Outbox write)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: channelID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                reply_to_message_id:
+                  type: string
+      responses:
+        '201':
+          description: Message created immediately
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /channels/{channelID}/read:
+    post:
+      summary: Sync read state of a channel (Redis-first write)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: channelID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - last_read_message_id
+              properties:
+                last_read_message_id:
+                  type: string
+      responses:
+        '204':
+          description: Read marker synchronized successfully
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+    UserGuildDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        icon_key:
+          type: string
+        owner_id:
+          type: string
+        unread_count:
+          type: integer
+    DMChannelResponse:
+      type: object
+      properties:
+        channel_id:
+          type: string
+        recipient_id:
+          type: string
+    Guild:
+      type: object
+      properties:
+        id:
+          type: string
+        owner_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: integer
+    GuildMember:
+      type: object
+      properties:
+        guild_id:
+          type: string
+        user_id:
+          type: string
+        nickname:
+          type: string
+        is_muted:
+          type: boolean
+    MemberWithUser:
+      type: object
+      properties:
+        guild_id:
+          type: string
+        user_id:
+          type: string
+        username:
+          type: string
+        display_name:
+          type: string
+        nickname:
+          type: string
+        is_muted:
+          type: boolean
+    Channel:
+      type: object
+      properties:
+        id:
+          type: string
+        guild_id:
+          type: string
+        parent_channel_id:
+          type: string
+        name:
+          type: string
+        type:
+          type: integer
+        position:
+          type: integer
+        topic:
+          type: string
+    MessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        channel_id:
+          type: string
+        author_id:
+          type: string
+        reply_to_message_id:
+          type: string
+        message_type:
+          type: integer
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type: string
+          format: date-time
+        reactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReactionSummary'
+    ReactionSummary:
+      type: object
+      properties:
+        emoji:
+          type: string
+        count:
+          type: integer
