@@ -1,26 +1,192 @@
 @import "tailwindcss";
 
+/* 1. Base Variables & Defaults */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-primary: #18181b;
+  --bg-secondary: #27272a;
+  --bg-tertiary: #09090b;
+  --border-color: #3f3f46;
+  --text-primary: #f4f4f5;
+  --text-secondary: #d4d4d8;
+  --text-muted: #71717a;
+
+  --font-size-base: 14px;
+  --font-size-message: 15px;
+  --message-padding-y: 6px;
+  --message-gap: 12px;
+  --font-sans-custom: var(--font-geist-sans), sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* 2. Custom Theme Classes */
+.theme-light {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f4f5;
+  --bg-tertiary: #e4e4e7;
+  --border-color: #d4d4d8;
+  --text-primary: #09090b;
+  --text-secondary: #27272a;
+  --text-muted: #71717a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+.theme-dark {
+  --bg-primary: #18181b;
+  --bg-secondary: #27272a;
+  --bg-tertiary: #09090b;
+  --border-color: #3f3f46;
+  --text-primary: #f4f4f5;
+  --text-secondary: #d4d4d8;
+  --text-muted: #71717a;
+}
+
+.theme-midnight {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #020617;
+  --border-color: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+}
+
+.theme-oled {
+  --bg-primary: #000000;
+  --bg-secondary: #09090b;
+  --bg-tertiary: #000000;
+  --border-color: #27272a;
+  --text-primary: #ffffff;
+  --text-secondary: #e4e4e7;
+  --text-muted: #52525b;
+}
+
+/* 3. Typography & Size Classes */
+.font-size-compact {
+  --text-xs: 0.65rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.25rem;
+}
+.font-size-normal {
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+}
+.font-size-large {
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+}
+
+/* 4. Font Families */
+.font-family-inter {
+  --font-sans-custom: "Inter", sans-serif;
+}
+.font-family-geist {
+  --font-sans-custom: var(--font-geist-sans), sans-serif;
+}
+.font-family-system-ui {
+  --font-sans-custom: system-ui, -apple-system, sans-serif;
+}
+
+/* 5. Densities */
+.density-compact {
+  --message-padding-y: 2px;
+  --message-gap: 2px;
+}
+.density-comfortable {
+  --message-padding-y: 8px;
+  --message-gap: 16px;
+}
+
+/* 6. Tailwind Theme Map */
+@theme {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-border-custom: var(--border-color);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --font-sans: var(--font-sans-custom);
+
+  --spacing-msg-pad: var(--message-padding-y);
+  --spacing-msg-gap: var(--message-gap);
+}
+
+/* 7. Global Element Styles */
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans-custom);
+  font-size: var(--font-size-base);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Custom Scrollbar Styles for premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* 8. Emoji Picker Theme Overrides */
+em-emoji-picker {
+  /* Dimensions & Spacing */
+  --rgb-background: transparent;
+  --font-family: var(--font-sans-custom);
+  --border-radius: 12px;
+  
+  /* Map to Synapse Theme Colors */
+  --color-b: var(--bg-secondary);
+  --rgb-accent: 79, 70, 229; /* indigo-600 */
+  --color-border: var(--border-color);
+  
+  --rgb-color: var(--text-primary);
+  --rgb-input: var(--bg-tertiary);
+}
+
+/* Target deep parts of the component if needed via shadow parts */
+em-emoji-picker::part(header) {
+  padding: 12px 16px 8px 16px;
+}
+em-emoji-picker::part(search-container) {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-tertiary);
+}
+em-emoji-picker::part(search) {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+/* 9. Message Highlight Animation */
+@keyframes message-highlight {
+  0% {
+    background-color: var(--bg-tertiary);
+  }
+  100% {
+    background-color: transparent;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-message-highlight {
+  animation: message-highlight 2s ease-out forwards;
 }

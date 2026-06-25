@@ -1,0 +1,113 @@
+"use client";
+
+import React, { useState } from "react";
+import { useGuilds } from "../../services/query/useGuilds";
+import { useGuildStore } from "../../store/guild-store";
+import { useUIStore } from "../../store/ui-store";
+import { useAuthStore } from "../../store/auth-store";
+import { Plus, Compass, LogOut, Settings2, ShieldAlert } from "lucide-react";
+
+export default function GuildList() {
+  const { guilds } = useGuilds();
+  const { activeGuildId, selectGuild } = useGuildStore();
+  const { setShowCreateGuild, setShowJoinGuild, setShowSettings } = useUIStore();
+  const { user, logout } = useAuthStore();
+
+  const handleGuildSelect = (guildId: string | null) => {
+    selectGuild(guildId);
+  };
+
+  return (
+    <nav className="flex-1 flex flex-col items-center justify-between h-full w-full" aria-label="Guild navigation">
+      {/* Upper Section */}
+      <div className="flex flex-col items-center space-y-2 w-full">
+        {/* Direct Messages Icon (represented as Home/Initials) */}
+        <button
+          onClick={() => handleGuildSelect(null)}
+          className={`h-12 w-12 rounded-3xl flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer ${
+            activeGuildId === null
+              ? "rounded-2xl bg-indigo-500 text-white"
+              : "bg-bg-secondary text-text-secondary hover:rounded-2xl hover:bg-indigo-500 hover:text-white"
+          }`}
+          title="Direct Messages"
+        >
+          <span>DM</span>
+        </button>
+
+        <div className="w-8 h-[2px] bg-border-custom rounded shrink-0" />
+
+        {/* Guild Items */}
+        <div className="flex flex-col items-center space-y-2 w-full overflow-y-auto max-h-[calc(100vh-280px)] no-scrollbar">
+          {guilds.map((g) => {
+            const initials = g.name.substring(0, 2).toUpperCase();
+            const isActive = g.id === activeGuildId;
+
+            return (
+              <button
+                key={g.id}
+                onClick={() => handleGuildSelect(g.id)}
+                className={`h-12 w-12 rounded-3xl flex items-center justify-center font-semibold text-sm transition-all duration-200 cursor-pointer select-none relative ${
+                  isActive
+                    ? "rounded-2xl bg-indigo-500 text-white"
+                    : "bg-bg-secondary text-text-secondary hover:rounded-2xl hover:bg-indigo-500 hover:text-white"
+                }`}
+                title={g.name}
+              >
+                {/* Active marker pill */}
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-10 bg-white rounded-r-md -ml-3" />
+                )}
+                <span>{initials}</span>
+              </button>
+            );
+          })}
+
+          {/* Add Guild Button */}
+          <button
+            onClick={() => setShowCreateGuild(true)}
+            className="h-12 w-12 rounded-3xl bg-bg-secondary text-green-500 hover:text-white hover:bg-green-500 hover:rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer"
+            title="Create a Guild"
+            aria-label="Create a Guild"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+
+          {/* Join Guild Button */}
+          <button
+            onClick={() => setShowJoinGuild(true)}
+            className="h-12 w-12 rounded-3xl bg-bg-secondary text-indigo-400 hover:text-white hover:bg-indigo-500 hover:rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer"
+            title="Join Server"
+            aria-label="Join Server"
+          >
+            <Compass className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Lower Section (Profile / Settings / Logout) */}
+      <div className="flex flex-col items-center space-y-3 w-full shrink-0">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="h-10 w-10 rounded-full bg-bg-secondary text-text-secondary hover:text-white hover:bg-bg-primary flex items-center justify-center transition-colors cursor-pointer"
+          title="User Settings"
+          aria-label="User Settings"
+        >
+          <Settings2 className="h-5 w-5" />
+        </button>
+
+        <button
+          onClick={() => logout()}
+          className="h-10 w-10 rounded-full bg-bg-secondary text-red-400 hover:text-white hover:bg-red-500 flex items-center justify-center transition-colors cursor-pointer"
+          title="Log Out"
+          aria-label="Log Out"
+        >
+          <LogOut className="h-5 w-5" />
+        </button>
+
+        <div className="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs select-none">
+          {user?.username ? user.username.substring(0, 2).toUpperCase() : "U"}
+        </div>
+      </div>
+    </nav>
+  );
+}

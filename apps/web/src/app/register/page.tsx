@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuthStore } from "../../store/useAuthStore";
+import { useAuthStore } from "../../store/auth-store";
 
 export default function RegisterPage() {
   const router = useRouter();
