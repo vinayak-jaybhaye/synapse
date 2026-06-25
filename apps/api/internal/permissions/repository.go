@@ -56,6 +56,16 @@ func (r *pgRoleRepository) IsMember(ctx context.Context, guildID int64, userID i
 	return exists, nil
 }
 
+func (r *pgRoleRepository) GetGuildOwner(ctx context.Context, guildID int64) (int64, error) {
+	query := `SELECT owner_id FROM guilds WHERE id = $1`
+	var ownerID int64
+	err := r.db.QueryRowContext(ctx, query, guildID).Scan(&ownerID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch guild owner: %w", err)
+	}
+	return ownerID, nil
+}
+
 type pgChannelPermissionRepository struct {
 	db *sql.DB
 }

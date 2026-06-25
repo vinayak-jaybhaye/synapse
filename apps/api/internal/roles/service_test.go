@@ -161,3 +161,67 @@ func TestAssignRole(t *testing.T) {
 		t.Fatal("Expected Moderator assignment of Admin role to fail hierarchy check, but it succeeded")
 	}
 }
+
+func TestUnassignRole(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup mock data
+	mock := &mockRepository{
+		roles:       make(map[int64]*Role),
+		memberRoles: make(map[string][]int64),
+		guildOwner:  999, // Owner ID
+	}
+
+	// Create roles
+	everyoneRole := &Role{ID: 100, GuildID: 1, Name: "@everyone", Position: 0, Permissions: 0, IsDefault: true}
+	mock.roles[everyoneRole.ID] = everyoneRole
+
+	adminRole := &Role{ID: 101, GuildID: 1, Name: "Admin", Position: 10, Permissions: 0x10000008} // ADMIN + MANAGE_ROLES
+	mock.roles[adminRole.ID] = adminRole
+
+	targetRole := &Role{ID: 102, GuildID: 1, Name: "Moderator", Position: 5, Permissions: 0x10000000} // MANAGE_ROLES
+	mock.roles[targetRole.ID] = targetRole
+
+	svc := NewService(mock)
+
+	// Bind target user (888) to Moderator role
+	mock.memberRoles[fmtKey(1, 888)] = []int64{102}
+
+	// Case 1: Try to unassign @everyone default role (should fail)
+	err := svc.UnassignRole(ctx, 1, 888, 100, 999)
+	if err == nil {
+		t.Fatal("Expected unassigning @everyone role to fail, but it succeeded")
+	}
+
+	// Case 2: Owner unassigns Moderator role from target user (should succeed)
+	err = svc.UnassignRole(ctx, 1, 888, 102, 999)
+	if err != nil {
+		t.Fatalf("Expected owner to successfully unassign role, got error: %v", err)
+	}
+
+	// Re-bind Moderator role to target user (888)
+	mock.memberRoles[fmtKey(1, 888)] = []int64{102}
+
+	// Case 3: Requester with no roles tries to unassign (should fail)
+	err = svc.UnassignRole(ctx, 1, 888, 102, 777)
+	if err == nil {
+		t.Fatal("Expected non-permissioned user to fail unassigning role, but it succeeded")
+	}
+
+	// Case 4: Admin tries to unassign Moderator role (Admin pos 10 > Mod pos 5, should succeed)
+	mock.memberRoles[fmtKey(1, 555)] = []int64{101}
+	err = svc.UnassignRole(ctx, 1, 888, 102, 555)
+	if err != nil {
+		t.Fatalf("Expected Admin to successfully unassign Moderator role, got error: %v", err)
+	}
+
+	// Re-bind Moderator role to target user (888)
+	mock.memberRoles[fmtKey(1, 888)] = []int64{102}
+
+	// Case 5: Moderator tries to unassign Admin role (Mod pos 5 <= Admin pos 10, should fail)
+	mock.memberRoles[fmtKey(1, 444)] = []int64{102}
+	err = svc.UnassignRole(ctx, 1, 555, 101, 444)
+	if err == nil {
+		t.Fatal("Expected Moderator unassignment of Admin role to fail hierarchy check, but it succeeded")
+	}
+}

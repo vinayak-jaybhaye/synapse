@@ -18,13 +18,11 @@ const (
 	// Channel Text Permissions
 	VIEW_CHANNEL         Permission = 1 << 10
 	SEND_MESSAGES        Permission = 1 << 11
-	SEND_TTS_MESSAGES    Permission = 1 << 12
 	MANAGE_MESSAGES      Permission = 1 << 13
 	EMBED_LINKS          Permission = 1 << 14
 	ATTACH_FILES         Permission = 1 << 15
 	READ_MESSAGE_HISTORY Permission = 1 << 16
 	MENTION_EVERYONE     Permission = 1 << 17
-	USE_EXTERNAL_EMOJIS  Permission = 1 << 18
 
 	// Voice Permissions
 	CONNECT        Permission = 1 << 20
@@ -32,14 +30,11 @@ const (
 	MUTE_MEMBERS   Permission = 1 << 22
 	DEAFEN_MEMBERS Permission = 1 << 23
 	MOVE_MEMBERS   Permission = 1 << 24
-	USE_VAD        Permission = 1 << 25
 
 	// General Management Permissions
 	CHANGE_NICKNAME  Permission = 1 << 26
 	MANAGE_NICKNAMES Permission = 1 << 27
 	MANAGE_ROLES     Permission = 1 << 28
-	MANAGE_WEBHOOKS  Permission = 1 << 29
-	MANAGE_EMOJIS    Permission = 1 << 30
 )
 
 // List of all permissions in defined bit order for stable serialization.
@@ -54,24 +49,19 @@ var allPermissions = []Permission{
 	VIEW_AUDIT_LOG,
 	VIEW_CHANNEL,
 	SEND_MESSAGES,
-	SEND_TTS_MESSAGES,
 	MANAGE_MESSAGES,
 	EMBED_LINKS,
 	ATTACH_FILES,
 	READ_MESSAGE_HISTORY,
 	MENTION_EVERYONE,
-	USE_EXTERNAL_EMOJIS,
 	CONNECT,
 	SPEAK,
 	MUTE_MEMBERS,
 	DEAFEN_MEMBERS,
 	MOVE_MEMBERS,
-	USE_VAD,
 	CHANGE_NICKNAME,
 	MANAGE_NICKNAMES,
 	MANAGE_ROLES,
-	MANAGE_WEBHOOKS,
-	MANAGE_EMOJIS,
 }
 
 // PermissionNames maps each bitwise permission to its string representation.
@@ -86,24 +76,19 @@ var PermissionNames = map[Permission]string{
 	VIEW_AUDIT_LOG:        "VIEW_AUDIT_LOG",
 	VIEW_CHANNEL:          "VIEW_CHANNEL",
 	SEND_MESSAGES:         "SEND_MESSAGES",
-	SEND_TTS_MESSAGES:    "SEND_TTS_MESSAGES",
 	MANAGE_MESSAGES:      "MANAGE_MESSAGES",
 	EMBED_LINKS:          "EMBED_LINKS",
 	ATTACH_FILES:         "ATTACH_FILES",
 	READ_MESSAGE_HISTORY: "READ_MESSAGE_HISTORY",
 	MENTION_EVERYONE:     "MENTION_EVERYONE",
-	USE_EXTERNAL_EMOJIS:  "USE_EXTERNAL_EMOJIS",
 	CONNECT:              "CONNECT",
 	SPEAK:                "SPEAK",
 	MUTE_MEMBERS:         "MUTE_MEMBERS",
 	DEAFEN_MEMBERS:       "DEAFEN_MEMBERS",
 	MOVE_MEMBERS:         "MOVE_MEMBERS",
-	USE_VAD:              "USE_VAD",
 	CHANGE_NICKNAME:      "CHANGE_NICKNAME",
 	MANAGE_NICKNAMES:     "MANAGE_NICKNAMES",
 	MANAGE_ROLES:         "MANAGE_ROLES",
-	MANAGE_WEBHOOKS:      "MANAGE_WEBHOOKS",
-	MANAGE_EMOJIS:        "MANAGE_EMOJIS",
 }
 
 // PermissionName returns the string representation of a specific permission flag.

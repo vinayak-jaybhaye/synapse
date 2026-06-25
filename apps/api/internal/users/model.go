@@ -9,6 +9,8 @@ type User struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	AvatarKey    *string   `json:"avatar_key,omitempty"`
+	BannerKey    *string   `json:"banner_key,omitempty"`
+	Bio          *string   `json:"bio,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -25,7 +27,28 @@ type CreateDMRequest struct {
 	RecipientID int64 `json:"recipient_id,string" binding:"required"`
 }
 
+type UserSummary struct {
+	ID          int64  `json:"id,string"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	AvatarKey   string `json:"avatar_key"`
+	BannerKey   string `json:"banner_key,omitempty"`
+	Bio         string `json:"bio,omitempty"`
+}
+
 type DMChannelResponse struct {
-	ChannelID   int64 `json:"channel_id,string"`
-	RecipientID int64 `json:"recipient_id,string"`
+	ChannelID   int64       `json:"channel_id,string"`
+	Recipient   UserSummary `json:"recipient"`
+}
+
+type UserProfile struct {
+	ID           int64     `json:"id,string"`
+	Username     string    `json:"username"`
+	DisplayName  string    `json:"display_name"`
+	AvatarKey    string    `json:"avatar_key,omitempty"`
+	BannerKey    string    `json:"banner_key,omitempty"`
+	Bio          string    `json:"bio,omitempty"`
+	Status       string    `json:"status,omitempty"`
+	MutualGuilds int       `json:"mutual_guilds"`
+	CreatedAt    time.Time `json:"created_at"`
 }

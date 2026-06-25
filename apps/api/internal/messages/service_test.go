@@ -19,6 +19,8 @@ type mockMessageRepo struct {
 	updateErr       error
 	softDeleteErr   error
 	isDMParticipant bool
+	listMessages    []MessageResponse
+	listMessagesErr error
 }
 
 func (m *mockMessageRepo) GetByID(ctx context.Context, id int64) (*Message, error) {
@@ -29,7 +31,10 @@ func (m *mockMessageRepo) GetByID(ctx context.Context, id int64) (*Message, erro
 }
 
 func (m *mockMessageRepo) ListMessagesCursor(ctx context.Context, channelID, beforeID int64, limit int) ([]MessageResponse, error) {
-	return nil, nil
+	if m.listMessagesErr != nil {
+		return nil, m.listMessagesErr
+	}
+	return m.listMessages, nil
 }
 
 func (m *mockMessageRepo) CreateMessageWithOutbox(ctx context.Context, msg *Message, event *OutboxEvent) error {
@@ -100,6 +105,18 @@ func (m *mockChannelRepo) SoftDelete(ctx context.Context, id int64) error {
 
 func (m *mockChannelRepo) GetMaxPosition(ctx context.Context, guildID int64) (int, error) {
 	return 0, nil
+}
+
+func (m *mockChannelRepo) GetRoleOverrides(ctx context.Context, channelID int64) ([]channels.ChannelRolePermissionOverride, error) {
+	return nil, nil
+}
+
+func (m *mockChannelRepo) PutRoleOverride(ctx context.Context, override *channels.ChannelRolePermissionOverride) error {
+	return nil
+}
+
+func (m *mockChannelRepo) DeleteRoleOverride(ctx context.Context, channelID, roleID int64) error {
+	return nil
 }
 
 // mockPermissionsService implements permissions.Service for testing.
@@ -374,5 +391,60 @@ func TestDeleteMessage(t *testing.T) {
 	err = svc.DeleteMessage(ctx, dmChannelID, dmMsgID, 2)
 	if !isForbidden(err) {
 		t.Errorf("expected ErrForbidden deleting another user's DM message, got: %v", err)
+	}
+}
+
+func TestGetMessages(t *testing.T) {
+	ctx := context.Background()
+	guildID := int64(10)
+
+	msgRepo := &mockMessageRepo{messages: make(map[int64]*Message)}
+	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
+	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
+
+	svc := NewService(msgRepo, chanRepo, permSvc, nil)
+
+	channelID := int64(100)
+	chanRepo.channels[channelID] = &channels.Channel{
+		ID:      channelID,
+		GuildID: &guildID,
+		Name:    "general",
+		Type:    0,
+	}
+
+	// 1. Success case: user has VIEW_CHANNEL and READ_MESSAGE_HISTORY permissions
+	permSvc.channelPerms[channelID] = permissions.VIEW_CHANNEL | permissions.READ_MESSAGE_HISTORY
+	msgRepo.listMessages = []MessageResponse{
+		{ID: 101, ChannelID: channelID, Content: "Hello world!"},
+		{ID: 102, ChannelID: channelID, Content: "", Deleted: true}, // Tombstone
+	}
+
+	res, err := svc.GetMessages(ctx, channelID, 1, 0, 10)
+	if err != nil {
+		t.Fatalf("expected successful GetMessages, got: %v", err)
+	}
+	if len(res) != 2 {
+		t.Errorf("expected 2 messages, got: %d", len(res))
+	}
+	if res[0].Content != "Hello world!" {
+		t.Errorf("expected msg content, got: %s", res[0].Content)
+	}
+	if !res[1].Deleted {
+		t.Errorf("expected second message to be deleted")
+	}
+
+	// 2. Permission Denied case (missing READ_MESSAGE_HISTORY)
+	permSvc.channelPerms[channelID] = permissions.VIEW_CHANNEL
+	_, err = svc.GetMessages(ctx, channelID, 1, 0, 10)
+	if !isForbidden(err) {
+		t.Errorf("expected ErrForbidden status 403, got: %v", err)
+	}
+
+	// 3. Limit normalization
+	permSvc.channelPerms[channelID] = permissions.VIEW_CHANNEL | permissions.READ_MESSAGE_HISTORY
+	// Test limit clamp
+	_, err = svc.GetMessages(ctx, channelID, 1, 0, -5)
+	if err != nil {
+		t.Fatalf("expected limit normalization success, got: %v", err)
 	}
 }

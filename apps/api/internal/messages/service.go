@@ -154,11 +154,19 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 		return nil, err
 	}
 
+	// 7. Reload to get populated ReplyPreview
+	fullMsg, err := s.repo.GetByID(ctx, msg.ID)
+	if err == nil && fullMsg != nil {
+		msg = fullMsg
+	}
+
 	return &MessageResponse{
 		ID:               msg.ID,
 		ChannelID:        msg.ChannelID,
 		AuthorID:         msg.AuthorID,
+		Author:           msg.Author,
 		ReplyToMessageID: msg.ReplyToMessageID,
+		ReplyPreview:     msg.ReplyPreview,
 		MessageType:      msg.MessageType,
 		Content:          msg.Content,
 		CreatedAt:        msg.CreatedAt,
@@ -206,7 +214,9 @@ func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID 
 		ID:               msg.ID,
 		ChannelID:        msg.ChannelID,
 		AuthorID:         msg.AuthorID,
+		Author:           msg.Author,
 		ReplyToMessageID: msg.ReplyToMessageID,
+		ReplyPreview:     msg.ReplyPreview,
 		MessageType:      msg.MessageType,
 		Content:          msg.Content,
 		CreatedAt:        msg.CreatedAt,

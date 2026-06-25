@@ -7,6 +7,8 @@ CREATE TABLE
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     avatar_key TEXT,
+    banner_key TEXT,
+    bio TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW (),
     updated_at TIMESTAMPTZ DEFAULT NOW ()
   );
@@ -77,7 +79,7 @@ CREATE UNIQUE INDEX idx_dm_channel ON direct_conversations (channel_id);
 -- 3. Membership, Moderation & Invites
 CREATE TABLE
   guild_members (
-    guild_id BIGINT REFERENCES guilds (id),
+    guild_id BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
     user_id BIGINT REFERENCES users (id),
     nickname VARCHAR(64),
     joined_at TIMESTAMPTZ DEFAULT NOW (),
@@ -91,7 +93,7 @@ CREATE INDEX idx_guild_members_joined ON guild_members (guild_id, joined_at);
 
 CREATE TABLE
   guild_bans (
-    guild_id BIGINT REFERENCES guilds (id),
+    guild_id BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
     user_id BIGINT REFERENCES users (id),
     banned_by BIGINT REFERENCES users (id),
     reason TEXT,
@@ -115,7 +117,7 @@ CREATE TABLE
 CREATE TABLE
   roles (
     id BIGINT PRIMARY KEY,
-    guild_id BIGINT NOT NULL REFERENCES guilds (id),
+    guild_id BIGINT NOT NULL REFERENCES guilds (id) ON DELETE CASCADE,
     name VARCHAR(64) NOT NULL,
     color INTEGER,
     position INTEGER NOT NULL,
@@ -143,8 +145,8 @@ CREATE TABLE
 
 CREATE TABLE
   channel_role_permissions (
-    channel_id BIGINT NOT NULL REFERENCES channels (id),
-    role_id BIGINT NOT NULL REFERENCES roles (id),
+    channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
+    role_id BIGINT NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
     allow_permissions BIGINT NOT NULL DEFAULT 0,
     deny_permissions BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (channel_id, role_id)
@@ -154,7 +156,7 @@ CREATE TABLE
 CREATE TABLE
   messages (
     id BIGINT PRIMARY KEY,
-    channel_id BIGINT NOT NULL REFERENCES channels (id),
+    channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
     author_id BIGINT NOT NULL REFERENCES users (id),
     reply_to_message_id BIGINT REFERENCES messages (id),
     -- 0-99: User, 100-199: Guild Events, 200-299: Voice Events, 300-399: System
@@ -169,6 +171,7 @@ CREATE TABLE
 CREATE INDEX idx_active_messages_by_channel ON messages (channel_id, id DESC)
 WHERE
   deleted_at IS NULL;
+CREATE INDEX idx_messages_by_channel ON messages (channel_id, id DESC);
 
 CREATE INDEX idx_messages_author ON messages (author_id, id DESC);
 
@@ -190,7 +193,7 @@ CREATE INDEX idx_attachments_message ON message_attachments (message_id);
 CREATE TABLE
   message_reactions (
     message_id BIGINT NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users (id),
+    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     emoji VARCHAR(32) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW (),
     PRIMARY KEY (message_id, user_id, emoji)
@@ -200,7 +203,7 @@ CREATE TABLE
   message_mentions (
     message_id BIGINT NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
     channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
-    mentioned_user_id BIGINT NOT NULL REFERENCES users (id),
+    mentioned_user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     PRIMARY KEY (message_id, mentioned_user_id)
   );
 
@@ -209,7 +212,7 @@ CREATE INDEX idx_mentions_channel_user ON message_mentions (channel_id, mentione
 -- 6. State, Settings & Voice Data
 CREATE TABLE
   channel_reads (
-    channel_id BIGINT NOT NULL REFERENCES channels (id),
+    channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES users (id),
     last_read_message_id BIGINT NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW (),
@@ -220,8 +223,8 @@ CREATE TABLE
   notification_settings (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    guild_id BIGINT REFERENCES guilds (id),
-    channel_id BIGINT REFERENCES channels (id),
+    guild_id BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
+    channel_id BIGINT REFERENCES channels (id) ON DELETE CASCADE,
     mute_until TIMESTAMPTZ,
     UNIQUE NULLS NOT DISTINCT (user_id, guild_id, channel_id)
     -- Constraint removed to allow DMs (guild_id = NULL) to be muted

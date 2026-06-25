@@ -29,3 +29,17 @@ type UpdateChannelRequest struct {
 	Topic           *string `json:"topic,omitempty"`
 	Position        *int    `json:"position,omitempty"`
 }
+
+type ChannelRolePermissionOverride struct {
+	ChannelID        int64  `json:"channel_id,string"`
+	RoleID           int64  `json:"role_id,string"`
+	AllowPermissions int64  `json:"-"`
+	DenyPermissions  int64  `json:"-"`
+	AllowPermsString string `json:"allow_permissions"`
+	DenyPermsString  string `json:"deny_permissions"`
+}
+
+type PutRoleOverrideRequest struct {
+	AllowPermissions string `json:"allow_permissions"`
+	DenyPermissions  string `json:"deny_permissions"`
+}

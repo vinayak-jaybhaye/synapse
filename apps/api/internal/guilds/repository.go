@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 
+	"github.com/lib/pq"
 	"github.com/synapse/api/internal/snowflake"
 )
 
@@ -46,7 +48,7 @@ func (r *pgRepository) CreateGuildTx(ctx context.Context, g *Guild) error {
 	roleID := snowflake.GenerateID()
 	insertDefaultRole := `
 		INSERT INTO roles (id, guild_id, name, color, position, permissions, is_default, version) 
-		VALUES ($1, $2, '@everyone', 0, 0, 1049600, TRUE, 1) -- 1049600 contains view channel & read history permissions
+		VALUES ($1, $2, '@everyone', 0, 0, 104188993, TRUE, 1) -- 104188993 includes basic permissions like sending messages, viewing channels, reacting, etc.
 	`
 	_, err = tx.ExecContext(ctx, insertDefaultRole, roleID, g.ID)
 	if err != nil {
@@ -142,8 +144,42 @@ func (r *pgRepository) ListMembersCursor(ctx context.Context, guildID, afterUser
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan member row: %w", err)
 		}
+		mu.Roles = []string{}
 		list = append(list, mu)
 	}
+
+	if len(list) == 0 {
+		return list, nil
+	}
+
+	userIDs := make([]int64, len(list))
+	userIndex := make(map[int64]int)
+	for i, mu := range list {
+		userIDs[i] = mu.UserID
+		userIndex[mu.UserID] = i
+	}
+
+	roleQuery := `
+		SELECT user_id, role_id 
+		FROM member_roles 
+		WHERE guild_id = $1 AND user_id = ANY($2)
+	`
+	roleRows, err := r.db.QueryContext(ctx, roleQuery, guildID, pq.Array(userIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query member roles: %w", err)
+	}
+	defer roleRows.Close()
+
+	for roleRows.Next() {
+		var uID, rID int64
+		if err := roleRows.Scan(&uID, &rID); err != nil {
+			return nil, fmt.Errorf("failed to scan member role row: %w", err)
+		}
+		if idx, ok := userIndex[uID]; ok {
+			list[idx].Roles = append(list[idx].Roles, strconv.FormatInt(rID, 10))
+		}
+	}
+
 	return list, nil
 }
 

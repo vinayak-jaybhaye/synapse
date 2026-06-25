@@ -14,6 +14,7 @@ type Service interface {
 	UpdateRole(ctx context.Context, guildID, roleID, userID int64, req *UpdateRoleRequest) (*Role, error)
 	DeleteRole(ctx context.Context, guildID, roleID, userID int64) error
 	AssignRole(ctx context.Context, guildID, targetUserID, roleID, requesterUserID int64) error
+	UnassignRole(ctx context.Context, guildID, targetUserID, roleID, requesterUserID int64) error
 }
 
 type service struct {
@@ -203,4 +204,49 @@ func (s *service) AssignRole(ctx context.Context, guildID, targetUserID, roleID,
 	}
 
 	return s.repo.AddMemberRole(ctx, guildID, targetUserID, roleID)
+}
+
+func (s *service) UnassignRole(ctx context.Context, guildID, targetUserID, roleID, requesterUserID int64) error {
+	allowed, err := s.checkPermissions(ctx, guildID, requesterUserID, permissions.MANAGE_ROLES)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return errors.NewForbidden("insufficient permissions to manage roles")
+	}
+
+	rl, err := s.repo.GetByID(ctx, roleID)
+	if err != nil {
+		return err
+	}
+	if rl == nil || rl.GuildID != guildID {
+		return errors.NewNotFound("role not found")
+	}
+
+	if rl.IsDefault {
+		return errors.NewBadRequest("cannot unassign default @everyone role")
+	}
+
+	ownerID, err := s.repo.GetGuildOwner(ctx, guildID)
+	if err != nil {
+		return err
+	}
+
+	if requesterUserID != ownerID {
+		requesterRoles, err := s.repo.GetMemberRoles(ctx, guildID, requesterUserID)
+		if err != nil {
+			return err
+		}
+		var maxReqPos int = -1
+		for _, r := range requesterRoles {
+			if r.Position > maxReqPos {
+				maxReqPos = r.Position
+			}
+		}
+		if maxReqPos <= rl.Position {
+			return errors.NewForbidden("cannot unassign a role higher or equal to your own highest role")
+		}
+	}
+
+	return s.repo.RemoveMemberRole(ctx, guildID, targetUserID, roleID)
 }

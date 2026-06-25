@@ -31,6 +31,7 @@ type MemberWithUser struct {
 	Nickname    *string   `json:"nickname,omitempty"`
 	JoinedAt    time.Time `json:"joined_at"`
 	IsMuted     bool      `json:"is_muted"`
+	Roles       []string  `json:"roles"`
 }
 
 type CreateGuildRequest struct {

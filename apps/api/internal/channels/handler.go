@@ -152,3 +152,115 @@ func (h *Handler) DeleteChannel(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+
+// GetRoleOverrides handles fetching channel role permissions.
+// @Summary GetRoleOverrides
+// @Description Get role overrides for a channel
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param channelID path string true "Channel Snowflake ID"
+// @Success 200 {array} ChannelRolePermissionOverride
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 404 {object} errors.APIError
+// @Router /channels/{channelID}/permissions [get]
+func (h *Handler) GetRoleOverrides(c *gin.Context) {
+	channelID, err := strconv.ParseInt(c.Param("channelID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid channel ID"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	overrides, err := h.svc.GetRoleOverrides(c.Request.Context(), channelID, userID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, overrides)
+}
+
+// PutRoleOverride handles upserting a role permission override.
+// @Summary PutRoleOverride
+// @Description Upsert a role permission override for a channel
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param channelID path string true "Channel Snowflake ID"
+// @Param roleID path string true "Role Snowflake ID"
+// @Param request body PutRoleOverrideRequest true "Override Data"
+// @Success 204 {interface} nil
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 404 {object} errors.APIError
+// @Router /channels/{channelID}/permissions/{roleID} [put]
+func (h *Handler) PutRoleOverride(c *gin.Context) {
+	channelID, err := strconv.ParseInt(c.Param("channelID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid channel ID"))
+		return
+	}
+	roleID, err := strconv.ParseInt(c.Param("roleID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid role ID"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	var req PutRoleOverrideRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
+		return
+	}
+
+	err = h.svc.PutRoleOverride(c.Request.Context(), channelID, userID, roleID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// DeleteRoleOverride handles deleting a role permission override.
+// @Summary DeleteRoleOverride
+// @Description Delete a role permission override for a channel
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param channelID path string true "Channel Snowflake ID"
+// @Param roleID path string true "Role Snowflake ID"
+// @Success 204 {interface} nil
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 404 {object} errors.APIError
+// @Router /channels/{channelID}/permissions/{roleID} [delete]
+func (h *Handler) DeleteRoleOverride(c *gin.Context) {
+	channelID, err := strconv.ParseInt(c.Param("channelID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid channel ID"))
+		return
+	}
+	roleID, err := strconv.ParseInt(c.Param("roleID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid role ID"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	err = h.svc.DeleteRoleOverride(c.Request.Context(), channelID, userID, roleID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}

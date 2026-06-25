@@ -2,6 +2,7 @@ package users
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/synapse/api/internal/errors"
@@ -78,6 +79,36 @@ func (h *Handler) GetMeGuilds(c *gin.Context) {
 	c.JSON(http.StatusOK, guilds)
 }
 
+// @Summary GetDMs
+// @Description Get direct message channels for the current user
+// @Tags users
+// @Produce json
+// @Success 200 {array} DMChannelResponse
+// @Failure 401 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /users/@me/dms [get]
+func (h *Handler) GetDMs(c *gin.Context) {
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		errors.HandleError(c, errors.NewUnauthorized("unauthorized"))
+		return
+	}
+
+	userID, ok := userIDValue.(int64)
+	if !ok {
+		errors.HandleError(c, errors.NewInternal("invalid user ID type in context"))
+		return
+	}
+
+	dms, err := h.svc.GetDMs(c.Request.Context(), userID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dms)
+}
+
 // @Summary CreateDM
 // @Description Create or retrieve a direct message conversation
 // @Tags users
@@ -115,4 +146,45 @@ func (h *Handler) CreateDM(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, resp)
+}
+
+// @Summary GetProfile
+// @Description Get user profile details
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param userId path string true "User ID"
+// @Success 200 {object} UserProfile
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 404 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /users/{userId}/profile [get]
+func (h *Handler) GetProfile(c *gin.Context) {
+	requesterIDValue, exists := c.Get("user_id")
+	if !exists {
+		errors.HandleError(c, errors.NewUnauthorized("unauthorized"))
+		return
+	}
+
+	requesterID, ok := requesterIDValue.(int64)
+	if !ok {
+		errors.HandleError(c, errors.NewInternal("invalid user ID type in context"))
+		return
+	}
+
+	targetIDStr := c.Param("userId")
+	targetID, err := strconv.ParseInt(targetIDStr, 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid user id"))
+		return
+	}
+
+	profile, err := h.svc.GetUserProfile(c.Request.Context(), requesterID, targetID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, profile)
 }

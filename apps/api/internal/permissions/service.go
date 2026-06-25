@@ -11,6 +11,9 @@ type RoleRepository interface {
 
 	// IsMember checks if a user is a member of the guild.
 	IsMember(ctx context.Context, guildID int64, userID int64) (bool, error)
+
+	// GetGuildOwner retrieves the owner ID of the guild.
+	GetGuildOwner(ctx context.Context, guildID int64) (int64, error)
 }
 
 // ChannelPermissionRepository defines the interface to interact with channel overrides in the storage layer.
@@ -52,6 +55,18 @@ func NewService(roleRepo RoleRepository, channelRepo ChannelPermissionRepository
 
 // ResolveGuildPermissions aggregates all roles assigned to the member and applies Administrator overrides.
 func (s *permissionsService) ResolveGuildPermissions(ctx context.Context, guildID int64, userID int64) (Permission, error) {
+	ownerID, err := s.roleRepo.GetGuildOwner(ctx, guildID)
+	if err != nil {
+		return 0, err
+	}
+	if ownerID == userID {
+		var mask Permission
+		for _, p := range allPermissions {
+			mask |= p
+		}
+		return mask, nil
+	}
+
 	isMember, err := s.roleRepo.IsMember(ctx, guildID, userID)
 	if err != nil {
 		return 0, err
@@ -87,6 +102,18 @@ func (s *permissionsService) ResolveChannelPermissions(ctx context.Context, guil
 	}
 	if chGuildID != guildID {
 		return 0, ErrChannelNotFound
+	}
+
+	ownerID, err := s.roleRepo.GetGuildOwner(ctx, guildID)
+	if err != nil {
+		return 0, err
+	}
+	if ownerID == userID {
+		var mask Permission
+		for _, p := range allPermissions {
+			mask |= p
+		}
+		return mask, nil
 	}
 
 	isMember, err := s.roleRepo.IsMember(ctx, guildID, userID)

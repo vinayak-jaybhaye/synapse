@@ -40,6 +40,8 @@ func SetupRoutes(
 		// Users
 		protected.GET("/users/@me", userHandler.GetMe)
 		protected.GET("/users/@me/guilds", userHandler.GetMeGuilds)
+		protected.GET("/users/@me/dms", userHandler.GetDMs)
+		protected.GET("/users/:userId/profile", userHandler.GetProfile)
 		protected.POST("/dms", userHandler.CreateDM)
 
 		// Guilds
@@ -54,12 +56,18 @@ func SetupRoutes(
 		protected.PATCH("/guilds/:guildID/roles/:roleID", roleHandler.UpdateRole)
 		protected.DELETE("/guilds/:guildID/roles/:roleID", roleHandler.DeleteRole)
 		protected.PUT("/guilds/:guildID/members/:userID/roles/:roleID", roleHandler.PutMemberRole)
+		protected.DELETE("/guilds/:guildID/members/:userID/roles/:roleID", roleHandler.DeleteMemberRole)
 
 		// Channels
 		protected.GET("/guilds/:guildID/channels", channelHandler.GetChannels)
 		protected.POST("/guilds/:guildID/channels", channelHandler.CreateChannel)
 		protected.PATCH("/channels/:channelID", channelHandler.UpdateChannel)
 		protected.DELETE("/channels/:channelID", channelHandler.DeleteChannel)
+		
+		// Channel Permissions
+		protected.GET("/channels/:channelID/permissions", channelHandler.GetRoleOverrides)
+		protected.PUT("/channels/:channelID/permissions/:roleID", channelHandler.PutRoleOverride)
+		protected.DELETE("/channels/:channelID/permissions/:roleID", channelHandler.DeleteRoleOverride)
 
 		// Messages
 		protected.GET("/channels/:channelID/messages", messageHandler.GetMessages)

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type Repository interface {
@@ -28,16 +30,56 @@ func NewPGRepository(db *sql.DB) Repository {
 	return &pgRepository{db: db}
 }
 
+func scanReplyPreview(pID sql.NullInt64, pAuthorID sql.NullInt64, pUsername sql.NullString, pContent sql.NullString, pDeletedAt sql.NullTime) *ReplyPreview {
+	if !pID.Valid {
+		return nil
+	}
+	preview := &ReplyPreview{
+		ID:       pID.Int64,
+		AuthorID: pAuthorID.Int64,
+		Username: pUsername.String,
+	}
+	if pDeletedAt.Valid {
+		preview.Deleted = true
+		preview.Content = ""
+	} else {
+		preview.Deleted = false
+		preview.Content = pContent.String
+	}
+	return preview
+}
+
 func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Message, error) {
 	query := `
-		SELECT id, channel_id, author_id, reply_to_message_id, message_type, content, metadata, created_at, edited_at 
-		FROM messages 
-		WHERE id = $1 AND deleted_at IS NULL
+		SELECT 
+			m.id, m.channel_id, m.author_id, m.reply_to_message_id, m.message_type, m.content, m.metadata, m.created_at, m.edited_at,
+			p.id, p.author_id, pu.username, p.content, p.deleted_at,
+			u.username, u.display_name, u.avatar_key, u.banner_key, u.bio
+		FROM messages m
+		LEFT JOIN messages p ON m.reply_to_message_id = p.id
+		LEFT JOIN users pu ON p.author_id = pu.id
+		LEFT JOIN users u ON m.author_id = u.id
+		WHERE m.id = $1 AND m.deleted_at IS NULL
 	`
 	var msg Message
 	var replyID sql.NullInt64
+
+	var pID sql.NullInt64
+	var pAuthorID sql.NullInt64
+	var pUsername sql.NullString
+	var pContent sql.NullString
+	var pDeletedAt sql.NullTime
+
+	var uUsername string
+	var uDisplayName sql.NullString
+	var uAvatarKey sql.NullString
+	var uBannerKey sql.NullString
+	var uBio sql.NullString
+
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&msg.ID, &msg.ChannelID, &msg.AuthorID, &replyID, &msg.MessageType, &msg.Content, &msg.Metadata, &msg.CreatedAt, &msg.EditedAt,
+		&pID, &pAuthorID, &pUsername, &pContent, &pDeletedAt,
+		&uUsername, &uDisplayName, &uAvatarKey, &uBannerKey, &uBio,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -50,6 +92,17 @@ func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Message, error) 
 		msg.ReplyToMessageID = &replyID.Int64
 	}
 
+	msg.ReplyPreview = scanReplyPreview(pID, pAuthorID, pUsername, pContent, pDeletedAt)
+	
+	msg.Author = UserSummary{
+		ID:          msg.AuthorID,
+		Username:    uUsername,
+		DisplayName: uDisplayName.String,
+		AvatarKey:   uAvatarKey.String,
+		BannerKey:   uBannerKey.String,
+		Bio:         uBio.String,
+	}
+
 	return &msg, nil
 }
 
@@ -60,19 +113,31 @@ func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, before
 
 	if beforeID > 0 {
 		query = `
-			SELECT id, channel_id, author_id, reply_to_message_id, message_type, content, created_at, edited_at 
-			FROM messages 
-			WHERE channel_id = $1 AND id < $2 AND deleted_at IS NULL
-			ORDER BY id DESC 
+			SELECT 
+				m.id, m.channel_id, m.author_id, m.reply_to_message_id, m.message_type, m.content, m.created_at, m.edited_at, m.deleted_at,
+				p.id, p.author_id, pu.username, p.content, p.deleted_at,
+				u.username, u.display_name, u.avatar_key, u.banner_key, u.bio
+			FROM messages m
+			LEFT JOIN messages p ON m.reply_to_message_id = p.id
+			LEFT JOIN users pu ON p.author_id = pu.id
+			LEFT JOIN users u ON m.author_id = u.id
+			WHERE m.channel_id = $1 AND m.id < $2
+			ORDER BY m.id DESC 
 			LIMIT $3
 		`
 		rows, err = r.db.QueryContext(ctx, query, channelID, beforeID, limit)
 	} else {
 		query = `
-			SELECT id, channel_id, author_id, reply_to_message_id, message_type, content, created_at, edited_at 
-			FROM messages 
-			WHERE channel_id = $1 AND deleted_at IS NULL
-			ORDER BY id DESC 
+			SELECT 
+				m.id, m.channel_id, m.author_id, m.reply_to_message_id, m.message_type, m.content, m.created_at, m.edited_at, m.deleted_at,
+				p.id, p.author_id, pu.username, p.content, p.deleted_at,
+				u.username, u.display_name, u.avatar_key, u.banner_key, u.bio
+			FROM messages m
+			LEFT JOIN messages p ON m.reply_to_message_id = p.id
+			LEFT JOIN users pu ON p.author_id = pu.id
+			LEFT JOIN users u ON m.author_id = u.id
+			WHERE m.channel_id = $1
+			ORDER BY m.id DESC 
 			LIMIT $2
 		`
 		rows, err = r.db.QueryContext(ctx, query, channelID, limit)
@@ -84,37 +149,98 @@ func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, before
 	defer rows.Close()
 
 	var list []MessageResponse
+	var messageIDs []int64
 	for rows.Next() {
 		var mr MessageResponse
 		var replyID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		var pID sql.NullInt64
+		var pAuthorID sql.NullInt64
+		var pUsername sql.NullString
+		var pContent sql.NullString
+		var pDeletedAt sql.NullTime
+
+		var uUsername string
+		var uDisplayName sql.NullString
+		var uAvatarKey sql.NullString
+		var uBannerKey sql.NullString
+		var uBio sql.NullString
+
 		err := rows.Scan(
-			&mr.ID, &mr.ChannelID, &mr.AuthorID, &replyID, &mr.MessageType, &mr.Content, &mr.CreatedAt, &mr.EditedAt,
+			&mr.ID, &mr.ChannelID, &mr.AuthorID, &replyID, &mr.MessageType, &mr.Content, &mr.CreatedAt, &mr.EditedAt, &deletedAt,
+			&pID, &pAuthorID, &pUsername, &pContent, &pDeletedAt,
+			&uUsername, &uDisplayName, &uAvatarKey, &uBannerKey, &uBio,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan message row: %w", err)
 		}
+
 		if replyID.Valid {
 			mr.ReplyToMessageID = &replyID.Int64
 		}
+
+		mr.ReplyPreview = scanReplyPreview(pID, pAuthorID, pUsername, pContent, pDeletedAt)
+
+		mr.Author = UserSummary{
+			ID:          mr.AuthorID,
+			Username:    uUsername,
+			DisplayName: uDisplayName.String,
+			AvatarKey:   uAvatarKey.String,
+			BannerKey:   uBannerKey.String,
+			Bio:         uBio.String,
+		}
+
+		if deletedAt.Valid {
+			mr.Deleted = true
+			mr.Content = ""
+		} else {
+			mr.Deleted = false
+		}
+		mr.Reactions = []ReactionSummary{}
+
 		list = append(list, mr)
+		messageIDs = append(messageIDs, mr.ID)
 	}
 
-	// For each message, fetch its reactions summary
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during message rows iteration: %w", err)
+	}
+
+	if len(messageIDs) == 0 {
+		return list, nil
+	}
+
+	reactionQuery := `
+		SELECT message_id, emoji, COUNT(*) AS count
+		FROM message_reactions
+		WHERE message_id = ANY($1)
+		GROUP BY message_id, emoji
+	`
+	reactRows, err := r.db.QueryContext(ctx, reactionQuery, pq.Array(messageIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query message reactions: %w", err)
+	}
+	defer reactRows.Close()
+
+	reactionsMap := make(map[int64][]ReactionSummary)
+	for reactRows.Next() {
+		var msgID int64
+		var rs ReactionSummary
+		if err := reactRows.Scan(&msgID, &rs.Emoji, &rs.Count); err != nil {
+			return nil, fmt.Errorf("failed to scan reaction row: %w", err)
+		}
+		reactionsMap[msgID] = append(reactionsMap[msgID], rs)
+	}
+
+	if err = reactRows.Err(); err != nil {
+		return nil, fmt.Errorf("error during reaction rows iteration: %w", err)
+	}
+
 	for i := range list {
-		sumQuery := `SELECT emoji, COUNT(*) FROM message_reactions WHERE message_id = $1 GROUP BY emoji`
-		sumRows, err := r.db.QueryContext(ctx, sumQuery, list[i].ID)
-		if err != nil {
-			continue // Non-blocking, keep list without reactions if error
+		if summaries, ok := reactionsMap[list[i].ID]; ok {
+			list[i].Reactions = summaries
 		}
-		var reactions []ReactionSummary
-		for sumRows.Next() {
-			var rs ReactionSummary
-			if err := sumRows.Scan(&rs.Emoji, &rs.Count); err == nil {
-				reactions = append(reactions, rs)
-			}
-		}
-		sumRows.Close()
-		list[i].Reactions = reactions
 	}
 
 	return list, nil

@@ -12,7 +12,9 @@ import (
 type Service interface {
 	GetUserByID(ctx context.Context, id int64) (*User, error)
 	GetUserGuilds(ctx context.Context, userID int64) ([]UserGuildDTO, error)
+	GetDMs(ctx context.Context, userID int64) ([]DMChannelResponse, error)
 	CreateDM(ctx context.Context, creatorID, recipientID int64) (*DMChannelResponse, error)
+	GetUserProfile(ctx context.Context, requesterID, targetID int64) (*UserProfile, error)
 }
 
 type service struct {
@@ -56,6 +58,10 @@ func (s *service) GetUserGuilds(ctx context.Context, userID int64) ([]UserGuildD
 	return guilds, nil
 }
 
+func (s *service) GetDMs(ctx context.Context, userID int64) ([]DMChannelResponse, error) {
+	return s.repo.ListDMs(ctx, userID)
+}
+
 func (s *service) CreateDM(ctx context.Context, creatorID, recipientID int64) (*DMChannelResponse, error) {
 	if creatorID == recipientID {
 		return nil, errors.NewBadRequest("cannot create a DM channel with yourself")
@@ -75,8 +81,40 @@ func (s *service) CreateDM(ctx context.Context, creatorID, recipientID int64) (*
 		return nil, err
 	}
 
+	var displayName, avatarKey, bannerKey, bio string
+	if recipient.DisplayName != nil {
+		displayName = *recipient.DisplayName
+	}
+	if recipient.AvatarKey != nil {
+		avatarKey = *recipient.AvatarKey
+	}
+	if recipient.BannerKey != nil {
+		bannerKey = *recipient.BannerKey
+	}
+	if recipient.Bio != nil {
+		bio = *recipient.Bio
+	}
+
 	return &DMChannelResponse{
-		ChannelID:   channelID,
-		RecipientID: recipientID,
+		ChannelID: channelID,
+		Recipient: UserSummary{
+			ID:          recipient.ID,
+			Username:    recipient.Username,
+			DisplayName: displayName,
+			AvatarKey:   avatarKey,
+			BannerKey:   bannerKey,
+			Bio:         bio,
+		},
 	}, nil
+}
+
+func (s *service) GetUserProfile(ctx context.Context, requesterID, targetID int64) (*UserProfile, error) {
+	profile, err := s.repo.GetUserProfile(ctx, requesterID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	if profile == nil {
+		return nil, errors.NewNotFound("user profile not found")
+	}
+	return profile, nil
 }

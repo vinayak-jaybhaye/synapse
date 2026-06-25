@@ -205,3 +205,47 @@ func (h *Handler) PutMemberRole(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+
+// @Summary DeleteMemberRole
+// @Description Unassign a role from a member in a guild
+// @Tags roles
+// @Accept json
+// @Produce json
+// @Param guildID path string true "Guild Snowflake ID"
+// @Param userID path string true "Member User Snowflake ID"
+// @Param roleID path string true "Role Snowflake ID"
+// @Success 204 {interface} nil
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 404 {object} errors.APIError
+// @Router /guilds/{guildID}/members/{userID}/roles/{roleID} [delete]
+func (h *Handler) DeleteMemberRole(c *gin.Context) {
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+
+	targetUserID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid target user ID"))
+		return
+	}
+
+	roleID, err := strconv.ParseInt(c.Param("roleID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid role ID"))
+		return
+	}
+
+	requesterUserID := c.GetInt64("user_id")
+
+	err = h.svc.UnassignRole(c.Request.Context(), guildID, targetUserID, roleID, requesterUserID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}

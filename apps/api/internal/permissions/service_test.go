@@ -10,6 +10,7 @@ import (
 type mockRoleRepo struct {
 	members     map[int64]bool
 	memberRoles map[int64][]Role
+	owners      map[int64]int64
 }
 
 func (m *mockRoleRepo) GetMemberRoles(ctx context.Context, guildID int64, userID int64) ([]Role, error) {
@@ -18,6 +19,13 @@ func (m *mockRoleRepo) GetMemberRoles(ctx context.Context, guildID int64, userID
 
 func (m *mockRoleRepo) IsMember(ctx context.Context, guildID int64, userID int64) (bool, error) {
 	return m.members[userID], nil
+}
+
+func (m *mockRoleRepo) GetGuildOwner(ctx context.Context, guildID int64) (int64, error) {
+	if m.owners == nil {
+		return 0, nil
+	}
+	return m.owners[guildID], nil
 }
 
 // mockChannelRepo mocks ChannelPermissionRepository.
@@ -146,6 +154,18 @@ func TestResolveGuildPermissions(t *testing.T) {
 	if !errors.Is(err, ErrMemberNotFound) {
 		t.Errorf("expected ErrMemberNotFound, got %v", err)
 	}
+
+	// Owner bypass test
+	roleRepo.owners = map[int64]int64{
+		1: 999, // user 999 is the owner of guild 1
+	}
+	ownerMask, err := svc.ResolveGuildPermissions(ctx, 1, 999)
+	if err != nil {
+		t.Fatalf("unexpected error resolving owner permissions: %v", err)
+	}
+	if !HasPermission(ownerMask, KICK_MEMBERS) || !HasPermission(ownerMask, SEND_MESSAGES) {
+		t.Error("expected owner to bypass and have all permissions")
+	}
 }
 
 func TestResolveChannelPermissions(t *testing.T) {
@@ -231,6 +251,18 @@ func TestResolveChannelPermissions(t *testing.T) {
 	// Administrator bypasses SEND_MESSAGES deny override
 	if !HasPermission(adminMask, SEND_MESSAGES) {
 		t.Error("expected ADMINISTRATOR to bypass channel denies")
+	}
+
+	// Owner bypasses channel overrides
+	roleRepo.owners = map[int64]int64{
+		10: 999, // user 999 is owner of guild 10
+	}
+	ownerChannelMask, err := svc.ResolveChannelPermissions(ctx, 10, 200, 999)
+	if err != nil {
+		t.Fatalf("unexpected error resolving owner channel permissions: %v", err)
+	}
+	if !HasPermission(ownerChannelMask, SEND_MESSAGES) {
+		t.Error("expected owner to bypass channel overrides and have SEND_MESSAGES")
 	}
 }
 

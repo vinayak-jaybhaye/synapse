@@ -15,6 +15,9 @@ type Repository interface {
 	Update(ctx context.Context, ch *Channel) error
 	SoftDelete(ctx context.Context, id int64) error
 	GetMaxPosition(ctx context.Context, guildID int64) (int, error)
+	GetRoleOverrides(ctx context.Context, channelID int64) ([]ChannelRolePermissionOverride, error)
+	PutRoleOverride(ctx context.Context, override *ChannelRolePermissionOverride) error
+	DeleteRoleOverride(ctx context.Context, channelID, roleID int64) error
 }
 
 type pgRepository struct {
@@ -150,4 +153,50 @@ func (r *pgRepository) GetMaxPosition(ctx context.Context, guildID int64) (int, 
 		return 0, fmt.Errorf("failed to get max channel position: %w", err)
 	}
 	return maxPos, nil
+}
+
+func (r *pgRepository) GetRoleOverrides(ctx context.Context, channelID int64) ([]ChannelRolePermissionOverride, error) {
+	query := `
+		SELECT channel_id, role_id, allow_permissions, deny_permissions
+		FROM channel_role_permissions
+		WHERE channel_id = $1
+	`
+	rows, err := r.db.QueryContext(ctx, query, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list channel role overrides: %w", err)
+	}
+	defer rows.Close()
+
+	var list []ChannelRolePermissionOverride
+	for rows.Next() {
+		var o ChannelRolePermissionOverride
+		if err := rows.Scan(&o.ChannelID, &o.RoleID, &o.AllowPermissions, &o.DenyPermissions); err != nil {
+			return nil, fmt.Errorf("failed to scan override row: %w", err)
+		}
+		list = append(list, o)
+	}
+	return list, nil
+}
+
+func (r *pgRepository) PutRoleOverride(ctx context.Context, override *ChannelRolePermissionOverride) error {
+	query := `
+		INSERT INTO channel_role_permissions (channel_id, role_id, allow_permissions, deny_permissions)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (channel_id, role_id) 
+		DO UPDATE SET allow_permissions = EXCLUDED.allow_permissions, deny_permissions = EXCLUDED.deny_permissions
+	`
+	_, err := r.db.ExecContext(ctx, query, override.ChannelID, override.RoleID, override.AllowPermissions, override.DenyPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to upsert role override: %w", err)
+	}
+	return nil
+}
+
+func (r *pgRepository) DeleteRoleOverride(ctx context.Context, channelID, roleID int64) error {
+	query := `DELETE FROM channel_role_permissions WHERE channel_id = $1 AND role_id = $2`
+	_, err := r.db.ExecContext(ctx, query, channelID, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to delete role override: %w", err)
+	}
+	return nil
 }
