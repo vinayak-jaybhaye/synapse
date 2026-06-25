@@ -12,6 +12,11 @@ export const guildsApi = {
     return response.data;
   },
 
+  updateGuild: async (guildId: string, payload: any): Promise<Guild> => {
+    const response = await api.patch<Guild>(`/guilds/${guildId}`, payload);
+    return response.data;
+  },
+
   getGuildMembers: async (guildId: string, after: string = "", limit: number = 50): Promise<Member[]> => {
     const query = new URLSearchParams();
     if (after) query.append("after", after);

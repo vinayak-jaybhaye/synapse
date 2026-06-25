@@ -177,8 +177,8 @@ func TestResolveChannelPermissions(t *testing.T) {
 		},
 		memberRoles: map[int64][]Role{
 			1: {
-				{ID: 101, Permissions: VIEW_CHANNEL | SEND_MESSAGES, IsDefault: true},  // everyone
-				{ID: 102, Permissions: CONNECT | SPEAK, IsDefault: false},            // member specific role
+				{ID: 101, Permissions: VIEW_CHANNEL | SEND_MESSAGES, IsDefault: true}, // everyone
+				{ID: 102, Permissions: CONNECT | SPEAK, IsDefault: false},             // member specific role
 			},
 		},
 	}

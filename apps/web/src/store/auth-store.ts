@@ -13,6 +13,7 @@ interface AuthState {
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   fetchMe: () => Promise<void>;
+  setUser: (user: User) => void;
   initAuth: () => Promise<void>;
   clearError: () => void;
 }
@@ -25,6 +26,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
 
   clearError: () => set({ error: null }),
+
+  setUser: (user) => set({ user }),
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });

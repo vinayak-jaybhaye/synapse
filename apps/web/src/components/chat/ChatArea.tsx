@@ -9,8 +9,10 @@ import { useGuilds } from "../../services/query/useGuilds";
 import { useDMs } from "../../services/query/useDMs";
 import { Hash, Volume2, MessageSquare, Loader2, ArrowDown, AtSign } from "lucide-react";
 import MessageItem from "./MessageItem";
+import { getMediaUrl } from "../../lib/media";
 import MessageComposer from "./MessageComposer";
-import { Message } from "../../types";
+import { useChannelPermissions } from "../../hooks/usePermissions";
+import { Message, PermissionFlags, hasPermission } from "../../types";
 
 export default function ChatArea() {
   const { activeChannelId } = useChannelStore();
@@ -22,6 +24,30 @@ export default function ChatArea() {
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
   const activeChannel = channels.find((c) => c.id === activeChannelId);
   const activeDM = (dms || []).find((d) => d.channel_id === activeChannelId);
+  const { canManageMessages, canAddReactions } = useChannelPermissions(activeChannel?.permissions, !!activeDM);
+
+  useEffect(() => {
+    if (!activeGuild && !activeChannel) return;
+    
+    const printPerms = (name: string, permString: string | undefined) => {
+      console.log(`=== ${name} Permissions ===`);
+      console.log("Raw Bits:", permString);
+      if (!permString) {
+        console.log("None");
+        return;
+      }
+      const results: Record<string, string> = {};
+      for (const [key, value] of Object.entries(PermissionFlags)) {
+        results[key] = hasPermission(permString, value) ? "YES" : "NO";
+      }
+      console.table(results);
+    };
+
+    printPerms("Guild", activeGuild?.permissions);
+    if (activeChannel) {
+      printPerms("Channel", activeChannel?.permissions);
+    }
+  }, [activeGuild?.permissions, activeChannel?.permissions]);
 
   const {
     messages,
@@ -118,9 +144,9 @@ export default function ChatArea() {
     setShowScrollBottomBtn(scrolledUp);
   };
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, uploadIds?: string[]) => {
     try {
-      await sendMessage({ content, replyToMessageId: replyTarget?.id });
+      await sendMessage({ content, attachmentUploadIds: uploadIds, replyToMessageId: replyTarget?.id });
       setReplyTarget(null);
       scrollToBottom("smooth");
     } catch (err) {
@@ -201,7 +227,7 @@ export default function ChatArea() {
               <>
                 <div className="h-20 w-20 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-3xl select-none mb-2 overflow-hidden">
                   {activeDM.recipient.avatar_key ? (
-                    <img src={activeDM.recipient.avatar_key} alt={activeDM.recipient.username} className="w-full h-full object-cover" />
+                    <img src={getMediaUrl(activeDM.recipient.avatar_key)} alt={activeDM.recipient.username} className="w-full h-full object-cover" />
                   ) : (
                     (activeDM.recipient.display_name || activeDM.recipient.username).charAt(0).toUpperCase()
                   )}
@@ -255,6 +281,8 @@ export default function ChatArea() {
                 onRemoveReaction={async (messageId, emoji) => {
                   await removeReaction({ messageId, emoji });
                 }}
+                canManageMessages={canManageMessages}
+                canAddReactions={canAddReactions}
               />
             ))}
           </div>
@@ -295,9 +323,12 @@ export default function ChatArea() {
         )}
         <div className="px-4 pb-4 bg-bg-primary">
           <MessageComposer
+            channelId={activeChannelId}
             placeholder={`Message ${activeDM ? `@${activeDM.recipient.username}` : `#${activeChannel?.name}`}`}
             onSend={handleSend}
             draftKey={activeChannelId}
+            permissions={activeDM ? undefined : activeChannel?.permissions}
+            isDM={!!activeDM}
           />
         </div>
       </div>

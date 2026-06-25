@@ -1,18 +1,21 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/synapse/api/internal/auth"
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/config"
 	"github.com/synapse/api/internal/database"
 	"github.com/synapse/api/internal/guilds"
 	"github.com/synapse/api/internal/invites"
+	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/messages"
 	"github.com/synapse/api/internal/middleware"
 	"github.com/synapse/api/internal/permissions"
@@ -60,17 +63,29 @@ func main() {
 	// 6. Instantiate Services
 	tokenService := auth.NewJWTService(cfg.JWTSecret, "synapse-api", time.Hour*24)
 	authService := auth.NewAuthService(authRepo, tokenService)
-	userService := users.NewService(userRepo, db.Redis)
-	roleService := roles.NewService(roleRepo)
-	guildService := guilds.NewService(guildRepo, roleRepo)
-	channelService := channels.NewService(channelRepo, roleRepo)
+
+	// Media Service
+	s3Storage, err := media.NewS3Storage(context.Background(), cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize media storage: %v", err)
+	}
+	mediaRepo := media.NewPGRepository(db.PG)
+	mediaService := media.NewService(s3Storage, mediaRepo)
+	mediaService.StartCleanupJob(context.Background(), time.Hour)
+	mediaHandler := media.NewHandler(mediaService)
 
 	// Permissions Service
 	permRoleRepo := permissions.NewPGRoleRepository(db.PG)
 	permChannelRepo := permissions.NewPGChannelPermissionRepository(db.PG)
 	permissionService := permissions.NewService(permRoleRepo, permChannelRepo)
 
-	messageService := messages.NewService(messageRepo, channelRepo, permissionService, db.Redis)
+	userService := users.NewService(userRepo, mediaService, db.Redis, permissionService)
+	roleService := roles.NewService(roleRepo)
+	guildService := guilds.NewService(guildRepo, roleRepo, mediaService)
+	channelService := channels.NewService(channelRepo, roleRepo, mediaService, permissionService)
+
+
+	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, db.Redis)
 	inviteService := invites.NewService(inviteRepo, roleRepo)
 
 	// 7. Instantiate Handlers
@@ -102,6 +117,7 @@ func main() {
 		channelHandler,
 		messageHandler,
 		inviteHandler,
+		mediaHandler,
 	)
 
 	slog.Info("Synapse Core HTTP API server running", "port", cfg.Port)

@@ -13,13 +13,14 @@ import (
 type Repository interface {
 	GetByID(ctx context.Context, id int64) (*Message, error)
 	ListMessagesCursor(ctx context.Context, channelID, beforeID int64, limit int) ([]MessageResponse, error)
-	CreateMessageWithOutbox(ctx context.Context, msg *Message, event *OutboxEvent) error
+	CreateMessageWithAttachments(ctx context.Context, msg *Message, event *OutboxEvent, uploadIDs []int64) error
 	Update(ctx context.Context, msg *Message) error
 	SoftDelete(ctx context.Context, id int64) error
 	AddReaction(ctx context.Context, messageID, userID int64, emoji string) error
 	RemoveReaction(ctx context.Context, messageID, userID int64, emoji string) error
 	UpdateReadStatePostgres(ctx context.Context, channelID, userID, lastReadMessageID int64) error
 	IsDMParticipant(ctx context.Context, channelID int64, userID int64) (bool, error)
+	GetAttachmentWithChannel(ctx context.Context, attachmentID int64) (*Attachment, int64, error)
 }
 
 type pgRepository struct {
@@ -93,7 +94,7 @@ func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Message, error) 
 	}
 
 	msg.ReplyPreview = scanReplyPreview(pID, pAuthorID, pUsername, pContent, pDeletedAt)
-	
+
 	msg.Author = UserSummary{
 		ID:          msg.AuthorID,
 		Username:    uUsername,
@@ -101,6 +102,24 @@ func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Message, error) 
 		AvatarKey:   uAvatarKey.String,
 		BannerKey:   uBannerKey.String,
 		Bio:         uBio.String,
+	}
+
+	// Fetch Attachments
+	attachmentQuery := `SELECT id, storage_key, file_name, file_size, mime_type FROM message_attachments WHERE message_id = $1`
+	attRows, err := r.db.QueryContext(ctx, attachmentQuery, msg.ID)
+	if err == nil {
+		defer attRows.Close()
+		var attachments []Attachment
+		for attRows.Next() {
+			var a Attachment
+			a.MessageID = msg.ID
+			if err := attRows.Scan(&a.ID, &a.StorageKey, &a.FileName, &a.FileSize, &a.MimeType); err == nil {
+				attachments = append(attachments, a)
+			}
+		}
+		if len(attachments) > 0 {
+			msg.Attachments = attachments
+		}
 	}
 
 	return &msg, nil
@@ -243,10 +262,37 @@ func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, before
 		}
 	}
 
+	// Fetch Attachments
+	attachQuery := `
+		SELECT id, message_id, storage_key, file_name, file_size, mime_type
+		FROM message_attachments
+		WHERE message_id = ANY($1)
+	`
+	attachRows, err := r.db.QueryContext(ctx, attachQuery, pq.Array(messageIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query message attachments: %w", err)
+	}
+	defer attachRows.Close()
+
+	attachmentsMap := make(map[int64][]Attachment)
+	for attachRows.Next() {
+		var a Attachment
+		if err := attachRows.Scan(&a.ID, &a.MessageID, &a.StorageKey, &a.FileName, &a.FileSize, &a.MimeType); err != nil {
+			return nil, fmt.Errorf("failed to scan attachment row: %w", err)
+		}
+		attachmentsMap[a.MessageID] = append(attachmentsMap[a.MessageID], a)
+	}
+
+	for i := range list {
+		if atts, ok := attachmentsMap[list[i].ID]; ok {
+			list[i].Attachments = atts
+		}
+	}
+
 	return list, nil
 }
 
-func (r *pgRepository) CreateMessageWithOutbox(ctx context.Context, msg *Message, event *OutboxEvent) error {
+func (r *pgRepository) CreateMessageWithAttachments(ctx context.Context, msg *Message, event *OutboxEvent, uploadIDs []int64) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin message tx: %w", err)
@@ -269,7 +315,35 @@ func (r *pgRepository) CreateMessageWithOutbox(ctx context.Context, msg *Message
 		return fmt.Errorf("failed to insert message inside tx: %w", err)
 	}
 
-	// 2. Insert Outbox Event
+	// 2. Consume Attachments
+	if len(uploadIDs) > 0 {
+		consumeQuery := `
+			WITH consumed_uploads AS (
+				DELETE FROM pending_uploads
+				WHERE id = ANY($1) AND user_id = $2 AND status = 'UPLOADED'
+				RETURNING object_key, file_name, file_size, mime_type
+			)
+			INSERT INTO message_attachments (id, message_id, storage_key, file_name, file_size, mime_type)
+			SELECT (random() * 9223372036854775807)::bigint, $3, object_key, file_name, file_size, mime_type
+			FROM consumed_uploads
+			RETURNING id;
+		`
+		rows, err := tx.QueryContext(ctx, consumeQuery, pq.Array(uploadIDs), msg.AuthorID, msg.ID)
+		if err != nil {
+			return fmt.Errorf("failed to consume pending uploads: %w", err)
+		}
+		defer rows.Close()
+
+		var consumedCount int
+		for rows.Next() {
+			consumedCount++
+		}
+		if consumedCount != len(uploadIDs) {
+			return errors.New("one or more attachments could not be verified or are not uploaded")
+		}
+	}
+
+	// 3. Insert Outbox Event
 	insertOutbox := `
 		INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status) 
 		VALUES ($1, $2, $3, $4, $5, 0)
@@ -349,4 +423,25 @@ func (r *pgRepository) IsDMParticipant(ctx context.Context, channelID int64, use
 		return false, fmt.Errorf("failed to check DM participant: %w", err)
 	}
 	return exists, nil
+}
+
+func (r *pgRepository) GetAttachmentWithChannel(ctx context.Context, attachmentID int64) (*Attachment, int64, error) {
+	query := `
+		SELECT a.id, a.message_id, a.storage_key, a.file_name, a.file_size, a.mime_type, m.channel_id
+		FROM message_attachments a
+		JOIN messages m ON a.message_id = m.id
+		WHERE a.id = $1 AND m.deleted_at IS NULL
+	`
+	var a Attachment
+	var channelID int64
+	err := r.db.QueryRowContext(ctx, query, attachmentID).Scan(
+		&a.ID, &a.MessageID, &a.StorageKey, &a.FileName, &a.FileSize, &a.MimeType, &channelID,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, 0, nil
+		}
+		return nil, 0, fmt.Errorf("failed to get attachment: %w", err)
+	}
+	return &a, channelID, nil
 }

@@ -14,6 +14,7 @@ type Channel struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	DeletedAt       *time.Time `json:"-"`
+	Permissions     string     `json:"permissions,omitempty"`
 }
 
 type CreateChannelRequest struct {

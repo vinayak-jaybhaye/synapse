@@ -70,25 +70,63 @@ func Connect(cfg *config.Config) (*DB, error) {
 }
 
 func (db *DB) runMigrations() error {
-	// Check if tables already exist
-	var exists bool
-	err := db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'users')").Scan(&exists)
+	// 1. Initial schema
+	var usersExists bool
+	err := db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'users')").Scan(&usersExists)
 	if err != nil {
 		return fmt.Errorf("failed to check public tables: %w", err)
 	}
 
-	if exists {
-		slog.Info("Schema already exists, skipping initial migrations")
-		return nil
+	if !usersExists {
+		slog.Info("Users table not found, running initial migration...")
+		if err := db.runMigrationFile("001_initial_schema.sql"); err != nil {
+			return err
+		}
+	} else {
+		slog.Info("Users table exists, skipping initial migrations")
 	}
 
-	slog.Info("Users table not found, running initial migration...")
+	// 2. Pending uploads schema
+	var pendingExists bool
+	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'pending_uploads')").Scan(&pendingExists)
+	if err != nil {
+		return fmt.Errorf("failed to check pending_uploads table: %w", err)
+	}
 
-	// Try multiple paths to read the sql file
+	if !pendingExists {
+		slog.Info("pending_uploads table not found, running migration...")
+		if err := db.runMigrationFile("002_pending_uploads.sql"); err != nil {
+			return err
+		}
+	} else {
+		slog.Info("pending_uploads table exists, skipping migration")
+	}
+
+	// 3. Guild banners schema
+	var guildBannersExists bool
+	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name='guilds' AND column_name='banner_key')").Scan(&guildBannersExists)
+	if err != nil {
+		return fmt.Errorf("failed to check guilds banner_key column: %w", err)
+	}
+
+	if !guildBannersExists {
+		slog.Info("guilds banner_key column not found, running migration...")
+		if err := db.runMigrationFile("003_guild_banners.sql"); err != nil {
+			return err
+		}
+	} else {
+		slog.Info("guilds banner_key column exists, skipping migration")
+	}
+
+	slog.Info("Database migrations completed successfully")
+	return nil
+}
+
+func (db *DB) runMigrationFile(filename string) error {
 	paths := []string{
-		"migrations/001_initial_schema.sql",
-		"./migrations/001_initial_schema.sql",
-		"apps/api/migrations/001_initial_schema.sql",
+		"migrations/" + filename,
+		"./migrations/" + filename,
+		"apps/api/migrations/" + filename,
 	}
 
 	var content []byte
@@ -102,16 +140,15 @@ func (db *DB) runMigrations() error {
 	}
 
 	if readErr != nil {
-		return fmt.Errorf("failed to read migration schema file: %w", readErr)
+		return fmt.Errorf("failed to read migration schema file %s: %w", filename, readErr)
 	}
 
 	// Execute migrations
-	_, err = db.PG.Exec(string(content))
+	_, err := db.PG.Exec(string(content))
 	if err != nil {
-		return fmt.Errorf("failed to execute migration script: %w", err)
+		return fmt.Errorf("failed to execute migration script %s: %w", filename, err)
 	}
 
-	slog.Info("Initial database migration completed successfully")
 	return nil
 }
 

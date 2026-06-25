@@ -11,6 +11,8 @@ interface MessageActionsProps {
   onEdit: () => void;
   onDelete: (messageId: string) => Promise<void>;
   onAddReaction: (messageId: string, emoji: string) => Promise<void>;
+  canManageMessages?: boolean;
+  canAddReactions?: boolean;
 }
 
 export default function MessageActions({
@@ -20,6 +22,8 @@ export default function MessageActions({
   onEdit,
   onDelete,
   onAddReaction,
+  canManageMessages = false,
+  canAddReactions = true,
 }: MessageActionsProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
@@ -47,40 +51,47 @@ export default function MessageActions({
 
         <button
           ref={emojiButtonRef}
-          onClick={() => setShowEmojiPicker((prev) => !prev)}
-          className={`p-2 transition-colors cursor-pointer ${
-            showEmojiPicker ? "text-indigo-400 bg-bg-tertiary" : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary"
+          onClick={() => {
+            if (canAddReactions) setShowEmojiPicker((prev) => !prev);
+          }}
+          disabled={!canAddReactions}
+          className={`p-2 transition-colors ${
+            !canAddReactions
+              ? "opacity-30 cursor-not-allowed"
+              : showEmojiPicker
+              ? "text-indigo-400 bg-bg-tertiary cursor-pointer"
+              : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary cursor-pointer"
           }`}
-          title="Add Reaction"
+          title={canAddReactions ? "Add Reaction" : "You do not have permission to add reactions."}
           aria-label="Add Reaction"
         >
           <Smile className="h-4 w-4" />
         </button>
 
         {isAuthor && (
-          <>
-            <button
-              onClick={onEdit}
-              className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors cursor-pointer"
-              title="Edit Message"
-              aria-label="Edit Message"
-            >
-              <Edit2 className="h-4 w-4" />
-            </button>
+          <button
+            onClick={onEdit}
+            className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors cursor-pointer"
+            title="Edit Message"
+            aria-label="Edit Message"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+        )}
 
-            <button
-              onClick={() => {
-                if (confirm("Are you sure you want to delete this message?")) {
-                  onDelete(messageId);
-                }
-              }}
-              className="p-2 text-red-400 hover:text-red-500 hover:bg-bg-tertiary transition-colors cursor-pointer"
-              title="Delete Message"
-              aria-label="Delete Message"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </>
+        {(isAuthor || canManageMessages) && (
+          <button
+            onClick={() => {
+              if (confirm("Are you sure you want to delete this message?")) {
+                onDelete(messageId);
+              }
+            }}
+            className="p-2 text-red-400 hover:text-red-500 hover:bg-bg-tertiary transition-colors cursor-pointer"
+            title="Delete Message"
+            aria-label="Delete Message"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         )}
       </div>
 

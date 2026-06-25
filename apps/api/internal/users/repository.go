@@ -13,6 +13,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id int64) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	Create(ctx context.Context, user *User) error
+	UpdateUser(ctx context.Context, u *User) error
 	ListGuilds(ctx context.Context, userID int64) ([]UserGuildDTO, error)
 	ListDMs(ctx context.Context, userID int64) ([]DMChannelResponse, error)
 	CreateOrGetDM(ctx context.Context, creatorID, recipientID int64) (int64, error)
@@ -69,7 +70,7 @@ func (r *pgRepository) Create(ctx context.Context, u *User) error {
 
 func (r *pgRepository) ListGuilds(ctx context.Context, userID int64) ([]UserGuildDTO, error) {
 	query := `
-		SELECT g.id, g.name, g.icon_key, g.owner_id 
+		SELECT g.id, g.name, g.description, g.icon_key, g.banner_key, g.owner_id 
 		FROM guilds g
 		INNER JOIN guild_members m ON g.id = m.guild_id
 		WHERE m.user_id = $1 AND g.deleted_at IS NULL
@@ -84,7 +85,7 @@ func (r *pgRepository) ListGuilds(ctx context.Context, userID int64) ([]UserGuil
 	var guilds []UserGuildDTO
 	for rows.Next() {
 		var g UserGuildDTO
-		if err := rows.Scan(&g.ID, &g.Name, &g.IconKey, &g.OwnerID); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.Description, &g.IconKey, &g.BannerKey, &g.OwnerID); err != nil {
 			return nil, fmt.Errorf("failed to scan user guild row: %w", err)
 		}
 		guilds = append(guilds, g)
@@ -116,7 +117,7 @@ func (r *pgRepository) ListDMs(ctx context.Context, userID int64) ([]DMChannelRe
 		if err := rows.Scan(&dm.ChannelID, &dm.Recipient.ID, &dm.Recipient.Username, &uDisplayName, &uAvatarKey, &uBannerKey, &uBio); err != nil {
 			return nil, fmt.Errorf("failed to scan dm row: %w", err)
 		}
-		
+
 		dm.Recipient.DisplayName = uDisplayName.String
 		dm.Recipient.AvatarKey = uAvatarKey.String
 		dm.Recipient.BannerKey = uBannerKey.String
@@ -229,7 +230,13 @@ func (r *pgRepository) GetUserProfile(ctx context.Context, requesterID, targetID
 	profile.Bio = bio.String
 
 	// Status will be integrated later when presence features are added
-	profile.Status = "offline" 
+	profile.Status = "offline"
 
 	return &profile, nil
+}
+
+func (r *pgRepository) UpdateUser(ctx context.Context, u *User) error {
+	query := `UPDATE users SET display_name = $1, bio = $2, avatar_key = $3, banner_key = $4, updated_at = NOW() WHERE id = $5`
+	_, err := r.db.ExecContext(ctx, query, u.DisplayName, u.Bio, u.AvatarKey, u.BannerKey, u.ID)
+	return err
 }

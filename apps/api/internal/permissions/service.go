@@ -38,6 +38,12 @@ type Service interface {
 
 	// HasChannelPermission checks if a user has a specific channel-level permission.
 	HasChannelPermission(ctx context.Context, guildID int64, channelID int64, userID int64, perm Permission) (bool, error)
+
+	// ResolveBatchGuildPermissions aggregates guild-level permissions for multiple guilds.
+	ResolveBatchGuildPermissions(ctx context.Context, guildIDs []int64, userID int64) (map[int64]Permission, error)
+
+	// ResolveBatchChannelPermissions calculates final channel permissions for multiple channels in a guild.
+	ResolveBatchChannelPermissions(ctx context.Context, guildID int64, userID int64, channelIDs []int64) (map[int64]Permission, error)
 }
 
 type permissionsService struct {
@@ -196,4 +202,80 @@ func (s *permissionsService) HasChannelPermission(ctx context.Context, guildID i
 		return false, err
 	}
 	return HasPermission(mask, perm), nil
+}
+
+func (s *permissionsService) ResolveBatchGuildPermissions(ctx context.Context, guildIDs []int64, userID int64) (map[int64]Permission, error) {
+	result := make(map[int64]Permission)
+	for _, gid := range guildIDs {
+		perm, err := s.ResolveGuildPermissions(ctx, gid, userID)
+		if err != nil {
+			continue
+		}
+		result[gid] = perm
+	}
+	return result, nil
+}
+
+func (s *permissionsService) ResolveBatchChannelPermissions(ctx context.Context, guildID int64, userID int64, channelIDs []int64) (map[int64]Permission, error) {
+	result := make(map[int64]Permission)
+
+	basePerms, err := s.ResolveGuildPermissions(ctx, guildID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if HasPermission(basePerms, ADMINISTRATOR) {
+		for _, cid := range channelIDs {
+			result[cid] = basePerms
+		}
+		return result, nil
+	}
+
+	memberRoles, err := s.roleRepo.GetMemberRoles(ctx, guildID, userID)
+	if err != nil {
+		return nil, err
+	}
+	hasRole := make(map[int64]bool)
+	var defaultRoleID int64
+	for _, r := range memberRoles {
+		hasRole[r.ID] = true
+		if r.IsDefault {
+			defaultRoleID = r.ID
+		}
+	}
+
+	for _, cid := range channelIDs {
+		overrides, err := s.channelRepo.GetRoleOverrides(ctx, cid)
+		if err != nil {
+			continue
+		}
+
+		var everyoneAllow, everyoneDeny Permission
+		for _, o := range overrides {
+			if o.RoleID == defaultRoleID {
+				everyoneAllow = Permission(o.AllowPermissions)
+				everyoneDeny = Permission(o.DenyPermissions)
+				break
+			}
+		}
+
+		channelPerms := basePerms
+		channelPerms &^= everyoneDeny
+		channelPerms |= everyoneAllow
+
+		var rolesAllow, rolesDeny Permission
+		for _, o := range overrides {
+			if o.RoleID != defaultRoleID && hasRole[o.RoleID] {
+				rolesAllow |= Permission(o.AllowPermissions)
+				rolesDeny |= Permission(o.DenyPermissions)
+			}
+		}
+
+		channelPerms &^= rolesDeny
+		channelPerms |= rolesAllow
+
+		result[cid] = channelPerms
+	}
+
+	return result, nil
 }

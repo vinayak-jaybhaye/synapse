@@ -8,6 +8,7 @@ type Guild struct {
 	Name        string     `json:"name"`
 	Description *string    `json:"description,omitempty"`
 	IconKey     *string    `json:"icon_key,omitempty"`
+	BannerKey   *string    `json:"banner_key,omitempty"`
 	Version     int        `json:"version"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
@@ -42,4 +43,14 @@ type CreateGuildRequest struct {
 type UpdateMemberRequest struct {
 	Nickname *string `json:"nickname,omitempty"`
 	IsMuted  *bool   `json:"is_muted,omitempty"`
+}
+
+
+type UpdateGuildRequest struct {
+	Name           *string `json:"name,omitempty"`
+	Description    *string `json:"description,omitempty"`
+	IconUploadID   *int64  `json:"icon_upload_id,string,omitempty"`
+	BannerUploadID *int64  `json:"banner_upload_id,string,omitempty"`
+	RemoveIcon     *bool   `json:"remove_icon,omitempty"`
+	RemoveBanner   *bool   `json:"remove_banner,omitempty"`
 }

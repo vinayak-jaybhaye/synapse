@@ -6,6 +6,7 @@ import (
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/guilds"
 	"github.com/synapse/api/internal/invites"
+	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/messages"
 	"github.com/synapse/api/internal/middleware"
 	"github.com/synapse/api/internal/roles"
@@ -22,6 +23,7 @@ func SetupRoutes(
 	channelHandler *channels.Handler,
 	messageHandler *messages.Handler,
 	inviteHandler *invites.Handler,
+	mediaHandler *media.Handler,
 ) {
 	// Root Group
 	v1 := r.Group("/api/v1")
@@ -39,16 +41,22 @@ func SetupRoutes(
 	{
 		// Users
 		protected.GET("/users/@me", userHandler.GetMe)
+		protected.PATCH("/users/@me", userHandler.UpdateProfile)
 		protected.GET("/users/@me/guilds", userHandler.GetMeGuilds)
 		protected.GET("/users/@me/dms", userHandler.GetDMs)
 		protected.GET("/users/:userId/profile", userHandler.GetProfile)
+		protected.POST("/users/@me/avatars/upload-url", userHandler.GenerateAvatarUploadURL)
+		protected.POST("/users/@me/banners/upload-url", userHandler.GenerateBannerUploadURL)
 		protected.POST("/dms", userHandler.CreateDM)
 
 		// Guilds
 		protected.POST("/guilds", guildHandler.CreateGuild)
 		protected.GET("/guilds/:guildID", guildHandler.GetGuild)
+		protected.PATCH("/guilds/:guildID", guildHandler.UpdateGuild)
 		protected.GET("/guilds/:guildID/members", guildHandler.GetGuildMembers)
 		protected.PATCH("/guilds/:guildID/members/:userID", guildHandler.PatchGuildMember)
+		protected.POST("/guilds/:guildID/icons/upload-url", guildHandler.GenerateIconUploadURL)
+		protected.POST("/guilds/:guildID/banners/upload-url", guildHandler.GenerateBannerUploadURL)
 
 		// Roles
 		protected.GET("/guilds/:guildID/roles", roleHandler.GetRoles)
@@ -63,7 +71,8 @@ func SetupRoutes(
 		protected.POST("/guilds/:guildID/channels", channelHandler.CreateChannel)
 		protected.PATCH("/channels/:channelID", channelHandler.UpdateChannel)
 		protected.DELETE("/channels/:channelID", channelHandler.DeleteChannel)
-		
+		protected.POST("/channels/:channelID/icons/upload-url", channelHandler.GenerateIconUploadURL)
+
 		// Channel Permissions
 		protected.GET("/channels/:channelID/permissions", channelHandler.GetRoleOverrides)
 		protected.PUT("/channels/:channelID/permissions/:roleID", channelHandler.PutRoleOverride)
@@ -75,6 +84,8 @@ func SetupRoutes(
 		protected.PATCH("/channels/:channelID/messages/:messageID", messageHandler.EditMessage)
 		protected.DELETE("/channels/:channelID/messages/:messageID", messageHandler.DeleteMessage)
 		protected.POST("/channels/:channelID/read", messageHandler.SyncReadState)
+		protected.POST("/channels/:channelID/attachments/upload-url", messageHandler.GenerateAttachmentUploadURL)
+		protected.GET("/channels/:channelID/attachments/:attachmentID", messageHandler.DownloadAttachment)
 
 		// Reactions
 		protected.PUT("/channels/:channelID/messages/:messageID/reactions/:emoji", messageHandler.PutReaction)
@@ -84,5 +95,9 @@ func SetupRoutes(
 		protected.POST("/guilds/:guildID/invites", inviteHandler.CreateInvite)
 		protected.GET("/invites/:code", inviteHandler.GetInvite)
 		protected.POST("/invites/:code/join", inviteHandler.JoinGuild)
+
+		// Media
+		protected.POST("/media/uploads/:uploadID/complete", mediaHandler.MarkUploadComplete)
+		protected.DELETE("/media/uploads/:uploadID", mediaHandler.CancelUpload)
 	}
 }

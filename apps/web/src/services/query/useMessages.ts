@@ -24,8 +24,8 @@ export function useMessages(channelId?: string) {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content, replyToMessageId }: { content: string; replyToMessageId?: string }) =>
-      messagesApi.sendMessage(channelId!, content, replyToMessageId),
+    mutationFn: ({ content, attachmentUploadIds, replyToMessageId }: { content: string; attachmentUploadIds?: string[]; replyToMessageId?: string }) =>
+      messagesApi.sendMessage(channelId!, content, attachmentUploadIds, replyToMessageId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messagesKeys.list(channelId || "") });
     },

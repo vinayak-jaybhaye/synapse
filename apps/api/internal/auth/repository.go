@@ -52,7 +52,7 @@ func (r *memoryUserRepo) CreateUser(ctx context.Context, user *User) error {
 	user.ID = r.snowflake.Generate().Int64()
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
-	
+
 	r.users[user.ID] = user
 	r.byEmail[user.Email] = user.ID
 	return nil

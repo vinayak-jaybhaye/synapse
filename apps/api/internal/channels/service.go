@@ -2,10 +2,12 @@ package channels
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/roles"
 	"github.com/synapse/api/internal/snowflake"
@@ -20,15 +22,18 @@ type Service interface {
 	GetRoleOverrides(ctx context.Context, channelID, userID int64) ([]ChannelRolePermissionOverride, error)
 	PutRoleOverride(ctx context.Context, channelID, userID, roleID int64, req *PutRoleOverrideRequest) error
 	DeleteRoleOverride(ctx context.Context, channelID, userID, roleID int64) error
+	GenerateIconUploadURL(ctx context.Context, channelID, userID int64, req *media.UploadRequest) (*media.UploadResponse, error)
 }
 
 type service struct {
-	repo     Repository
-	roleRepo roles.Repository
+	repo         Repository
+	roleRepo     roles.Repository
+	mediaService media.Service
+	permService  permissions.Service
 }
 
-func NewService(repo Repository, roleRepo roles.Repository) Service {
-	return &service{repo: repo, roleRepo: roleRepo}
+func NewService(repo Repository, roleRepo roles.Repository, mediaService media.Service, permService permissions.Service) Service {
+	return &service{repo: repo, roleRepo: roleRepo, mediaService: mediaService, permService: permService}
 }
 
 func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm permissions.Permission) (bool, error) {
@@ -63,7 +68,28 @@ func (s *service) GetChannels(ctx context.Context, guildID, userID int64) ([]Cha
 		return nil, errors.NewForbidden("access denied: view channel permission required")
 	}
 
-	return s.repo.ListGuildChannels(ctx, guildID)
+	channels, err := s.repo.ListGuildChannels(ctx, guildID)
+	if err != nil {
+		return nil, err
+	}
+
+	var channelIDs []int64
+	for _, ch := range channels {
+		channelIDs = append(channelIDs, ch.ID)
+	}
+
+	if s.permService != nil {
+		permsMap, err := s.permService.ResolveBatchChannelPermissions(ctx, guildID, userID, channelIDs)
+		if err == nil {
+			for i, ch := range channels {
+				if perm, ok := permsMap[ch.ID]; ok {
+					channels[i].Permissions = fmt.Sprintf("%d", perm)
+				}
+			}
+		}
+	}
+
+	return channels, nil
 }
 
 func (s *service) CreateChannel(ctx context.Context, guildID, userID int64, req *CreateChannelRequest) (*Channel, error) {
@@ -201,8 +227,6 @@ func (s *service) GetChannel(ctx context.Context, channelID, userID int64) (*Cha
 	return ch, nil
 }
 
-
-
 func (s *service) GetRoleOverrides(ctx context.Context, channelID, userID int64) ([]ChannelRolePermissionOverride, error) {
 	ch, err := s.repo.GetByID(ctx, channelID)
 	if err != nil {
@@ -303,4 +327,25 @@ func (s *service) DeleteRoleOverride(ctx context.Context, channelID, userID, rol
 	}
 
 	return s.repo.DeleteRoleOverride(ctx, channelID, roleID)
+}
+
+func (s *service) GenerateIconUploadURL(ctx context.Context, channelID, userID int64, req *media.UploadRequest) (*media.UploadResponse, error) {
+	ch, err := s.repo.GetByID(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+	if ch == nil || ch.GuildID == nil {
+		return nil, errors.NewNotFound("channel not found")
+	}
+
+	allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_CHANNELS)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, errors.NewForbidden("insufficient permissions to manage channel icon")
+	}
+
+	req.Category = media.CategoryChannelIcon
+	return s.mediaService.GenerateUploadURL(ctx, userID, channelID, req)
 }

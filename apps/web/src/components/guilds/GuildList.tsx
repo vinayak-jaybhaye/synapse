@@ -6,6 +6,7 @@ import { useGuildStore } from "../../store/guild-store";
 import { useUIStore } from "../../store/ui-store";
 import { useAuthStore } from "../../store/auth-store";
 import { Plus, Compass, LogOut, Settings2, ShieldAlert } from "lucide-react";
+import { getMediaUrl } from "../../lib/media";
 
 export default function GuildList() {
   const { guilds } = useGuilds();
@@ -57,7 +58,11 @@ export default function GuildList() {
                 {isActive && (
                   <div className="absolute left-0 w-1 h-10 bg-white rounded-r-md -ml-3" />
                 )}
-                <span>{initials}</span>
+                {g.icon_key ? (
+                  <img src={getMediaUrl(g.icon_key)} alt={g.name} className={`w-full h-full object-cover ${isActive ? 'rounded-2xl' : 'rounded-3xl hover:rounded-2xl'} transition-all duration-200`} />
+                ) : (
+                  <span>{initials}</span>
+                )}
               </button>
             );
           })}
@@ -104,8 +109,12 @@ export default function GuildList() {
           <LogOut className="h-5 w-5" />
         </button>
 
-        <div className="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs select-none">
-          {user?.username ? user.username.substring(0, 2).toUpperCase() : "U"}
+        <div className="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs select-none overflow-hidden">
+          {user?.avatar_key ? (
+            <img src={getMediaUrl(user.avatar_key)} alt={user.username} className="w-full h-full object-cover" />
+          ) : (
+            user?.username ? user.username.substring(0, 2).toUpperCase() : "U"
+          )}
         </div>
       </div>
     </nav>

@@ -23,6 +23,6 @@ type InviteMetadata struct {
 }
 
 type CreateInviteRequest struct {
-	MaxUses  int `json:"max_uses"`  // 0 = infinite
-	Duration int `json:"duration"`  // seconds, 0 = infinite
+	MaxUses  int `json:"max_uses"` // 0 = infinite
+	Duration int `json:"duration"` // seconds, 0 = infinite
 }

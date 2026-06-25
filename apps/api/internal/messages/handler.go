@@ -1,11 +1,13 @@
 package messages
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/media"
 )
 
 type Handler struct {
@@ -90,12 +92,14 @@ func (h *Handler) SendMessage(c *gin.Context) {
 
 	var req CreateMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Println("DEBUG SendMessage ShouldBindJSON error:", err)
 		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
 		return
 	}
 
 	msg, err := h.svc.SendMessage(c.Request.Context(), channelID, userID, &req)
 	if err != nil {
+		log.Println("DEBUG SendMessage service error:", err)
 		errors.HandleError(c, err)
 		return
 	}
@@ -301,4 +305,82 @@ func (h *Handler) DeleteReaction(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// GenerateAttachmentUploadURL handles generating a presigned URL for a message attachment.
+// @Summary Generate Attachment Upload URL
+// @Description Generates a presigned S3 URL for uploading an attachment directly from the client
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param channelID path string true "Channel Snowflake ID"
+// @Param request body media.UploadRequest true "Upload Info"
+// @Success 200 {object} media.UploadResponse
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /channels/{channelID}/attachments/upload-url [post]
+func (h *Handler) GenerateAttachmentUploadURL(c *gin.Context) {
+	channelID, err := strconv.ParseInt(c.Param("channelID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid channel ID"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	var req media.UploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
+		return
+	}
+
+	resp, err := h.svc.GenerateAttachmentUploadURL(c.Request.Context(), channelID, userID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// DownloadAttachment handles generating a presigned URL for a message attachment and redirects the client to it.
+// @Summary Download Attachment
+// @Description Generates a short-lived presigned S3 URL for an attachment and redirects the client via 302
+// @Tags messages
+// @Param channelID path string true "Channel Snowflake ID"
+// @Param attachmentID path string true "Attachment Snowflake ID"
+// @Param token query string false "JWT Auth Token (fallback for query-based auth)"
+// @Success 302 {string} string "Redirects to AWS S3 presigned URL"
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 404 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /channels/{channelID}/attachments/{attachmentID} [get]
+func (h *Handler) DownloadAttachment(c *gin.Context) {
+	channelIDStr := c.Param("channelID")
+	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid channel ID format"))
+		return
+	}
+
+	attachmentIDStr := c.Param("attachmentID")
+	attachmentID, err := strconv.ParseInt(attachmentIDStr, 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid attachment ID format"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	downloadURL, err := h.svc.GetAttachmentDownloadURL(c.Request.Context(), channelID, attachmentID, userID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.Redirect(http.StatusTemporaryRedirect, downloadURL)
 }

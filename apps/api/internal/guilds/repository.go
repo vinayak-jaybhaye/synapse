@@ -17,6 +17,7 @@ type Repository interface {
 	GetMember(ctx context.Context, guildID, userID int64) (*GuildMember, error)
 	ListMembersCursor(ctx context.Context, guildID, afterUserID int64, limit int) ([]MemberWithUser, error)
 	UpdateMember(ctx context.Context, m *GuildMember) error
+	UpdateGuild(ctx context.Context, g *Guild) error
 }
 
 type pgRepository struct {
@@ -84,13 +85,13 @@ func (r *pgRepository) CreateGuildTx(ctx context.Context, g *Guild) error {
 
 func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Guild, error) {
 	query := `
-		SELECT id, owner_id, name, description, icon_key, version, created_at, updated_at 
+		SELECT id, owner_id, name, description, icon_key, banner_key, version, created_at, updated_at 
 		FROM guilds 
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 	var g Guild
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&g.ID, &g.OwnerID, &g.Name, &g.Description, &g.IconKey, &g.Version, &g.CreatedAt, &g.UpdatedAt,
+		&g.ID, &g.OwnerID, &g.Name, &g.Description, &g.IconKey, &g.BannerKey, &g.Version, &g.CreatedAt, &g.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -194,4 +195,10 @@ func (r *pgRepository) UpdateMember(ctx context.Context, m *GuildMember) error {
 		return fmt.Errorf("failed to update guild member: %w", err)
 	}
 	return nil
+}
+
+func (r *pgRepository) UpdateGuild(ctx context.Context, g *Guild) error {
+	query := `UPDATE guilds SET name = $1, description = $2, icon_key = $3, banner_key = $4, updated_at = NOW(), version = version + 1 WHERE id = $5 AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, query, g.Name, g.Description, g.IconKey, g.BannerKey, g.ID)
+	return err
 }

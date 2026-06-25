@@ -16,12 +16,17 @@ export const messagesApi = {
   sendMessage: async (
     channelId: string,
     content: string,
+    attachmentUploadIds?: string[],
     replyToMessageId?: string
   ): Promise<Message> => {
-    const response = await api.post<Message>(`/channels/${channelId}/messages`, {
-      content,
-      reply_to_message_id: replyToMessageId,
-    });
+    const payload: any = { content };
+    if (replyToMessageId) {
+      payload.reply_to_message_id = replyToMessageId;
+    }
+    if (attachmentUploadIds && attachmentUploadIds.length > 0) {
+      payload.attachment_upload_ids = attachmentUploadIds;
+    }
+    const response = await api.post<Message>(`/channels/${channelId}/messages`, payload);
     return response.data;
   },
 

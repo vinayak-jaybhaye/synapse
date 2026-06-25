@@ -10,21 +10,27 @@ import (
 
 func AuthMiddleware(tokenService auth.TokenService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var tokenStr string
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header missing"})
+
+		if authHeader != "" {
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
+				c.Abort()
+				return
+			}
+			tokenStr = parts[1]
+		} else {
+			tokenStr = c.Query("token")
+		}
+
+		if tokenStr == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization missing"})
 			c.Abort()
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
-			c.Abort()
-			return
-		}
-
-		tokenStr := parts[1]
 		claims, err := tokenService.ValidateToken(tokenStr)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})

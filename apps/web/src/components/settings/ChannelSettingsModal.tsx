@@ -5,6 +5,8 @@ import { useUIStore } from "../../store/ui-store";
 import { useChannels } from "../../services/query/useChannels";
 import { Shield, X } from "lucide-react";
 import ChannelPermissionsTab from "./tabs/ChannelPermissionsTab";
+import ChannelOverviewTab from "./tabs/ChannelOverviewTab";
+import { Settings } from "lucide-react";
 import { useGuildStore } from "../../store/guild-store";
 
 export default function ChannelSettingsModal() {
@@ -13,6 +15,7 @@ export default function ChannelSettingsModal() {
     setShowChannelSettings,
     activeChannelSettingsId,
   } = useUIStore();
+  const [activeTab, setActiveTab] = React.useState("overview");
   
   const { activeGuildId } = useGuildStore();
   const { channels } = useChannels(activeGuildId || undefined);
@@ -31,7 +34,16 @@ export default function ChannelSettingsModal() {
           </div>
 
           <button
-            className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-left transition-all cursor-pointer bg-indigo-500/10 text-indigo-400"
+            onClick={() => setActiveTab("overview")}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-left transition-all cursor-pointer ${activeTab === "overview" ? "bg-indigo-500/10 text-indigo-400" : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"}`}
+          >
+            <Settings className="h-4.5 w-4.5" />
+            <span>Overview</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab("permissions")}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold text-left transition-all cursor-pointer ${activeTab === "permissions" ? "bg-indigo-500/10 text-indigo-400" : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"}`}
           >
             <Shield className="h-4.5 w-4.5" />
             <span>Permissions</span>
@@ -42,7 +54,8 @@ export default function ChannelSettingsModal() {
       {/* 2. Right Workspace Content Pane (Primary Background) */}
       <div className="flex-[2] bg-bg-primary relative overflow-y-auto flex justify-start">
         <div className="w-full max-w-[740px] px-6 py-8 md:px-12 md:py-16 pb-24">
-          <ChannelPermissionsTab channelId={activeChannel.id} />
+          {activeTab === "overview" && <ChannelOverviewTab activeChannel={activeChannel} />}
+          {activeTab === "permissions" && <ChannelPermissionsTab channelId={activeChannel.id} />}
         </div>
 
         {/* Close Button / ESC Helper */}

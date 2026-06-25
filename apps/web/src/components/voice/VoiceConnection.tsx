@@ -2,13 +2,16 @@
 
 import React, { useState } from "react";
 import { PhoneOff, Video, Monitor, ShieldAlert, Wifi } from "lucide-react";
+import { useChannelPermissions } from "../../hooks/usePermissions";
 
 interface VoiceConnectionProps {
   channelName: string;
   onDisconnect: () => void;
+  permissions?: string;
 }
 
-export default function VoiceConnection({ channelName, onDisconnect }: VoiceConnectionProps) {
+export default function VoiceConnection({ channelName, onDisconnect, permissions }: VoiceConnectionProps) {
+  const { canSpeak } = useChannelPermissions(permissions);
   const [screenSharing, setScreenSharing] = useState(false);
   const [videoActive, setVideoActive] = useState(false);
 
@@ -36,10 +39,12 @@ export default function VoiceConnection({ channelName, onDisconnect }: VoiceConn
       <div className="flex items-center justify-between mt-1 px-1">
         <button
           onClick={() => setVideoActive(!videoActive)}
-          className={`p-1.5 hover:bg-bg-secondary rounded cursor-pointer ${
-            videoActive ? "text-green-500" : "text-text-secondary hover:text-text-primary"
+          className={`p-1.5 rounded transition-colors ${
+            !canSpeak ? "opacity-50 cursor-not-allowed text-text-muted" :
+            videoActive ? "text-green-500 hover:bg-bg-secondary" : "text-text-secondary hover:bg-bg-secondary hover:text-text-primary cursor-pointer"
           }`}
-          title="Toggle Video"
+          disabled={!canSpeak}
+          title={canSpeak ? "Toggle Video" : "You don't have permission to speak in this channel."}
           aria-label={videoActive ? "Turn off video" : "Turn on video"}
         >
           <Video className="h-4 w-4" />
@@ -47,10 +52,12 @@ export default function VoiceConnection({ channelName, onDisconnect }: VoiceConn
 
         <button
           onClick={() => setScreenSharing(!screenSharing)}
-          className={`p-1.5 hover:bg-bg-secondary rounded cursor-pointer ${
-            screenSharing ? "text-indigo-400" : "text-text-secondary hover:text-text-primary"
+          className={`p-1.5 rounded transition-colors ${
+            !canSpeak ? "opacity-50 cursor-not-allowed text-text-muted" :
+            screenSharing ? "text-indigo-400 hover:bg-bg-secondary" : "text-text-secondary hover:bg-bg-secondary hover:text-text-primary cursor-pointer"
           }`}
-          title="Share Screen"
+          disabled={!canSpeak}
+          title={canSpeak ? "Share Screen" : "You don't have permission to speak in this channel."}
           aria-label={screenSharing ? "Stop sharing screen" : "Share screen"}
         >
           <Monitor className="h-4 w-4" />

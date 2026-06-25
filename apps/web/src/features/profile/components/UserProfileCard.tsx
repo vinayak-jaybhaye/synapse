@@ -1,5 +1,6 @@
 import React from "react";
 import { UserProfile } from "../../../types";
+import { getMediaUrl } from "../../../lib/media";
 import { formatTimestamp } from "../../../lib/utils";
 import { MessageSquare } from "lucide-react";
 import { useDMs } from "../../../services/query/useDMs";
@@ -61,7 +62,7 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
       {/* Banner */}
       <div 
         className={`h-24 w-full ${!profile.banner_key ? 'bg-indigo-600' : ''}`}
-        style={profile.banner_key ? { backgroundImage: `url(${profile.banner_key})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+        style={profile.banner_key ? { backgroundImage: `url(${getMediaUrl(profile.banner_key)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
       />
       
       {/* Body */}
@@ -70,7 +71,7 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
         <div className="relative -mt-10 mb-2 flex justify-between items-end">
           <div className="w-20 h-20 rounded-full border-4 border-[#111214] bg-indigo-500 flex items-center justify-center font-bold text-white text-2xl overflow-hidden shadow-sm relative">
             {profile.avatar_key ? (
-              <img src={profile.avatar_key} alt={profile.username} className="w-full h-full object-cover" />
+              <img src={getMediaUrl(profile.avatar_key)} alt={profile.username} className="w-full h-full object-cover" />
             ) : (
               profile.username?.charAt(0).toUpperCase() || "?"
             )}

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../../store/auth-store";
 import { Message } from "../../types";
 import { formatTimestamp } from "../../lib/utils";
+import { getMediaUrl } from "../../lib/media";
 import { useMessageRegistry } from "../../store/message-registry";
 
 import MessageContent from "./MessageContent";
@@ -20,6 +21,8 @@ interface MessageItemProps {
   onDelete: (messageId: string) => Promise<void>;
   onAddReaction: (messageId: string, emoji: string) => Promise<void>;
   onRemoveReaction: (messageId: string, emoji: string) => Promise<void>;
+  canManageMessages?: boolean;
+  canAddReactions?: boolean;
 }
 
 export default function MessageItem({
@@ -29,6 +32,8 @@ export default function MessageItem({
   onDelete,
   onAddReaction,
   onRemoveReaction,
+  canManageMessages = false,
+  canAddReactions = true,
 }: MessageItemProps) {
   const { user } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
@@ -72,7 +77,7 @@ export default function MessageItem({
       <UserProfilePopover userId={msg.author_id} side="right" align="start">
         <button className="shrink-0 h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-sm select-none mt-0.5 overflow-hidden hover:opacity-80 transition-opacity focus:outline-none">
           {msg.author?.avatar_key ? (
-            <img src={msg.author.avatar_key} alt={msg.author.username} className="w-full h-full object-cover" />
+            <img src={getMediaUrl(msg.author.avatar_key)} alt={msg.author.username} className="w-full h-full object-cover" />
           ) : (
             initials
           )}
@@ -114,6 +119,7 @@ export default function MessageItem({
             reactions={msg.reactions || []}
             onAddReaction={onAddReaction}
             onRemoveReaction={onRemoveReaction}
+            canAddReactions={canAddReactions}
           />
         )}
       </div>
@@ -123,6 +129,8 @@ export default function MessageItem({
         <MessageActions
           messageId={msg.id}
           isAuthor={isAuthor}
+          canManageMessages={canManageMessages}
+          canAddReactions={canAddReactions}
           onReply={onReply}
           onEdit={() => setIsEditing(true)}
           onDelete={onDelete}

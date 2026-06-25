@@ -39,12 +39,54 @@ export interface User {
   email: string;
 }
 
+
+export const PermissionFlags = {
+  CREATE_INSTANT_INVITE: 1n << 0n,
+  KICK_MEMBERS: 1n << 1n,
+  BAN_MEMBERS: 1n << 2n,
+  ADMINISTRATOR: 1n << 3n,
+  MANAGE_CHANNELS: 1n << 4n,
+  MANAGE_GUILD: 1n << 5n,
+  ADD_REACTIONS: 1n << 6n,
+  VIEW_AUDIT_LOG: 1n << 7n,
+  VIEW_CHANNEL: 1n << 10n,
+  SEND_MESSAGES: 1n << 11n,
+  MANAGE_MESSAGES: 1n << 13n,
+  EMBED_LINKS: 1n << 14n,
+  ATTACH_FILES: 1n << 15n,
+  READ_MESSAGE_HISTORY: 1n << 16n,
+  MENTION_EVERYONE: 1n << 17n,
+  CONNECT: 1n << 20n,
+  SPEAK: 1n << 21n,
+  MUTE_MEMBERS: 1n << 22n,
+  DEAFEN_MEMBERS: 1n << 23n,
+  MOVE_MEMBERS: 1n << 24n,
+  CHANGE_NICKNAME: 1n << 26n,
+  MANAGE_NICKNAMES: 1n << 27n,
+  MANAGE_ROLES: 1n << 28n,
+} as const;
+
+export const hasPermission = (permissions: string | undefined, flag: bigint): boolean => {
+  if (!permissions) return false;
+  try {
+    const perms = BigInt(permissions);
+    if ((perms & PermissionFlags.ADMINISTRATOR) === PermissionFlags.ADMINISTRATOR) {
+      return true;
+    }
+    return (perms & flag) === flag;
+  } catch {
+    return false;
+  }
+};
+
 export interface Guild {
   id: string;
   owner_id: string;
   name: string;
   description?: string;
   icon_key?: string;
+  banner_key?: string;
+  permissions?: string;
 }
 
 export interface Channel {
@@ -55,6 +97,7 @@ export interface Channel {
   type: ChannelType;
   position: number;
   topic?: string;
+  permissions?: string;
 }
 
 export interface ChannelRolePermissionOverride {
@@ -106,12 +149,9 @@ export interface Invite {
 
 export interface Attachment {
   id: string;
-  filename: string;
-  content_type: string;
-  size: number;
-  url: string;
-  width?: number;
-  height?: number;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
 }
 
 export interface ReactionSummary {
@@ -177,4 +217,25 @@ export interface InviteDetails {
   max_uses: number;
   uses: number;
   guild_name: string;
+}
+
+// ─── Media Uploads ──────────────────────────────────────────────────────────
+
+export interface UploadResponse {
+  upload_id: string;
+  upload_url: string;
+  object_key: string;
+  expires_in: number;
+}
+
+export type UploadState = "QUEUED" | "UPLOADING" | "UPLOADED" | "FAILED";
+
+export interface PendingUploadState {
+  id: string; // internal UUID for tracking
+  file: File;
+  state: UploadState;
+  progress: number;
+  uploadId?: string;
+  objectKey?: string;
+  previewUrl?: string; // object URL for images
 }

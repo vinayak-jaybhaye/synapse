@@ -2,12 +2,14 @@
 
 import React from "react";
 import { ReactionSummary } from "../../types";
+import { useChannelPermissions } from "../../hooks/usePermissions";
 
 interface MessageReactionsProps {
   messageId: string;
   reactions: ReactionSummary[];
   onAddReaction: (messageId: string, emoji: string) => Promise<void>;
   onRemoveReaction: (messageId: string, emoji: string) => Promise<void>;
+  canAddReactions?: boolean;
 }
 
 export default function MessageReactions({
@@ -15,6 +17,7 @@ export default function MessageReactions({
   reactions,
   onAddReaction,
   onRemoveReaction,
+  canAddReactions = true,
 }: MessageReactionsProps) {
   if (!reactions || reactions.length === 0) return null;
 
@@ -33,8 +36,16 @@ export default function MessageReactions({
       {reactions.map((rs, idx) => (
         <button
           key={idx}
-          onClick={() => handleReactionClick(rs)}
-          className="inline-flex items-center gap-1.5 bg-bg-secondary border border-border-custom hover:border-indigo-500/50 hover:bg-bg-primary px-2 py-0.5 rounded-md text-xs font-semibold cursor-pointer select-none transition-colors"
+          onClick={() => {
+            if (canAddReactions) handleReactionClick(rs);
+          }}
+          disabled={!canAddReactions}
+          className={`inline-flex items-center gap-1.5 border px-2 py-0.5 rounded-md text-xs font-semibold select-none transition-colors ${
+            canAddReactions
+              ? "bg-bg-secondary border-border-custom hover:border-indigo-500/50 hover:bg-bg-primary cursor-pointer"
+              : "bg-bg-secondary border-border-custom opacity-70 cursor-not-allowed"
+          }`}
+          title={canAddReactions ? undefined : "You do not have permission to react."}
           aria-label={`Toggle reaction ${rs.emoji}`}
         >
           <span>{rs.emoji}</span>

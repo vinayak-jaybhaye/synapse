@@ -7,6 +7,7 @@ import { useRoles } from "../../services/query/useRoles";
 import { useGuilds } from "../../services/query/useGuilds";
 import { Crown, VolumeX, Shield, Loader2 } from "lucide-react";
 import UserProfilePopover from "../../features/profile/components/UserProfilePopover";
+import { getMediaUrl } from "../../lib/media";
 
 const getRoleColorHex = (colorNum?: number) => {
   if (!colorNum) return "#94a3b8"; // default gray
@@ -100,9 +101,13 @@ export default function MembersSidebar() {
         <div
           className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-bg-secondary/60 cursor-pointer transition-colors w-full group"
         >
-          <div className="relative shrink-0 h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-xs select-none">
-            {m.username.substring(0, 2).toUpperCase()}
-            <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-emerald-500 border-[2px] border-bg-primary rounded-full" />
+          <div className="relative shrink-0 h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-xs select-none overflow-hidden">
+            {m.avatar_key ? (
+              <img src={getMediaUrl(m.avatar_key)} alt={m.username} className="w-full h-full object-cover" />
+            ) : (
+              m.username.substring(0, 2).toUpperCase()
+            )}
+            <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-emerald-500 border-[2px] border-bg-primary rounded-full z-10" />
           </div>
           
           <div className="flex flex-col min-w-0">

@@ -20,6 +20,13 @@ type Config struct {
 	RedisDB       int
 	JWTSecret     string
 	NodeID        int64
+	// AWS / S3 Configuration
+	AWSRegion          string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	S3Bucket           string
+	S3Endpoint         string
+	S3UsePathStyle     bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -91,20 +98,36 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	awsRegion := os.Getenv("AWS_REGION")
+	if awsRegion == "" {
+		awsRegion = "us-east-1"
+	}
+
+	s3UsePathStyle := false
+	if os.Getenv("S3_USE_PATH_STYLE") == "true" {
+		s3UsePathStyle = true
+	}
+
 	return &Config{
-		Port:          port,
-		DBHost:        dbHost,
-		DBPort:        dbPort,
-		DBUser:        dbUser,
-		DBPassword:    dbPassword,
-		DBName:        dbName,
-		DBSSLMode:     dbSSLMode,
-		RedisHost:     redisHost,
-		RedisPort:     redisPort,
-		RedisPassword: redisPassword,
-		RedisDB:       redisDB,
-		JWTSecret:     jwtSecret,
-		NodeID:        nodeID,
+		Port:               port,
+		DBHost:             dbHost,
+		DBPort:             dbPort,
+		DBUser:             dbUser,
+		DBPassword:         dbPassword,
+		DBName:             dbName,
+		DBSSLMode:          dbSSLMode,
+		RedisHost:          redisHost,
+		RedisPort:          redisPort,
+		RedisPassword:      redisPassword,
+		RedisDB:            redisDB,
+		JWTSecret:          jwtSecret,
+		NodeID:             nodeID,
+		AWSRegion:          awsRegion,
+		AWSAccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+		AWSSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		S3Bucket:           os.Getenv("S3_BUCKET"),
+		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
+		S3UsePathStyle:     s3UsePathStyle,
 	}, nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/snowflake"
 )
@@ -23,21 +24,25 @@ type Service interface {
 	SyncReadState(ctx context.Context, channelID, userID, lastReadMessageID int64) error
 	AddMessageReaction(ctx context.Context, channelID, messageID, userID int64, emoji string) error
 	RemoveMessageReaction(ctx context.Context, channelID, messageID, userID int64, emoji string) error
+	GenerateAttachmentUploadURL(ctx context.Context, channelID, userID int64, req *media.UploadRequest) (*media.UploadResponse, error)
+	GetAttachmentDownloadURL(ctx context.Context, channelID, attachmentID, userID int64) (string, error)
 }
 
 type service struct {
 	repo              Repository
 	channelRepo       channels.Repository
 	permissionService permissions.Service
+	mediaService      media.Service
 	rdb               *redis.Client
 }
 
 // NewService creates a new messages Service using clean architecture dependencies.
-func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, rdb *redis.Client) Service {
+func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, mediaService media.Service, rdb *redis.Client) Service {
 	return &service{
 		repo:              repo,
 		channelRepo:       channelRepo,
 		permissionService: permissionService,
+		mediaService:      mediaService,
 		rdb:               rdb,
 	}
 }
@@ -89,9 +94,12 @@ func (s *service) GetMessages(ctx context.Context, channelID, userID, beforeID i
 }
 
 func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req *CreateMessageRequest) (*MessageResponse, error) {
-	// 1. Content Length Validation
-	if len(req.Content) == 0 {
-		return nil, ErrContentEmpty
+	// 1. Content and Attachment Validation
+	hasContent := len(req.Content) > 0
+	hasAttachments := len(req.AttachmentUploadIDs) > 0
+
+	if !hasContent && !hasAttachments {
+		return nil, errors.NewBadRequest("message must contain content or attachments")
 	}
 	if len(req.Content) > 2000 {
 		return nil, ErrContentTooLong
@@ -149,8 +157,18 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 		Payload:       payloadBytes,
 	}
 
-	// 6. Persist Message and Outbox Event Atomically
-	if err := s.repo.CreateMessageWithOutbox(ctx, msg, event); err != nil {
+	// 6. Persist Message, Consume Attachments, and Outbox Event Atomically
+	var uploadIDs []int64
+	for _, idStr := range req.AttachmentUploadIDs {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			return nil, errors.NewBadRequest("invalid attachment upload ID format")
+		}
+		uploadIDs = append(uploadIDs, id)
+	}
+
+	if err := s.repo.CreateMessageWithAttachments(ctx, msg, event, uploadIDs); err != nil {
+		// If it's a domain error (like unverified attachments), pass it through, otherwise it will bubble up as 500
 		return nil, err
 	}
 
@@ -170,6 +188,7 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 		MessageType:      msg.MessageType,
 		Content:          msg.Content,
 		CreatedAt:        msg.CreatedAt,
+		Attachments:      msg.Attachments,
 	}, nil
 }
 
@@ -221,6 +240,7 @@ func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID 
 		Content:          msg.Content,
 		CreatedAt:        msg.CreatedAt,
 		EditedAt:         msg.EditedAt,
+		Attachments:      msg.Attachments,
 	}, nil
 }
 
@@ -314,4 +334,46 @@ func (s *service) RemoveMessageReaction(ctx context.Context, channelID, messageI
 	}
 
 	return s.repo.RemoveReaction(ctx, messageID, userID, emoji)
+}
+
+func (s *service) GenerateAttachmentUploadURL(ctx context.Context, channelID, userID int64, req *media.UploadRequest) (*media.UploadResponse, error) {
+	// 1. Verify channel access and ATTACH_FILES permission
+	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.SEND_MESSAGES, permissions.ATTACH_FILES)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Force the correct category regardless of what the client sent
+	req.Category = media.CategoryAttachment
+
+	// 3. Delegate to Media service
+	return s.mediaService.GenerateUploadURL(ctx, userID, channelID, req)
+}
+
+func (s *service) GetAttachmentDownloadURL(ctx context.Context, channelID, attachmentID, userID int64) (string, error) {
+	// 1. Fetch attachment and verify its channel
+	attachment, actualChannelID, err := s.repo.GetAttachmentWithChannel(ctx, attachmentID)
+	if err != nil {
+		return "", err
+	}
+	if attachment == nil {
+		return "", errors.NewNotFound("attachment not found")
+	}
+	if actualChannelID != channelID {
+		return "", errors.NewForbidden("attachment does not belong to the requested channel")
+	}
+
+	// 2. Verify user has access to view the channel
+	_, err = s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL)
+	if err != nil {
+		return "", err
+	}
+
+	// 3. Generate a short-lived download URL (15 minutes)
+	url, err := s.mediaService.GenerateDownloadURL(ctx, attachment.StorageKey, 15*time.Minute)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate download url: %w", err)
+	}
+
+	return url.DownloadURL, nil
 }

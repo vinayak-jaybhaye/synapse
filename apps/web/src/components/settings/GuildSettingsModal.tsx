@@ -4,17 +4,20 @@ import React from "react";
 import { useUIStore } from "../../store/ui-store";
 import { useGuildStore } from "../../store/guild-store";
 import { useGuilds } from "../../services/query/useGuilds";
+import { useGuildPermissions } from "../../hooks/usePermissions";
 import {
     User,
     Palette,
     Accessibility,
     Shield,
     Users,
+    Settings,
     X,
 } from "lucide-react";
 
 import RolesTab from "./tabs/RolesTab";
 import MembersTab from "./tabs/MembersTab";
+import OverviewTab from "./tabs/OverviewTab";
 
 export default function GuildSettingsModal() {
     const { showGuildSettings, setShowGuildSettings, guildSettingsTab, setGuildSettingsTab } = useUIStore();
@@ -22,6 +25,7 @@ export default function GuildSettingsModal() {
     const { guilds } = useGuilds();
 
     const activeGuild = guilds.find((g) => g.id === activeGuildId);
+    const { canManageGuild, canManageRoles, canKickMembers, canBanMembers } = useGuildPermissions(activeGuild?.permissions);
 
     if (!showGuildSettings || !activeGuild) return null;
 
@@ -48,6 +52,20 @@ export default function GuildSettingsModal() {
                             Server Settings
                         </div>
 
+                        {canManageGuild && (
+                        <button
+                            onClick={() => setGuildSettingsTab("overview")}
+                            className={`shrink-0 md:w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-left transition-colors cursor-pointer ${guildSettingsTab === "overview"
+                                    ? "bg-bg-secondary text-text-primary"
+                                    : "text-text-secondary hover:bg-bg-secondary/40 hover:text-text-primary"
+                                }`}
+                        >
+                            <Settings className="h-4 w-4" />
+                            <span>Overview</span>
+                        </button>
+                        )}
+
+                        {canManageRoles && (
                         <button
                             onClick={() => setGuildSettingsTab("roles")}
                             className={`shrink-0 md:w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-left transition-colors cursor-pointer ${guildSettingsTab === "roles"
@@ -58,7 +76,9 @@ export default function GuildSettingsModal() {
                             <Shield className="h-4 w-4" />
                             <span>Roles</span>
                         </button>
+                        )}
 
+                        {(canKickMembers || canBanMembers || canManageRoles) && (
                         <button
                             onClick={() => setGuildSettingsTab("members")}
                             className={`shrink-0 md:w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-left transition-colors cursor-pointer ${guildSettingsTab === "members"
@@ -69,11 +89,13 @@ export default function GuildSettingsModal() {
                             <Users className="h-4 w-4" />
                             <span>Members</span>
                         </button>
+                        )}
                     </div>
                 </div>
 
                 {/* 2. Right Workspace Content Pane */}
                 <div className="flex-1 bg-bg-primary p-4 md:p-6 overflow-y-auto flex flex-col">
+                    {guildSettingsTab === "overview" && <OverviewTab activeGuild={activeGuild} />}
                     {guildSettingsTab === "roles" && <RolesTab />}
                     {guildSettingsTab === "members" && <MembersTab />}
                 </div>

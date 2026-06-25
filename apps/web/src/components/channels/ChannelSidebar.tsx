@@ -5,9 +5,11 @@ import { useGuildStore } from "../../store/guild-store";
 import { useChannelStore } from "../../store/channel-store";
 import { useUIStore } from "../../store/ui-store";
 import { useAuthStore } from "../../store/auth-store";
+import { getMediaUrl } from "../../lib/media";
 import { useGuilds } from "../../services/query/useGuilds";
 import { useChannels } from "../../services/query/useChannels";
 import { useDMs } from "../../services/query/useDMs";
+import { useChannelPermissions, useGuildPermissions } from "../../hooks/usePermissions";
 import {
   Hash,
   Volume2,
@@ -28,6 +30,52 @@ import {
 } from "lucide-react";
 import VoiceConnection from "../voice/VoiceConnection";
 
+
+function ChannelItem({ ch, activeChannelId, joinedVoiceChannelId, handleChannelSelect, setActiveChannelSettingsId, setShowChannelSettings }: any) {
+  const { canViewChannel, canManageChannels } = useChannelPermissions(ch.permissions);
+  
+  if (!canViewChannel && ch.id !== "private-placeholder") return null;
+
+  const isActive = activeChannelId === ch.id;
+  const isVoiceJoined = joinedVoiceChannelId === ch.id;
+
+  return (
+    <button
+      onClick={() => handleChannelSelect(ch.id, ch.type)}
+      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm text-left transition-colors cursor-pointer group ${
+        isActive || isVoiceJoined
+          ? "bg-bg-primary text-text-primary font-semibold"
+          : "text-text-secondary hover:bg-bg-primary/40 hover:text-text-primary"
+      }`}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        {ch.type === 0 ? (
+          <Hash className="h-4 w-4 shrink-0 text-text-muted" />
+        ) : (
+          <Volume2 className="h-4 w-4 shrink-0 text-text-muted" />
+        )}
+        <span className="truncate">{ch.name}</span>
+      </div>
+
+      <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        {ch.id === "private-placeholder" ? (
+          <Lock className="h-3 w-3 text-text-muted" />
+        ) : null}
+        {canManageChannels && (
+          <Settings
+            className="h-3.5 w-3.5 text-text-muted hover:text-text-primary cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveChannelSettingsId(ch.id);
+              setShowChannelSettings(true);
+            }}
+          />
+        )}
+      </div>
+    </button>
+  );
+}
+
 export default function ChannelSidebar() {
   const { guilds } = useGuilds();
   const { activeGuildId } = useGuildStore();
@@ -45,6 +93,8 @@ export default function ChannelSidebar() {
   const [joinedVoiceChannelId, setJoinedVoiceChannelId] = useState<string | null>(null);
 
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
+  const { canManageChannels: canManageGuildChannels } = useGuildPermissions(activeGuild?.permissions);
+  const { canManageGuild, canCreateInstantInvite } = useGuildPermissions(activeGuild?.permissions);
 
   const toggleCategory = (catId: string) => {
     setCollapsedCategories((prev) => ({ ...prev, [catId]: !prev[catId] }));
@@ -68,46 +118,7 @@ export default function ChannelSidebar() {
     return channels.filter((c) => c.parent_channel_id === catId);
   };
 
-  const renderChannelButton = (ch: any) => {
-    const isActive = activeChannelId === ch.id;
-    const isVoiceJoined = joinedVoiceChannelId === ch.id;
-    
-    return (
-      <button
-        key={ch.id}
-        onClick={() => handleChannelSelect(ch.id, ch.type)}
-        className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm text-left transition-colors cursor-pointer group ${
-          isActive || isVoiceJoined
-            ? "bg-bg-primary text-text-primary font-semibold"
-            : "text-text-secondary hover:bg-bg-primary/40 hover:text-text-primary"
-        }`}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          {ch.type === 0 ? (
-            <Hash className="h-4 w-4 shrink-0 text-text-muted" />
-          ) : (
-            <Volume2 className="h-4 w-4 shrink-0 text-text-muted" />
-          )}
-          <span className="truncate">{ch.name}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          {ch.id === "private-placeholder" ? (
-            <Lock className="h-3 w-3 text-text-muted" />
-          ) : null}
-          <Settings
-            className="h-3.5 w-3.5 text-text-muted hover:text-text-primary cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveChannelSettingsId(ch.id);
-              setShowChannelSettings(true);
-            }}
-          />
-        </div>
-      </button>
-    );
-  };
-
+  
   return (
     <div className="flex flex-col h-full w-full bg-bg-secondary select-none">
       {/* 1. Sidebar Header */}
@@ -116,6 +127,7 @@ export default function ChannelSidebar() {
           <>
             <span className="font-bold text-text-primary truncate">{activeGuild.name}</span>
             <div className="flex items-center gap-1 shrink-0">
+              {canCreateInstantInvite && (
               <button
                 onClick={() => setShowInviteModal(true)}
                 className="p-1 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary"
@@ -123,6 +135,8 @@ export default function ChannelSidebar() {
               >
                 <UserPlus className="h-4 w-4" />
               </button>
+              )}
+              {canManageGuildChannels && (
               <button
                 onClick={() => setShowCreateChannel(true)}
                 className="p-1 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary"
@@ -130,16 +144,19 @@ export default function ChannelSidebar() {
               >
                 <Plus className="h-4 w-4" />
               </button>
-              <button
-                onClick={() => {
-                  setGuildSettingsTab("roles");
-                  setShowGuildSettings(true);
-                }}
-                className="p-1 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary"
-                title="Server Settings"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
+              )}
+              {canManageGuild && (
+                <button
+                  onClick={() => {
+                    setGuildSettingsTab("roles");
+                    setShowGuildSettings(true);
+                  }}
+                  className="p-1 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary"
+                  title="Server Settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -186,7 +203,7 @@ export default function ChannelSidebar() {
                     }}
                   />
                 </div>
-                <div className="space-y-0.5">{textChannels.map(renderChannelButton)}</div>
+                <div className="space-y-0.5">{textChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} joinedVoiceChannelId={joinedVoiceChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}</div>
               </div>
             )}
 
@@ -201,7 +218,7 @@ export default function ChannelSidebar() {
                     }}
                   />
                 </div>
-                <div className="space-y-0.5">{voiceChannels.map(renderChannelButton)}</div>
+                <div className="space-y-0.5">{voiceChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} joinedVoiceChannelId={joinedVoiceChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}</div>
               </div>
             )}
 
@@ -234,7 +251,7 @@ export default function ChannelSidebar() {
 
                   {!isCollapsed && (
                     <div className="pl-2 space-y-0.5">
-                      {catChannels.map(renderChannelButton)}
+                      {catChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} joinedVoiceChannelId={joinedVoiceChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}
                       {catChannels.length === 0 && (
                         <span className="text-text-muted/65 text-xs italic pl-6 block py-0.5">
                           Empty category
@@ -290,7 +307,7 @@ export default function ChannelSidebar() {
                     >
                       <div className="relative shrink-0 h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-xs select-none overflow-hidden">
                         {dm.recipient.avatar_key ? (
-                          <img src={dm.recipient.avatar_key} alt={dm.recipient.username} className="w-full h-full object-cover" />
+                          <img src={getMediaUrl(dm.recipient.avatar_key)} alt={dm.recipient.username} className="w-full h-full object-cover" />
                         ) : (
                           initials
                         )}

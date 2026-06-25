@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/media"
 )
 
 type Handler struct {
@@ -187,4 +188,87 @@ func (h *Handler) GetProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, profile)
+}
+
+// @Summary Generate Avatar Upload URL
+// @Description Generates a presigned S3 URL for uploading an avatar
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param request body media.UploadRequest true "Upload Info"
+// @Success 200 {object} media.UploadResponse
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /users/@me/avatars/upload-url [post]
+func (h *Handler) GenerateAvatarUploadURL(c *gin.Context) {
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		errors.HandleError(c, errors.NewUnauthorized("unauthorized"))
+		return
+	}
+	userID := userIDValue.(int64)
+
+	var req media.UploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
+		return
+	}
+
+	resp, err := h.svc.GenerateAvatarUploadURL(c.Request.Context(), userID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// @Summary Generate Banner Upload URL
+// @Description Generates a presigned S3 URL for uploading a user banner
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param request body media.UploadRequest true "Upload Info"
+// @Success 200 {object} media.UploadResponse
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /users/@me/banners/upload-url [post]
+func (h *Handler) GenerateBannerUploadURL(c *gin.Context) {
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		errors.HandleError(c, errors.NewUnauthorized("unauthorized"))
+		return
+	}
+	userID := userIDValue.(int64)
+
+	var req media.UploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
+		return
+	}
+
+	resp, err := h.svc.GenerateBannerUploadURL(c.Request.Context(), userID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) UpdateProfile(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	var req UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body"))
+		return
+	}
+	u, err := h.svc.UpdateProfile(c.Request.Context(), userID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+	c.JSON(200, u)
 }

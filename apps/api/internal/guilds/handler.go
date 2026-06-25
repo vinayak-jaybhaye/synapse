@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/media"
 )
 
 type Handler struct {
@@ -165,4 +166,99 @@ func (h *Handler) PatchGuildMember(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, m)
+}
+
+// @Summary Generate Guild Icon Upload URL
+// @Description Generates a presigned S3 URL for uploading a guild icon
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param guildID path string true "Guild Snowflake ID"
+// @Param request body media.UploadRequest true "Upload Info"
+// @Success 200 {object} media.UploadResponse
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /guilds/{guildID}/icons/upload-url [post]
+func (h *Handler) GenerateIconUploadURL(c *gin.Context) {
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	var req media.UploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
+		return
+	}
+
+	resp, err := h.svc.GenerateIconUploadURL(c.Request.Context(), guildID, userID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// @Summary Generate Guild Banner Upload URL
+// @Description Generates a presigned S3 URL for uploading a guild banner
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param guildID path string true "Guild Snowflake ID"
+// @Param request body media.UploadRequest true "Upload Info"
+// @Success 200 {object} media.UploadResponse
+// @Failure 400 {object} errors.APIError
+// @Failure 401 {object} errors.APIError
+// @Failure 403 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /guilds/{guildID}/banners/upload-url [post]
+func (h *Handler) GenerateBannerUploadURL(c *gin.Context) {
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	var req media.UploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
+		return
+	}
+
+	resp, err := h.svc.GenerateBannerUploadURL(c.Request.Context(), guildID, userID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) UpdateGuild(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+
+	var req UpdateGuildRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid request body"))
+		return
+	}
+	g, err := h.svc.UpdateGuild(c.Request.Context(), guildID, userID, &req)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+	c.JSON(200, g)
 }
