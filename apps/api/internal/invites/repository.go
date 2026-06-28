@@ -13,6 +13,7 @@ type Repository interface {
 	GetInviteMetadata(ctx context.Context, code string) (*InviteMetadata, error)
 	JoinGuildTx(ctx context.Context, code string, guildID, userID int64) error
 	IsMember(ctx context.Context, guildID, userID int64) (bool, error)
+	IsBanned(ctx context.Context, guildID, userID int64) (bool, error)
 }
 
 type pgRepository struct {
@@ -133,6 +134,16 @@ func (r *pgRepository) IsMember(ctx context.Context, guildID, userID int64) (boo
 	err := r.db.QueryRowContext(ctx, query, guildID, userID).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check membership existence: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *pgRepository) IsBanned(ctx context.Context, guildID, userID int64) (bool, error) {
+	query := `SELECT EXISTS (SELECT 1 FROM guild_bans WHERE guild_id = $1 AND user_id = $2)`
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, guildID, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check ban existence: %w", err)
 	}
 	return exists, nil
 }

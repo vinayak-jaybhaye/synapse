@@ -149,6 +149,15 @@ func (s *service) JoinGuild(ctx context.Context, code string, userID int64) erro
 		return errors.NewConflict("already a member of this guild")
 	}
 
-	// 4. Consume invite and join guild
+	// 4. Check if user is banned
+	isBanned, err := s.repo.IsBanned(ctx, invite.GuildID, userID)
+	if err != nil {
+		return err
+	}
+	if isBanned {
+		return errors.NewForbidden("access denied: you are banned from this server")
+	}
+
+	// 5. Consume invite and join guild
 	return s.repo.JoinGuildTx(ctx, code, invite.GuildID, userID)
 }
