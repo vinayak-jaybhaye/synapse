@@ -45,7 +45,7 @@ func (m *mockMessageRepo) CreateMessageWithOutbox(ctx context.Context, msg *Mess
 	}
 	m.messages[msg.ID] = msg
 	m.outboxEvents = append(m.outboxEvents, event)
-	return &media.PendingUpload{}, nil
+	return nil
 }
 
 func (m *mockMessageRepo) CreateMessageWithAttachments(ctx context.Context, msg *Message, event *OutboxEvent, uploadIDs []int64) error {
@@ -150,6 +150,14 @@ func (m *mockPermissionsService) HasChannelPermission(ctx context.Context, guild
 	return false, nil
 }
 
+func (m *mockPermissionsService) ResolveBatchGuildPermissions(ctx context.Context, guildIDs []int64, userID int64) (map[int64]permissions.Permission, error) {
+	return nil, nil
+}
+
+func (m *mockPermissionsService) ResolveBatchChannelPermissions(ctx context.Context, guildID, userID int64, channelIDs []int64) (map[int64]permissions.Permission, error) {
+	return nil, nil
+}
+
 // mockMediaService implements media.Service for testing
 type mockMediaService struct{}
 
@@ -162,10 +170,18 @@ func (m *mockMediaService) GenerateDownloadURL(ctx context.Context, objectKey st
 }
 
 func (m *mockMediaService) MarkUploadComplete(ctx context.Context, uploadID, userID int64) (*media.PendingUpload, error) {
-	return nil
+	return nil, nil
 }
 
 func (m *mockMediaService) CancelUpload(ctx context.Context, uploadID, userID int64) error {
+	return nil
+}
+
+func (m *mockMediaService) DeletePendingUpload(ctx context.Context, uploadID int64) error {
+	return nil
+}
+
+func (m *mockMediaService) DeleteObject(ctx context.Context, key string) error {
 	return nil
 }
 

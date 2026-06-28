@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 type Repository interface {
@@ -11,6 +12,8 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, id int64, status UploadStatus) error
 	DeletePendingUpload(ctx context.Context, id int64) error
 	GetExpiredUploads(ctx context.Context) ([]PendingUpload, error)
+	UpdateStatusByKey(ctx context.Context, key string, status UploadStatus, expiresAt time.Time) error
+	DeletePendingUploadByKey(ctx context.Context, key string) error
 }
 
 type pgRepository struct {
@@ -88,4 +91,16 @@ func (r *pgRepository) GetExpiredUploads(ctx context.Context) ([]PendingUpload, 
 		uploads = append(uploads, u)
 	}
 	return uploads, rows.Err()
+}
+
+func (r *pgRepository) UpdateStatusByKey(ctx context.Context, key string, status UploadStatus, expiresAt time.Time) error {
+	query := `UPDATE pending_uploads SET status = $1, expires_at = $2 WHERE object_key = $3`
+	_, err := r.db.ExecContext(ctx, query, status, expiresAt, key)
+	return err
+}
+
+func (r *pgRepository) DeletePendingUploadByKey(ctx context.Context, key string) error {
+	query := `DELETE FROM pending_uploads WHERE object_key = $1`
+	_, err := r.db.ExecContext(ctx, query, key)
+	return err
 }

@@ -166,17 +166,31 @@ func (s *service) UpdateProfile(ctx context.Context, userID int64, req *UpdateUs
 		u.Bio = req.Bio
 	}
 
+	var keysToDelete []string
+
 	if req.RemoveAvatar != nil && *req.RemoveAvatar {
+		if u.AvatarKey != nil && *u.AvatarKey != "" {
+			keysToDelete = append(keysToDelete, *u.AvatarKey)
+		}
 		u.AvatarKey = nil
 	} else if req.AvatarUploadID != nil {
+		if u.AvatarKey != nil && *u.AvatarKey != "" {
+			keysToDelete = append(keysToDelete, *u.AvatarKey)
+		}
 		upload, err := s.mediaService.MarkUploadComplete(ctx, *req.AvatarUploadID, userID)
 		if err != nil { return nil, err }
 		u.AvatarKey = &upload.ObjectKey
 	}
 
 	if req.RemoveBanner != nil && *req.RemoveBanner {
+		if u.BannerKey != nil && *u.BannerKey != "" {
+			keysToDelete = append(keysToDelete, *u.BannerKey)
+		}
 		u.BannerKey = nil
 	} else if req.BannerUploadID != nil {
+		if u.BannerKey != nil && *u.BannerKey != "" {
+			keysToDelete = append(keysToDelete, *u.BannerKey)
+		}
 		upload, err := s.mediaService.MarkUploadComplete(ctx, *req.BannerUploadID, userID)
 		if err != nil { return nil, err }
 		u.BannerKey = &upload.ObjectKey
@@ -184,5 +198,19 @@ func (s *service) UpdateProfile(ctx context.Context, userID int64, req *UpdateUs
 
 	err = s.repo.UpdateUser(ctx, u)
 	if err != nil { return nil, err }
+
+	// Clean up pending upload records as they are successfully saved/consumed
+	if req.AvatarUploadID != nil {
+		_ = s.mediaService.DeletePendingUpload(ctx, *req.AvatarUploadID)
+	}
+	if req.BannerUploadID != nil {
+		_ = s.mediaService.DeletePendingUpload(ctx, *req.BannerUploadID)
+	}
+
+	// Async/best-effort clean up of old files in storage
+	for _, key := range keysToDelete {
+		_ = s.mediaService.DeleteObject(ctx, key)
+	}
+
 	return u, nil
 }

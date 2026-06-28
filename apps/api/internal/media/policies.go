@@ -10,7 +10,6 @@ const (
 	CategoryAvatar      = "avatar"
 	CategoryBanner      = "banner"
 	CategoryGuildIcon   = "guild-icon"
-	CategoryChannelIcon = "channel-icon"
 	CategoryAttachment  = "attachment"
 
 	MB = 1024 * 1024
@@ -55,11 +54,6 @@ var Policies = map[string]CategoryPolicy{
 	},
 	CategoryGuildIcon: {
 		Prefix:       "guild-icons/%d/",
-		MaxSize:      10 * MB,
-		AllowedMimes: defaultImageMimes,
-	},
-	CategoryChannelIcon: {
-		Prefix:       "channel-icons/%d/",
 		MaxSize:      10 * MB,
 		AllowedMimes: defaultImageMimes,
 	},

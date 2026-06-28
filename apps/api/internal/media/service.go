@@ -18,6 +18,8 @@ type Service interface {
 
 	MarkUploadComplete(ctx context.Context, uploadID, userID int64) (*PendingUpload, error)
 	CancelUpload(ctx context.Context, uploadID, userID int64) error
+	DeletePendingUpload(ctx context.Context, uploadID int64) error
+	DeleteObject(ctx context.Context, key string) error
 	StartCleanupJob(ctx context.Context, interval time.Duration)
 }
 
@@ -137,11 +139,17 @@ func (s *service) MarkUploadComplete(ctx context.Context, uploadID, userID int64
 		return nil, errors.NewForbidden("you do not own this upload")
 	}
 
+	if upload.Status == StatusUploaded {
+		return upload, nil
+	}
+
 	if upload.Status != StatusRequested && upload.Status != StatusUploading {
 		return nil, errors.NewBadRequest("upload is not in a valid state to be completed")
 	}
 
-	err = s.repo.UpdateStatus(ctx, uploadID, StatusUploaded)
+	status := StatusUploaded
+
+	err = s.repo.UpdateStatus(ctx, uploadID, status)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +172,22 @@ func (s *service) CancelUpload(ctx context.Context, uploadID, userID int64) erro
 	_ = s.storage.Delete(ctx, upload.ObjectKey)
 
 	return s.repo.DeletePendingUpload(ctx, uploadID)
+}
+
+func (s *service) DeletePendingUpload(ctx context.Context, uploadID int64) error {
+	return s.repo.DeletePendingUpload(ctx, uploadID)
+}
+
+func (s *service) DeleteObject(ctx context.Context, key string) error {
+	err := s.storage.Delete(ctx, key)
+	if err != nil {
+		// If S3 deletion failed, mark the database record as EXPIRED so the cleanup job can retry it later
+		_ = s.repo.UpdateStatusByKey(ctx, key, StatusExpired, time.Now())
+		return err
+	}
+	// If S3 deletion succeeded, we can delete the database record
+	_ = s.repo.DeletePendingUploadByKey(ctx, key)
+	return nil
 }
 
 // StartCleanupJob starts a background job that cleans up expired uploads

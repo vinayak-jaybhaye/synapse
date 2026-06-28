@@ -27,6 +27,18 @@ services:
       timeout: 3s
       retries: 5
 
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - ENFORCE_IAM=1
+    volumes:
+      - ./localstack-init.sh:/etc/localstack/init/ready.d/init.sh
+
+
   api:
     build:
       context: ./apps/api
@@ -40,6 +52,12 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - JWT_SECRET=${JWT_SECRET:-supersecret}
+      - S3_BUCKET=synapse-bucket
+      - S3_ENDPOINT=http://localstack:4566
+      - S3_USE_PATH_STYLE=true
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
     depends_on:
       postgres:
         condition: service_healthy
