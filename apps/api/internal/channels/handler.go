@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/synapse/api/internal/errors"
-	"github.com/synapse/api/internal/media"
 )
 
 type Handler struct {
@@ -264,41 +263,4 @@ func (h *Handler) DeleteRoleOverride(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-// @Summary Generate Channel Icon Upload URL
-// @Description Generates a presigned S3 URL for uploading a channel icon
-// @Tags channels
-// @Accept json
-// @Produce json
-// @Param channelID path string true "Channel Snowflake ID"
-// @Param request body media.UploadRequest true "Upload Info"
-// @Success 200 {object} media.UploadResponse
-// @Failure 400 {object} errors.APIError
-// @Failure 401 {object} errors.APIError
-// @Failure 403 {object} errors.APIError
-// @Failure 500 {object} errors.APIError
-// @Router /channels/{channelID}/icons/upload-url [post]
-func (h *Handler) GenerateIconUploadURL(c *gin.Context) {
-	channelID, err := strconv.ParseInt(c.Param("channelID"), 10, 64)
-	if err != nil {
-		errors.HandleError(c, errors.NewBadRequest("invalid channel ID"))
-		return
-	}
-
-	userID := c.GetInt64("user_id")
-
-	var req media.UploadRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		errors.HandleError(c, errors.NewBadRequest("invalid request body: "+err.Error()))
-		return
-	}
-
-	resp, err := h.svc.GenerateIconUploadURL(c.Request.Context(), channelID, userID, &req)
-	if err != nil {
-		errors.HandleError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, resp)
 }

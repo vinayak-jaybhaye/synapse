@@ -20,6 +20,7 @@ CREATE TABLE
     name VARCHAR(100) NOT NULL,
     description TEXT,
     icon_key TEXT,
+    banner_key TEXT,
     version INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ DEFAULT NOW (),
     updated_at TIMESTAMPTZ DEFAULT NOW (),
@@ -226,8 +227,10 @@ CREATE TABLE
     guild_id BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
     channel_id BIGINT REFERENCES channels (id) ON DELETE CASCADE,
     mute_until TIMESTAMPTZ,
-    UNIQUE NULLS NOT DISTINCT (user_id, guild_id, channel_id)
-    -- Constraint removed to allow DMs (guild_id = NULL) to be muted
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE NULLS NOT DISTINCT (user_id, guild_id, channel_id),
+    CHECK (guild_id IS NULL OR channel_id IS NULL)
   );
 
 CREATE TABLE
@@ -269,3 +272,19 @@ CREATE TABLE
     metadata JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW ()
   );
+
+-- 8. Media Pipeline Lifecycle
+CREATE TABLE pending_uploads (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    object_key TEXT NOT NULL,
+    category VARCHAR(64) NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type VARCHAR(128) NOT NULL,
+    file_size BIGINT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'REQUESTED',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_pending_uploads_expired ON pending_uploads(expires_at) WHERE status != 'CONSUMED';

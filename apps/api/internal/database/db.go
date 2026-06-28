@@ -86,38 +86,6 @@ func (db *DB) runMigrations() error {
 		slog.Info("Users table exists, skipping initial migrations")
 	}
 
-	// 2. Pending uploads schema
-	var pendingExists bool
-	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'pending_uploads')").Scan(&pendingExists)
-	if err != nil {
-		return fmt.Errorf("failed to check pending_uploads table: %w", err)
-	}
-
-	if !pendingExists {
-		slog.Info("pending_uploads table not found, running migration...")
-		if err := db.runMigrationFile("002_pending_uploads.sql"); err != nil {
-			return err
-		}
-	} else {
-		slog.Info("pending_uploads table exists, skipping migration")
-	}
-
-	// 3. Guild banners schema
-	var guildBannersExists bool
-	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name='guilds' AND column_name='banner_key')").Scan(&guildBannersExists)
-	if err != nil {
-		return fmt.Errorf("failed to check guilds banner_key column: %w", err)
-	}
-
-	if !guildBannersExists {
-		slog.Info("guilds banner_key column not found, running migration...")
-		if err := db.runMigrationFile("003_guild_banners.sql"); err != nil {
-			return err
-		}
-	} else {
-		slog.Info("guilds banner_key column exists, skipping migration")
-	}
-
 	slog.Info("Database migrations completed successfully")
 	return nil
 }

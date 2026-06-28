@@ -11,6 +11,7 @@ import (
 	"github.com/synapse/api/internal/middleware"
 	"github.com/synapse/api/internal/roles"
 	"github.com/synapse/api/internal/users"
+	"github.com/synapse/api/internal/notifications"
 )
 
 func SetupRoutes(
@@ -24,6 +25,7 @@ func SetupRoutes(
 	messageHandler *messages.Handler,
 	inviteHandler *invites.Handler,
 	mediaHandler *media.Handler,
+	notificationsHandler *notifications.Handler,
 ) {
 	// Root Group
 	v1 := r.Group("/api/v1")
@@ -49,12 +51,22 @@ func SetupRoutes(
 		protected.POST("/users/@me/banners/upload-url", userHandler.GenerateBannerUploadURL)
 		protected.POST("/dms", userHandler.CreateDM)
 
+		// Notifications
+		protected.GET("/users/@me/notifications", notificationsHandler.GetUserSettings)
+		protected.PUT("/users/@me/notifications/global", notificationsHandler.PutGlobalSettings)
+		protected.PUT("/users/@me/notifications/guilds/:guildID", notificationsHandler.PutGuildSettings)
+		protected.PUT("/users/@me/notifications/channels/:channelID", notificationsHandler.PutChannelSettings)
+
 		// Guilds
 		protected.POST("/guilds", guildHandler.CreateGuild)
 		protected.GET("/guilds/:guildID", guildHandler.GetGuild)
 		protected.PATCH("/guilds/:guildID", guildHandler.UpdateGuild)
 		protected.GET("/guilds/:guildID/members", guildHandler.GetGuildMembers)
 		protected.PATCH("/guilds/:guildID/members/:userID", guildHandler.PatchGuildMember)
+		protected.DELETE("/guilds/:guildID/members/:userID", guildHandler.KickMember)
+		protected.POST("/guilds/:guildID/bans/:userID", guildHandler.BanMember)
+		protected.GET("/guilds/:guildID/bans", guildHandler.GetBans)
+		protected.DELETE("/guilds/:guildID/bans/:userID", guildHandler.UnbanMember)
 		protected.POST("/guilds/:guildID/icons/upload-url", guildHandler.GenerateIconUploadURL)
 		protected.POST("/guilds/:guildID/banners/upload-url", guildHandler.GenerateBannerUploadURL)
 
@@ -71,7 +83,6 @@ func SetupRoutes(
 		protected.POST("/guilds/:guildID/channels", channelHandler.CreateChannel)
 		protected.PATCH("/channels/:channelID", channelHandler.UpdateChannel)
 		protected.DELETE("/channels/:channelID", channelHandler.DeleteChannel)
-		protected.POST("/channels/:channelID/icons/upload-url", channelHandler.GenerateIconUploadURL)
 
 		// Channel Permissions
 		protected.GET("/channels/:channelID/permissions", channelHandler.GetRoleOverrides)
