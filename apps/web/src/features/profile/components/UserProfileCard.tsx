@@ -6,6 +6,7 @@ import { MessageSquare } from "lucide-react";
 import { useDMs } from "../../../services/query/useDMs";
 import { useChannelStore } from "../../../store/channel-store";
 import { useGuildStore } from "../../../store/guild-store";
+import { useAuthStore } from "../../../store/auth-store";
 
 interface UserProfileCardProps {
   profile: UserProfile;
@@ -17,6 +18,9 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
   const { createDM } = useDMs();
   const { selectChannel } = useChannelStore();
   const { selectGuild } = useGuildStore();
+  const { user: currentUser } = useAuthStore();
+
+  const isMe = currentUser?.id === profile.id;
 
   const handleMessage = async () => {
     if (!profile) return;
@@ -80,11 +84,11 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
         </div>
 
         {/* User Info */}
-        <div className="mb-3">
-          <h2 className="text-xl font-bold leading-tight">
+        <div className="mb-3 min-w-0">
+          <h2 className="text-xl font-bold leading-tight truncate" title={profile.display_name || profile.username}>
             {profile.display_name || profile.username}
           </h2>
-          <p className="text-sm text-text-muted">{profile.username}</p>
+          <p className="text-sm text-text-muted truncate" title={profile.username}>@{profile.username}</p>
         </div>
 
         <div className="h-px bg-border-color w-full my-3" />
@@ -110,13 +114,15 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
           </div>
         )}
 
-        <button
-          onClick={handleMessage}
-          className="w-full flex items-center justify-center gap-2 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-sm font-semibold transition-colors"
-        >
-          <MessageSquare className="h-4 w-4" />
-          Message
-        </button>
+        {!isMe && (
+          <button
+            onClick={handleMessage}
+            className="w-full flex items-center justify-center gap-2 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-sm font-semibold transition-colors"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Message
+          </button>
+        )}
 
       </div>
     </div>

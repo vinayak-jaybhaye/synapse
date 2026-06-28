@@ -28,22 +28,25 @@ export default function EmojiPickerPopover({
   anchorRef,
 }: EmojiPickerPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ bottom: "100%", right: "0px" });
+  const [position, setPosition] = useState<{ bottom: string; left?: string; right?: string }>({ bottom: "100%", left: "0px" });
 
   useEffect(() => {
     if (open && anchorRef.current) {
-      // Basic positioning: Above the trigger and right-aligned
-      // In a very robust implementation, we would use floating-ui to prevent clipping
       const rect = anchorRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-
-      // Check if it would overflow right
-      const isMobile = viewportWidth < 640;
       
-      setPosition({
-        bottom: `calc(100% + 12px)`, // 12px gap above button
-        right: isMobile ? `-${rect.right - viewportWidth + 16}px` : "0px",
-      });
+      // If the anchor is on the left side of the screen, align the left edge of the picker to the anchor.
+      // Otherwise, align the right edge of the picker.
+      if (rect.left < 360) {
+        setPosition({
+          bottom: `calc(100% + 12px)`,
+          left: "0px",
+        });
+      } else {
+        setPosition({
+          bottom: `calc(100% + 12px)`,
+          right: "0px",
+        });
+      }
     }
   }, [open, anchorRef]);
 
@@ -82,9 +85,10 @@ export default function EmojiPickerPopover({
   return (
     <div
       ref={popoverRef}
-      className="absolute z-50 shadow-2xl animate-fadeIn"
+      className="absolute z-50 shadow-2xl animate-fadeIn bg-bg-secondary/75 backdrop-blur-md rounded-xl border border-border-custom overflow-hidden"
       style={{
         bottom: position.bottom,
+        left: position.left,
         right: position.right,
       }}
       role="dialog"

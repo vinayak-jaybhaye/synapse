@@ -317,15 +317,29 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
           onChange={handleFileSelect} 
         />
         
-        <button
-          type="button"
-          className="text-text-secondary hover:text-text-primary p-1.5 rounded cursor-pointer transition-colors mb-0.5"
-          title="Upload attachments"
-          aria-label="Upload attachments"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Paperclip className="h-4.5 w-4.5" />
-        </button>
+        <div className="relative flex items-center mb-0.5">
+          <button
+            ref={emojiButtonRef}
+            type="button"
+            className={`p-1.5 rounded cursor-pointer transition-colors ${
+              showEmojiPicker ? "text-indigo-400 bg-bg-tertiary" : "text-text-secondary hover:text-text-primary"
+            }`}
+            title="Emoji Picker"
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+          >
+            <Smile className="h-4.5 w-4.5" />
+          </button>
+          
+          <EmojiPickerPopover
+            open={showEmojiPicker}
+            onClose={() => {
+              setShowEmojiPicker(false);
+              textareaRef.current?.focus();
+            }}
+            onEmojiSelect={handleEmojiSelect}
+            anchorRef={emojiButtonRef}
+          />
+        </div>
 
         <textarea
           ref={textareaRef}
@@ -349,29 +363,15 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
             <Sparkles className="h-4.5 w-4.5 text-indigo-400" />
           </button>
 
-          <div className="relative flex items-center">
-            <button
-              ref={emojiButtonRef}
-              type="button"
-              className={`p-1.5 rounded cursor-pointer transition-colors ${
-                showEmojiPicker ? "text-indigo-400 bg-bg-tertiary" : "text-text-secondary hover:text-text-primary"
-              }`}
-              title="Emoji Picker"
-              onClick={() => setShowEmojiPicker((prev) => !prev)}
-            >
-              <Smile className="h-4.5 w-4.5" />
-            </button>
-            
-            <EmojiPickerPopover
-              open={showEmojiPicker}
-              onClose={() => {
-                setShowEmojiPicker(false);
-                textareaRef.current?.focus();
-              }}
-              onEmojiSelect={handleEmojiSelect}
-              anchorRef={emojiButtonRef}
-            />
-          </div>
+          <button
+            type="button"
+            className="text-text-secondary hover:text-text-primary p-1.5 rounded cursor-pointer transition-colors"
+            title="Upload attachments"
+            aria-label="Upload attachments"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Paperclip className="h-4.5 w-4.5" />
+          </button>
 
           <button
             type="submit"

@@ -219,6 +219,17 @@ export interface InviteDetails {
   guild_name: string;
 }
 
+export interface BanWithUser {
+  guild_id: string;
+  user_id: string;
+  username: string;
+  display_name?: string;
+  avatar_key?: string;
+  reason?: string;
+  banned_by: string;
+  created_at: string;
+}
+
 // ─── Media Uploads ──────────────────────────────────────────────────────────
 
 export interface UploadResponse {

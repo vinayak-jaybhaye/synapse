@@ -1,12 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useGuildStore } from "../../store/guild-store";
 import { useMembers } from "../../services/query/useMembers";
 import { useRoles } from "../../services/query/useRoles";
 import { useGuilds } from "../../services/query/useGuilds";
+import { useAuthStore } from "../../store/auth-store";
 import { Crown, VolumeX, Shield, Loader2 } from "lucide-react";
 import UserProfilePopover from "../../features/profile/components/UserProfilePopover";
+import MemberContextMenu from "./MemberContextMenu";
 import { getMediaUrl } from "../../lib/media";
 
 const getRoleColorHex = (colorNum?: number) => {
@@ -19,6 +21,11 @@ export default function MembersSidebar() {
   const { guilds } = useGuilds();
   const { infiniteMembers: members, infiniteError, infiniteIsLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useMembers(activeGuildId || undefined);
   const { roles } = useRoles(activeGuildId || undefined);
+  const { user } = useAuthStore();
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; member: any } | null>(null);
+
+  const currentMember = members.find((m) => m.user_id === user?.id);
+  const currentUserRoles = currentMember?.roles || [];
 
   const observerRef = React.useRef<HTMLDivElement>(null);
 
@@ -99,6 +106,15 @@ export default function MembersSidebar() {
     return (
       <UserProfilePopover key={m.user_id} userId={m.user_id} side="left" align="start">
         <div
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setContextMenu({
+              x: e.clientX,
+              y: e.clientY,
+              member: m,
+            });
+          }}
           className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-bg-secondary/60 cursor-pointer transition-colors w-full group"
         >
           <div className="relative shrink-0 h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-xs select-none overflow-hidden">
@@ -207,6 +223,20 @@ export default function MembersSidebar() {
         <div className="flex justify-center py-8">
           <Loader2 className="h-6 w-6 text-indigo-500 animate-spin" />
         </div>
+      )}
+      {contextMenu && (
+        <MemberContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          member={contextMenu.member}
+          guildId={activeGuildId}
+          guildOwnerId={activeGuild.owner_id}
+          currentUserId={user?.id || ""}
+          currentUserPermissions={activeGuild.permissions}
+          currentUserRoles={currentUserRoles}
+          allRoles={roles}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   );

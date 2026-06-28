@@ -10,6 +10,7 @@ import { Guild } from "../../../types";
 import { useQueryClient } from "@tanstack/react-query";
 import { GUILDS_QUERY_KEY } from "../../../services/query/useGuilds";
 import { mediaApi } from "../../../services/api/media";
+import { getMediaUrl } from "../../../lib/media";
 
 interface OverviewTabProps {
   activeGuild: Guild;
@@ -39,13 +40,25 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
     reset();
   };
 
+  const savedUploadIdsRef = React.useRef<Set<string>>(new Set());
+  const iconUploadIdRef = React.useRef<string | null>(null);
+  const bannerUploadIdRef = React.useRef<string | null>(null);
+
+  // Keep refs in sync with form state
+  iconUploadIdRef.current = data.iconUploadId;
+  bannerUploadIdRef.current = data.bannerUploadId;
+
+  // Cleanup only on unmount — cancel any unsaved pending uploads
   React.useEffect(() => {
     return () => {
-      // Best-effort cleanup on unmount
-      if (data.iconUploadId) mediaApi.cancelUpload(data.iconUploadId).catch(() => {});
-      if (data.bannerUploadId) mediaApi.cancelUpload(data.bannerUploadId).catch(() => {});
+      if (iconUploadIdRef.current && !savedUploadIdsRef.current.has(iconUploadIdRef.current)) {
+        mediaApi.cancelUpload(iconUploadIdRef.current).catch(() => {});
+      }
+      if (bannerUploadIdRef.current && !savedUploadIdsRef.current.has(bannerUploadIdRef.current)) {
+        mediaApi.cancelUpload(bannerUploadIdRef.current).catch(() => {});
+      }
     };
-  }, [data.iconUploadId, data.bannerUploadId]);
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -62,7 +75,11 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
 
       await guildsApi.updateGuild(activeGuild.id, payload);
       queryClient.invalidateQueries({ queryKey: GUILDS_QUERY_KEY });
-      // Clear data upload IDs so unmount effect doesn't cancel the ones we just saved
+
+      // Mark these uploads as saved so cleanup won't cancel them
+      if (data.iconUploadId) savedUploadIdsRef.current.add(data.iconUploadId);
+      if (data.bannerUploadId) savedUploadIdsRef.current.add(data.bannerUploadId);
+
       handleChange("iconUploadId", null);
       handleChange("bannerUploadId", null);
       reset();
@@ -75,11 +92,11 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
 
   const currentIconUrl = data.removeIcon 
     ? null 
-    : (activeGuild.icon_key ? `http://localhost:4566/synapse-bucket/${activeGuild.icon_key}` : null);
+    : (activeGuild.icon_key ? getMediaUrl(activeGuild.icon_key) || null : null);
 
   const currentBannerUrl = data.removeBanner 
     ? null 
-    : (activeGuild.banner_key ? `http://localhost:4566/synapse-bucket/${activeGuild.banner_key}` : null);
+    : (activeGuild.banner_key ? getMediaUrl(activeGuild.banner_key) || null : null);
 
   return (
     <div className="space-y-6 pb-20">

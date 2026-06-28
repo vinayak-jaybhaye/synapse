@@ -30,12 +30,7 @@ export default function ChatArea() {
     if (!activeGuild && !activeChannel) return;
     
     const printPerms = (name: string, permString: string | undefined) => {
-      console.log(`=== ${name} Permissions ===`);
-      console.log("Raw Bits:", permString);
-      if (!permString) {
-        console.log("None");
-        return;
-      }
+      if (!permString) return;
       const results: Record<string, string> = {};
       for (const [key, value] of Object.entries(PermissionFlags)) {
         results[key] = hasPermission(permString, value) ? "YES" : "NO";

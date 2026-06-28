@@ -122,46 +122,64 @@ export default function ChannelSidebar() {
   return (
     <div className="flex flex-col h-full w-full bg-bg-secondary select-none">
       {/* 1. Sidebar Header */}
-      <div className="h-12 border-b border-border-custom px-4 flex items-center justify-between shrink-0 shadow-sm">
-        {activeGuild ? (
-          <>
-            <span className="font-bold text-text-primary truncate">{activeGuild.name}</span>
-            <div className="flex items-center gap-1 shrink-0">
-              {canCreateInstantInvite && (
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="p-1 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary"
-                title="Invite People"
-              >
-                <UserPlus className="h-4 w-4" />
-              </button>
-              )}
-              {canManageGuildChannels && (
-              <button
-                onClick={() => setShowCreateChannel(true)}
-                className="p-1 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary"
-                title="Create Channel"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-              )}
-              {canManageGuild && (
-                <button
-                  onClick={() => {
-                    setGuildSettingsTab("roles");
-                    setShowGuildSettings(true);
-                  }}
-                  className="p-1 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary"
-                  title="Server Settings"
-                >
-                  <Settings className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <span className="font-bold text-text-primary">Direct Messages</span>
+      <div 
+        className={`relative border-b border-border-custom px-4 flex items-end shrink-0 shadow-sm transition-all duration-300 overflow-hidden ${
+          activeGuild?.banner_key ? "h-32" : "h-12"
+        }`}
+        style={
+          activeGuild?.banner_key
+            ? {
+                backgroundImage: `url(${getMediaUrl(activeGuild.banner_key)})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : undefined
+        }
+      >
+        {activeGuild?.banner_key && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/40 z-0 pointer-events-none" />
         )}
+        <div className="relative z-10 w-full flex items-center justify-between h-12 pb-1">
+          {activeGuild ? (
+            <>
+              <span className="font-bold text-text-primary truncate drop-shadow-md">{activeGuild.name}</span>
+              <div className="flex items-center gap-1 shrink-0">
+                {canCreateInstantInvite && (
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="p-1 hover:bg-bg-tertiary/60 rounded text-text-secondary hover:text-text-primary backdrop-blur-sm transition-colors cursor-pointer"
+                    title="Invite People"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                  </button>
+                )}
+                {canManageGuildChannels && (
+                  <button
+                    onClick={() => setShowCreateChannel(true)}
+                    className="p-1 hover:bg-bg-tertiary/60 rounded text-text-secondary hover:text-text-primary backdrop-blur-sm transition-colors cursor-pointer"
+                    title="Create Channel"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+                {canManageGuild && (
+                  <button
+                    onClick={() => {
+                      setGuildSettingsTab("roles");
+                      setShowGuildSettings(true);
+                    }}
+                    className="p-1 hover:bg-bg-tertiary/60 rounded text-text-secondary hover:text-text-primary backdrop-blur-sm transition-colors cursor-pointer"
+                    title="Server Settings"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <span className="font-bold text-text-primary">Direct Messages</span>
+          )}
+        </div>
       </div>
 
       {/* 2. Channel & Categories List */}

@@ -7,6 +7,7 @@ import MediaUploadControl from "../MediaUploadControl";
 import { useSettingsForm } from "../../../hooks/useSettingsForm";
 import UnsavedChangesBar from "../UnsavedChangesBar";
 import { mediaApi } from "../../../services/api/media";
+import { getMediaUrl } from "../../../lib/media";
 
 export default function ProfileTab() {
   const { user, setUser } = useAuthStore();
@@ -31,13 +32,25 @@ export default function ProfileTab() {
     reset();
   };
 
+  const savedUploadIdsRef = React.useRef<Set<string>>(new Set());
+  const avatarUploadIdRef = React.useRef<string | null>(null);
+  const bannerUploadIdRef = React.useRef<string | null>(null);
+
+  // Keep refs in sync with form state
+  avatarUploadIdRef.current = data.avatarUploadId;
+  bannerUploadIdRef.current = data.bannerUploadId;
+
+  // Cleanup only on unmount — cancel any unsaved pending uploads
   React.useEffect(() => {
     return () => {
-      // Best-effort cleanup on unmount
-      if (data.avatarUploadId) mediaApi.cancelUpload(data.avatarUploadId).catch(() => {});
-      if (data.bannerUploadId) mediaApi.cancelUpload(data.bannerUploadId).catch(() => {});
+      if (avatarUploadIdRef.current && !savedUploadIdsRef.current.has(avatarUploadIdRef.current)) {
+        mediaApi.cancelUpload(avatarUploadIdRef.current).catch(() => {});
+      }
+      if (bannerUploadIdRef.current && !savedUploadIdsRef.current.has(bannerUploadIdRef.current)) {
+        mediaApi.cancelUpload(bannerUploadIdRef.current).catch(() => {});
+      }
     };
-  }, [data.avatarUploadId, data.bannerUploadId]);
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -54,6 +67,11 @@ export default function ProfileTab() {
 
       const updatedUser = await usersApi.updateProfile(payload);
       setUser(updatedUser);
+
+      // Mark these uploads as saved so cleanup won't cancel them
+      if (data.avatarUploadId) savedUploadIdsRef.current.add(data.avatarUploadId);
+      if (data.bannerUploadId) savedUploadIdsRef.current.add(data.bannerUploadId);
+
       handleChange("avatarUploadId", null);
       handleChange("bannerUploadId", null);
       reset();
@@ -66,11 +84,11 @@ export default function ProfileTab() {
 
   const currentAvatarUrl = data.removeAvatar 
     ? null 
-    : (user?.avatar_key ? `http://localhost:4566/synapse-bucket/${user.avatar_key}` : null);
+    : (user?.avatar_key ? getMediaUrl(user.avatar_key) || null : null);
 
   const currentBannerUrl = data.removeBanner 
     ? null 
-    : (user?.banner_key ? `http://localhost:4566/synapse-bucket/${user.banner_key}` : null);
+    : (user?.banner_key ? getMediaUrl(user.banner_key) || null : null);
 
   return (
     <div className="space-y-6 pb-20">

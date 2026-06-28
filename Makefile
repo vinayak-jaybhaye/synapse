@@ -1,7 +1,10 @@
 .PHONY: web api gateway db-up db-down
 
 db-up:
-	docker-compose up -d postgres redis
+	docker-compose up -d postgres redis localstack
+
+localstack-init:
+	./localstack-init.sh
 
 db-down:
 	docker-compose down
