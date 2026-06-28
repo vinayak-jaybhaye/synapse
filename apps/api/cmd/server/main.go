@@ -23,6 +23,7 @@ import (
 	"github.com/synapse/api/internal/router"
 	"github.com/synapse/api/internal/snowflake"
 	"github.com/synapse/api/internal/users"
+	"github.com/synapse/api/internal/notifications"
 )
 
 func main() {
@@ -88,6 +89,11 @@ func main() {
 	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, db.Redis)
 	inviteService := invites.NewService(inviteRepo, roleRepo)
 
+	// Notifications
+	notificationsRepo := notifications.NewPGRepository(db.PG)
+	notificationsService := notifications.NewService(notificationsRepo, guildRepo, channelRepo, permissionService)
+	notificationsHandler := notifications.NewHandler(notificationsService)
+
 	// 7. Instantiate Handlers
 	authHandler := auth.NewAuthHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -118,6 +124,7 @@ func main() {
 		messageHandler,
 		inviteHandler,
 		mediaHandler,
+		notificationsHandler,
 	)
 
 	slog.Info("Synapse Core HTTP API server running", "port", cfg.Port)
