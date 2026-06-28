@@ -18,6 +18,10 @@ type Repository interface {
 	ListMembersCursor(ctx context.Context, guildID, afterUserID int64, limit int) ([]MemberWithUser, error)
 	UpdateMember(ctx context.Context, m *GuildMember) error
 	UpdateGuild(ctx context.Context, g *Guild) error
+	RemoveMember(ctx context.Context, guildID, userID int64) error
+	BanMember(ctx context.Context, guildID, userID, bannedByID int64, reason string) error
+	ListBans(ctx context.Context, guildID int64) ([]BanWithUser, error)
+	RemoveBan(ctx context.Context, guildID, userID int64) error
 }
 
 type pgRepository struct {
@@ -201,4 +205,93 @@ func (r *pgRepository) UpdateGuild(ctx context.Context, g *Guild) error {
 	query := `UPDATE guilds SET name = $1, description = $2, icon_key = $3, banner_key = $4, updated_at = NOW(), version = version + 1 WHERE id = $5 AND deleted_at IS NULL`
 	_, err := r.db.ExecContext(ctx, query, g.Name, g.Description, g.IconKey, g.BannerKey, g.ID)
 	return err
+}
+
+func (r *pgRepository) RemoveMember(ctx context.Context, guildID, userID int64) error {
+	query := `DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2`
+	_, err := r.db.ExecContext(ctx, query, guildID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to remove guild member: %w", err)
+	}
+	return nil
+}
+
+func (r *pgRepository) BanMember(ctx context.Context, guildID, userID, bannedByID int64, reason string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin ban tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// 1. Delete member
+	deleteQuery := `DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2`
+	_, err = tx.ExecContext(ctx, deleteQuery, guildID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to remove guild member in ban tx: %w", err)
+	}
+
+	// 2. Insert ban
+	banQuery := `
+		INSERT INTO guild_bans (guild_id, user_id, banned_by, reason, created_at)
+		VALUES ($1, $2, $3, $4, NOW())
+		ON CONFLICT (guild_id, user_id) DO UPDATE SET reason = EXCLUDED.reason, banned_by = EXCLUDED.banned_by, created_at = NOW()
+	`
+	_, err = tx.ExecContext(ctx, banQuery, guildID, userID, bannedByID, reason)
+	if err != nil {
+		return fmt.Errorf("failed to insert ban: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit ban tx: %w", err)
+	}
+	return nil
+}
+
+func (r *pgRepository) ListBans(ctx context.Context, guildID int64) ([]BanWithUser, error) {
+	query := `
+		SELECT gb.guild_id, gb.user_id, u.username, u.display_name, u.avatar_key, gb.reason, gb.banned_by, gb.created_at
+		FROM guild_bans gb
+		INNER JOIN users u ON gb.user_id = u.id
+		WHERE gb.guild_id = $1
+		ORDER BY gb.created_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query, guildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list guild bans: %w", err)
+	}
+	defer rows.Close()
+
+	var list []BanWithUser
+	for rows.Next() {
+		var b BanWithUser
+		var displayName sql.NullString
+		var avatarKey sql.NullString
+		var reason sql.NullString
+		err := rows.Scan(
+			&b.GuildID, &b.UserID, &b.Username, &displayName, &avatarKey, &reason, &b.BannedBy, &b.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan ban row: %w", err)
+		}
+		if displayName.Valid {
+			b.DisplayName = &displayName.String
+		}
+		if avatarKey.Valid {
+			b.AvatarKey = &avatarKey.String
+		}
+		if reason.Valid {
+			b.Reason = &reason.String
+		}
+		list = append(list, b)
+	}
+	return list, nil
+}
+
+func (r *pgRepository) RemoveBan(ctx context.Context, guildID, userID int64) error {
+	query := `DELETE FROM guild_bans WHERE guild_id = $1 AND user_id = $2`
+	_, err := r.db.ExecContext(ctx, query, guildID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to remove ban: %w", err)
+	}
+	return nil
 }

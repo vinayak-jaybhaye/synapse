@@ -1,5 +1,5 @@
 import { api } from "../../lib/api";
-import { Guild, Member } from "../../types";
+import { Guild, Member, BanWithUser } from "../../types";
 
 export const guildsApi = {
   createGuild: async (name: string, description?: string): Promise<Guild> => {
@@ -33,5 +33,22 @@ export const guildsApi = {
   ): Promise<Member> => {
     const response = await api.patch<Member>(`/guilds/${guildId}/members/${userId}`, data);
     return response.data;
+  },
+
+  kickMember: async (guildId: string, userId: string): Promise<void> => {
+    await api.delete(`/guilds/${guildId}/members/${userId}`);
+  },
+
+  banMember: async (guildId: string, userId: string, reason?: string): Promise<void> => {
+    await api.post(`/guilds/${guildId}/bans/${userId}`, { reason });
+  },
+
+  getBans: async (guildId: string): Promise<BanWithUser[]> => {
+    const response = await api.get<any[]>(`/guilds/${guildId}/bans`);
+    return response.data || [];
+  },
+
+  unbanMember: async (guildId: string, userId: string): Promise<void> => {
+    await api.delete(`/guilds/${guildId}/bans/${userId}`);
   },
 };

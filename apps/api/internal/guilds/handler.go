@@ -262,3 +262,93 @@ func (h *Handler) UpdateGuild(c *gin.Context) {
 	}
 	c.JSON(200, g)
 }
+
+func (h *Handler) KickMember(c *gin.Context) {
+	requesterUserID := c.GetInt64("user_id")
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+	targetUserID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid user ID"))
+		return
+	}
+
+	err = h.svc.KickMember(c.Request.Context(), guildID, targetUserID, requesterUserID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+type BanMemberRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+func (h *Handler) BanMember(c *gin.Context) {
+	requesterUserID := c.GetInt64("user_id")
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+	targetUserID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid user ID"))
+		return
+	}
+
+	var req BanMemberRequest
+	_ = c.ShouldBindJSON(&req) // Reason is optional
+
+	err = h.svc.BanMember(c.Request.Context(), guildID, targetUserID, requesterUserID, req.Reason)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) GetBans(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+
+	bans, err := h.svc.GetBans(c.Request.Context(), guildID, userID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, bans)
+}
+
+func (h *Handler) UnbanMember(c *gin.Context) {
+	requesterUserID := c.GetInt64("user_id")
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+	targetUserID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid user ID"))
+		return
+	}
+
+	err = h.svc.UnbanMember(c.Request.Context(), guildID, targetUserID, requesterUserID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}

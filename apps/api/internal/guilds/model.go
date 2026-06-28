@@ -54,3 +54,14 @@ type UpdateGuildRequest struct {
 	RemoveIcon     *bool   `json:"remove_icon,omitempty"`
 	RemoveBanner   *bool   `json:"remove_banner,omitempty"`
 }
+
+type BanWithUser struct {
+	GuildID     int64     `json:"guild_id,string"`
+	UserID      int64     `json:"user_id,string"`
+	Username    string    `json:"username"`
+	DisplayName *string   `json:"display_name,omitempty"`
+	AvatarKey   *string   `json:"avatar_key,omitempty"`
+	Reason      *string   `json:"reason,omitempty"`
+	BannedBy    int64     `json:"banned_by,string"`
+	CreatedAt   time.Time `json:"created_at"`
+}
