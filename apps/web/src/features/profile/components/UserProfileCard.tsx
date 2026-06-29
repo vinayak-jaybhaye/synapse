@@ -20,7 +20,7 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
   const { selectGuild } = useGuildStore();
   const { user: currentUser } = useAuthStore();
 
-  const isMe = currentUser?.id === profile.id;
+  const isMe = currentUser?.id === profile?.id;
 
   const handleMessage = async () => {
     if (!profile) return;
