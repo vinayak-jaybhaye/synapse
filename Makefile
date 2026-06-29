@@ -13,7 +13,8 @@ api:
 	cd apps/api && go run cmd/server/main.go
 
 gateway:
-	cd apps/gateway && go run cmd/gateway/main.go
+	cd apps/gateway && go run cmd/server/main.go
+
 
 web:
 	cd apps/web && npm run dev

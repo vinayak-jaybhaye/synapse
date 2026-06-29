@@ -18,12 +18,13 @@ import (
 	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/messages"
 	"github.com/synapse/api/internal/middleware"
+	"github.com/synapse/api/internal/notifications"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/roles"
 	"github.com/synapse/api/internal/router"
 	"github.com/synapse/api/internal/snowflake"
 	"github.com/synapse/api/internal/users"
-	"github.com/synapse/api/internal/notifications"
+	"github.com/synapse/api/internal/voice"
 )
 
 func main() {
@@ -94,6 +95,18 @@ func main() {
 	notificationsService := notifications.NewService(notificationsRepo, guildRepo, channelRepo, permissionService)
 	notificationsHandler := notifications.NewHandler(notificationsService)
 
+	// Voice
+	lkClient := voice.NewLiveKitClient(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret, cfg.LiveKitURL)
+	voiceRepo := voice.NewRepository(db.Redis)
+	voiceService := voice.NewService(
+		voiceRepo,
+		lkClient,
+		permissionService,
+		time.Duration(cfg.VoiceStateTTL)*time.Second,
+		cfg.LiveKitURL,
+	)
+	voiceHandler := voice.NewHandler(voiceService, channelRepo)
+
 	// 7. Instantiate Handlers
 	authHandler := auth.NewAuthHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -125,6 +138,7 @@ func main() {
 		inviteHandler,
 		mediaHandler,
 		notificationsHandler,
+		voiceHandler,
 	)
 
 	slog.Info("Synapse Core HTTP API server running", "port", cfg.Port)

@@ -18,6 +18,8 @@ type Repository interface {
 	GetRoleOverrides(ctx context.Context, channelID int64) ([]ChannelRolePermissionOverride, error)
 	PutRoleOverride(ctx context.Context, override *ChannelRolePermissionOverride) error
 	DeleteRoleOverride(ctx context.Context, channelID, roleID int64) error
+	// GetGuildIDForChannel returns the guildID for a given channelID, used by the voice package.
+	GetGuildIDForChannel(ctx context.Context, channelID int64) (int64, error)
 }
 
 type pgRepository struct {
@@ -199,4 +201,20 @@ func (r *pgRepository) DeleteRoleOverride(ctx context.Context, channelID, roleID
 		return fmt.Errorf("failed to delete role override: %w", err)
 	}
 	return nil
+}
+
+func (r *pgRepository) GetGuildIDForChannel(ctx context.Context, channelID int64) (int64, error) {
+	query := `SELECT guild_id FROM channels WHERE id = $1 AND deleted_at IS NULL`
+	var guildID sql.NullInt64
+	err := r.db.QueryRowContext(ctx, query, channelID).Scan(&guildID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("channel not found")
+		}
+		return 0, fmt.Errorf("failed to get guild ID for channel: %w", err)
+	}
+	if !guildID.Valid {
+		return 0, fmt.Errorf("channel has no guild (DM channel)")
+	}
+	return guildID.Int64, nil
 }

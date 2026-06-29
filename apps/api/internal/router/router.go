@@ -9,9 +9,10 @@ import (
 	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/messages"
 	"github.com/synapse/api/internal/middleware"
+	"github.com/synapse/api/internal/notifications"
 	"github.com/synapse/api/internal/roles"
 	"github.com/synapse/api/internal/users"
-	"github.com/synapse/api/internal/notifications"
+	"github.com/synapse/api/internal/voice"
 )
 
 func SetupRoutes(
@@ -26,6 +27,7 @@ func SetupRoutes(
 	inviteHandler *invites.Handler,
 	mediaHandler *media.Handler,
 	notificationsHandler *notifications.Handler,
+	voiceHandler *voice.Handler,
 ) {
 	// Root Group
 	v1 := r.Group("/api/v1")
@@ -110,5 +112,20 @@ func SetupRoutes(
 		// Media
 		protected.POST("/media/uploads/:uploadID/complete", mediaHandler.MarkUploadComplete)
 		protected.DELETE("/media/uploads/:uploadID", mediaHandler.CancelUpload)
+
+		// Voice
+		protected.POST("/channels/:channelID/voice/join", voiceHandler.JoinVoice)
+		protected.DELETE("/channels/:channelID/voice/leave", voiceHandler.LeaveVoice)
+		protected.GET("/channels/:channelID/voice", voiceHandler.GetVoiceStates)
+
+		// Voice — Moderator Actions
+		protected.POST("/channels/:channelID/voice/members/:targetUserID/mute", voiceHandler.ModServerMute)
+		protected.DELETE("/channels/:channelID/voice/members/:targetUserID/mute", voiceHandler.ModServerMute)
+		protected.POST("/channels/:channelID/voice/members/:targetUserID/deafen", voiceHandler.ModServerDeafen)
+		protected.DELETE("/channels/:channelID/voice/members/:targetUserID/deafen", voiceHandler.ModServerDeafen)
+		protected.POST("/channels/:channelID/voice/members/:targetUserID/disconnect", voiceHandler.ModDisconnect)
 	}
+
+	// LiveKit Webhook — unauthenticated (signature verified internally)
+	v1.POST("/voice/webhook", voiceHandler.Webhook)
 }

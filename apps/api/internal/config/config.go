@@ -27,6 +27,12 @@ type Config struct {
 	S3Bucket           string
 	S3Endpoint         string
 	S3UsePathStyle     bool
+
+	// LiveKit Configuration
+	LiveKitURL       string
+	LiveKitAPIKey    string
+	LiveKitAPISecret string
+	VoiceStateTTL    int // seconds; default 60
 }
 
 func LoadConfig() (*Config, error) {
@@ -108,6 +114,13 @@ func LoadConfig() (*Config, error) {
 		s3UsePathStyle = true
 	}
 
+	voiceStateTTL := 60
+	if v := os.Getenv("VOICE_STATE_TTL"); v != "" {
+		if val, err := strconv.Atoi(v); err == nil && val > 0 {
+			voiceStateTTL = val
+		}
+	}
+
 	return &Config{
 		Port:               port,
 		DBHost:             dbHost,
@@ -128,6 +141,10 @@ func LoadConfig() (*Config, error) {
 		S3Bucket:           os.Getenv("S3_BUCKET"),
 		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
 		S3UsePathStyle:     s3UsePathStyle,
+		LiveKitURL:         os.Getenv("LIVEKIT_URL"),
+		LiveKitAPIKey:      os.Getenv("LIVEKIT_API_KEY"),
+		LiveKitAPISecret:   os.Getenv("LIVEKIT_API_SECRET"),
+		VoiceStateTTL:      voiceStateTTL,
 	}, nil
 }
 
