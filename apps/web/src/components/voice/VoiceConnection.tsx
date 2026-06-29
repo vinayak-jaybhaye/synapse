@@ -1,77 +1,160 @@
 "use client";
 
-import React, { useState } from "react";
-import { PhoneOff, Video, Monitor, ShieldAlert, Wifi } from "lucide-react";
-import { useChannelPermissions } from "../../hooks/usePermissions";
+import React from "react";
+import {
+    Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff,
+    Monitor, MonitorOff, PhoneOff, Wifi, WifiOff, Loader2, Shield
+} from "lucide-react";
+import { ConnectionState } from "livekit-client";
+import { useVoice } from "../../features/voice/useVoice";
 
 interface VoiceConnectionProps {
-  channelName: string;
-  onDisconnect: () => void;
-  permissions?: string;
+    channelName: string;
 }
 
-export default function VoiceConnection({ channelName, onDisconnect, permissions }: VoiceConnectionProps) {
-  const { canSpeak } = useChannelPermissions(permissions);
-  const [screenSharing, setScreenSharing] = useState(false);
-  const [videoActive, setVideoActive] = useState(false);
+/**
+ * Compact voice connection status bar shown at the bottom of the channel sidebar.
+ * Wired to the real LiveKit session via useVoice — no local state.
+ */
+export default function VoiceConnection({ channelName }: VoiceConnectionProps) {
+    const {
+        connectionState,
+        selfState,
+        toggleMute,
+        toggleDeafen,
+        toggleVideo,
+        toggleScreenShare,
+        leaveVoice,
+    } = useVoice();
 
-  return (
-    <div
-      className="bg-bg-tertiary border-t border-border-custom px-3 py-2 flex flex-col gap-1.5 shrink-0 z-10"
-      role="region"
-      aria-label="Voice connection status"
-    >
-      {/* Upper row: connection state and wifi info */}
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5 text-green-500 font-semibold">
-          <Wifi className="h-4 w-4 animate-pulse" />
-          <span>Voice Connected</span>
+    const isConnected = connectionState === ConnectionState.Connected;
+    const isReconnecting = connectionState === ConnectionState.Reconnecting;
+
+    const isMuted = selfState?.self_mute ?? false;
+    const isDeafened = selfState?.self_deaf ?? false;
+    const isVideo = selfState?.video ?? false;
+    const isScreen = selfState?.screen_share ?? false;
+    const serverMuted = selfState?.server_mute ?? false;
+    const serverDeafened = selfState?.server_deaf ?? false;
+
+    return (
+        <div
+            className="bg-bg-tertiary border-t border-border-custom px-3 py-2 flex flex-col gap-1.5 shrink-0 z-10"
+            role="region"
+            aria-label="Voice connection status"
+        >
+            {/* Connection status row */}
+            <div className="flex items-center justify-between text-xs">
+                <div
+                    className={`flex items-center gap-1.5 font-semibold ${isReconnecting
+                            ? "text-yellow-400"
+                            : isConnected
+                                ? "text-green-500"
+                                : "text-text-muted"
+                        }`}
+                >
+                    {isReconnecting ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : isConnected ? (
+                        <Wifi className="h-3.5 w-3.5 animate-pulse" />
+                    ) : (
+                        <WifiOff className="h-3.5 w-3.5" />
+                    )}
+                    <span>
+                        {isReconnecting ? "Reconnecting..." : isConnected ? "Voice Connected" : "Connecting..."}
+                    </span>
+                </div>
+            </div>
+
+            {/* Channel name */}
+            <div className="text-xs text-text-secondary truncate font-medium">
+                {channelName}
+            </div>
+
+            {/* Server-mute/deaf warning */}
+            {(serverMuted || serverDeafened) && (
+                <div className="flex items-center gap-1 text-[10px] text-red-400">
+                    <Shield className="h-3 w-3" />
+                    <span>
+                        {serverMuted && serverDeafened
+                            ? "Server muted and deafened"
+                            : serverMuted
+                                ? "Server muted"
+                                : "Server deafened"}
+                    </span>
+                </div>
+            )}
+
+            {/* Controls */}
+            <div className="flex items-center justify-between mt-1 px-1 gap-1">
+                {/* Mute */}
+                <button
+                    onClick={toggleMute}
+                    disabled={serverMuted}
+                    title={serverMuted ? "Server muted by a moderator" : isMuted ? "Unmute" : "Mute"}
+                    className={`p-2 rounded-lg transition-all duration-200 ${serverMuted
+                            ? "bg-red-500/10 text-red-400 cursor-not-allowed opacity-60"
+                            : isMuted
+                                ? "bg-red-500/15 text-red-500 hover:bg-red-500/25 cursor-pointer"
+                                : "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 cursor-pointer"
+                        }`}
+                    aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
+                >
+                    {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+
+                {/* Deafen */}
+                <button
+                    onClick={toggleDeafen}
+                    disabled={serverDeafened}
+                    title={serverDeafened ? "Server deafened by a moderator" : isDeafened ? "Undeafen" : "Deafen"}
+                    className={`p-2 rounded-lg transition-all duration-200 ${serverDeafened
+                            ? "bg-red-500/10 text-red-400 cursor-not-allowed opacity-60"
+                            : isDeafened
+                                ? "bg-red-500/15 text-red-500 hover:bg-red-500/25 cursor-pointer"
+                                : "bg-bg-secondary text-text-secondary hover:bg-bg-primary hover:text-text-primary cursor-pointer"
+                        }`}
+                    aria-label={isDeafened ? "Undeafen" : "Deafen"}
+                >
+                    {isDeafened ? <HeadphoneOff className="h-4 w-4" /> : <Headphones className="h-4 w-4" />}
+                </button>
+
+                {/* Video */}
+                <button
+                    onClick={toggleVideo}
+                    title={isVideo ? "Stop Video" : "Start Video"}
+                    className={`p-2 rounded-lg transition-all duration-200 ${isVideo
+                            ? "bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 cursor-pointer"
+                            : "bg-bg-secondary text-text-secondary hover:bg-bg-primary hover:text-text-primary cursor-pointer"
+                        }`}
+                    aria-label={isVideo ? "Stop video" : "Start video"}
+                >
+                    {isVideo ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+                </button>
+
+                {/* Screen Share */}
+                <button
+                    onClick={toggleScreenShare}
+                    title={isScreen ? "Stop Sharing" : "Share Screen"}
+                    className={`p-2 rounded-lg transition-all duration-200 ${isScreen
+                            ? "bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 cursor-pointer"
+                            : "bg-bg-secondary text-text-secondary hover:bg-bg-primary hover:text-text-primary cursor-pointer"
+                        }`}
+                    aria-label={isScreen ? "Stop screen share" : "Share screen"}
+                >
+                    {isScreen ? <Monitor className="h-4 w-4" /> : <MonitorOff className="h-4 w-4" />}
+                </button>
+
+                {/* Disconnect */}
+                <button
+                    onClick={leaveVoice}
+                    title="Leave Voice Channel"
+                    className="p-2 bg-red-500 hover:bg-red-600 rounded-lg text-white cursor-pointer transition-colors flex items-center justify-center shadow hover:shadow-red-500/25"
+                    aria-label="Leave voice channel"
+                >
+                    <PhoneOff className="h-4 w-4" />
+                </button>
+            </div>
         </div>
-        <span className="text-text-muted text-[10px]">24 ms</span>
-      </div>
-
-      {/* Middle row: voice channel metadata */}
-      <div className="text-xs text-text-secondary truncate font-medium pl-5">
-        {channelName}
-      </div>
-
-      {/* Action buttons (Mute/Video/Screen Share/Disconnect) */}
-      <div className="flex items-center justify-between mt-1 px-1">
-        <button
-          onClick={() => setVideoActive(!videoActive)}
-          className={`p-1.5 rounded transition-colors ${
-            !canSpeak ? "opacity-50 cursor-not-allowed text-text-muted" :
-            videoActive ? "text-green-500 hover:bg-bg-secondary" : "text-text-secondary hover:bg-bg-secondary hover:text-text-primary cursor-pointer"
-          }`}
-          disabled={!canSpeak}
-          title={canSpeak ? "Toggle Video" : "You don't have permission to speak in this channel."}
-          aria-label={videoActive ? "Turn off video" : "Turn on video"}
-        >
-          <Video className="h-4 w-4" />
-        </button>
-
-        <button
-          onClick={() => setScreenSharing(!screenSharing)}
-          className={`p-1.5 rounded transition-colors ${
-            !canSpeak ? "opacity-50 cursor-not-allowed text-text-muted" :
-            screenSharing ? "text-indigo-400 hover:bg-bg-secondary" : "text-text-secondary hover:bg-bg-secondary hover:text-text-primary cursor-pointer"
-          }`}
-          disabled={!canSpeak}
-          title={canSpeak ? "Share Screen" : "You don't have permission to speak in this channel."}
-          aria-label={screenSharing ? "Stop sharing screen" : "Share screen"}
-        >
-          <Monitor className="h-4 w-4" />
-        </button>
-
-        <button
-          onClick={onDisconnect}
-          className="p-1.5 bg-red-500 hover:bg-red-600 rounded text-white cursor-pointer"
-          title="Disconnect from Voice"
-          aria-label="Disconnect from Voice"
-        >
-          <PhoneOff className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
+    );
 }

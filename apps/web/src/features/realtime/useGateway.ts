@@ -9,23 +9,21 @@ import { messagesKeys } from "../../services/query/useMessages";
 import { channelsKeys } from "../../services/query/useChannels";
 import { membersKeys } from "../../services/query/useMembers";
 import { Message } from "../../types";
+import { useVoiceStore } from "../voice/voiceStore";
 
 /**
- * Hook that connects the gateway to React Query's cache.
+ * Hook that connects the gateway to React Query's cache and voice store.
  *
  * When a realtime event arrives, it updates the relevant query cache
- * directly — no refetch needed. This is the single integration point
- * between the realtime system and the rest of the application.
+ * or voice store directly — no refetch needed.
  *
  * Usage: Mount once in Providers.tsx or the authenticated layout.
- *
- * Currently a no-op (NoopGateway). When WebSocket is implemented,
- * this hook will start receiving events automatically.
  */
 export function useGateway() {
   const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.token);
   const handlerRef = useRef<(() => void) | null>(null);
+  const voiceStore = useVoiceStore();
 
   useEffect(() => {
     if (!token) {
@@ -35,12 +33,11 @@ export function useGateway() {
 
     gateway.connect(token);
 
-    // Subscribe to gateway events and route them to query cache
+    // Subscribe to gateway events and route them to query cache / voice store
     const unsubscribe = gateway.onEvent((event: GatewayEvent) => {
       switch (event.type) {
         case "MESSAGE_CREATE": {
           const msg = event.data;
-          // Append to the messages query cache for this channel
           queryClient.setQueryData(
             messagesKeys.list(msg.channel_id),
             (old: any) => {
@@ -94,7 +91,6 @@ export function useGateway() {
         case "CHANNEL_CREATE":
         case "CHANNEL_UPDATE":
         case "CHANNEL_DELETE": {
-          // Invalidate the channels list for the affected guild
           const guildId = "guild_id" in event.data ? event.data.guild_id : undefined;
           if (guildId) {
             queryClient.invalidateQueries({ queryKey: channelsKeys.list(guildId) });
@@ -112,8 +108,13 @@ export function useGateway() {
           break;
         }
 
+        case "VOICE_STATE_UPDATE": {
+          // Route to voice store — never sets `speaking` (LiveKit-local only)
+          voiceStore.updateFromGatewayEvent(event.data);
+          break;
+        }
+
         default:
-          // Future events (TYPING_START, PRESENCE_UPDATE, etc.) handled here
           break;
       }
     });

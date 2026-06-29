@@ -23,56 +23,65 @@ import {
   Mic,
   MicOff,
   Headphones,
+  HeadphoneOff,
   Signal,
   Calendar,
   Layers,
   ChevronRight
 } from "lucide-react";
 import VoiceConnection from "../voice/VoiceConnection";
+import VoiceParticipantsList from "../voice/VoiceParticipantsList";
+import { useVoice } from "../../features/voice/useVoice";
+import { useVoiceStore } from "../../features/voice/voiceStore";
 
 
-function ChannelItem({ ch, activeChannelId, joinedVoiceChannelId, handleChannelSelect, setActiveChannelSettingsId, setShowChannelSettings }: any) {
+function ChannelItem({ ch, activeChannelId, handleChannelSelect, setActiveChannelSettingsId, setShowChannelSettings }: any) {
   const { canViewChannel, canManageChannels } = useChannelPermissions(ch.permissions);
-  
+  const activeVoiceChannelId = useVoiceStore((s) => s.activeChannelId);
+
   if (!canViewChannel && ch.id !== "private-placeholder") return null;
 
   const isActive = activeChannelId === ch.id;
-  const isVoiceJoined = joinedVoiceChannelId === ch.id;
+  const isVoiceJoined = activeVoiceChannelId === ch.id;
 
   return (
-    <button
-      onClick={() => handleChannelSelect(ch.id, ch.type)}
-      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm text-left transition-colors cursor-pointer group ${
-        isActive || isVoiceJoined
-          ? "bg-bg-primary text-text-primary font-semibold"
-          : "text-text-secondary hover:bg-bg-primary/40 hover:text-text-primary"
-      }`}
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        {ch.type === 0 ? (
-          <Hash className="h-4 w-4 shrink-0 text-text-muted" />
-        ) : (
-          <Volume2 className="h-4 w-4 shrink-0 text-text-muted" />
-        )}
-        <span className="truncate">{ch.name}</span>
-      </div>
+    <>
+      <button
+        onClick={() => handleChannelSelect(ch.id, ch.type)}
+        className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm text-left transition-colors cursor-pointer group ${
+          isActive || isVoiceJoined
+            ? "bg-bg-primary text-text-primary font-semibold"
+            : "text-text-secondary hover:bg-bg-primary/40 hover:text-text-primary"
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {ch.type === 0 ? (
+            <Hash className="h-4 w-4 shrink-0 text-text-muted" />
+          ) : (
+            <Volume2 className={`h-4 w-4 shrink-0 ${isVoiceJoined ? "text-green-500" : "text-text-muted"}`} />
+          )}
+          <span className="truncate">{ch.name}</span>
+        </div>
 
-      <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        {ch.id === "private-placeholder" ? (
-          <Lock className="h-3 w-3 text-text-muted" />
-        ) : null}
-        {canManageChannels && (
-          <Settings
-            className="h-3.5 w-3.5 text-text-muted hover:text-text-primary cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveChannelSettingsId(ch.id);
-              setShowChannelSettings(true);
-            }}
-          />
-        )}
-      </div>
-    </button>
+        <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          {ch.id === "private-placeholder" ? (
+            <Lock className="h-3 w-3 text-text-muted" />
+          ) : null}
+          {canManageChannels && (
+            <Settings
+              className="h-3.5 w-3.5 text-text-muted hover:text-text-primary cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveChannelSettingsId(ch.id);
+                setShowChannelSettings(true);
+              }}
+            />
+          )}
+        </div>
+      </button>
+      {/* Show connected participants under voice channels */}
+      {ch.type === 1 && <VoiceParticipantsList channelId={ch.id} channelName={ch.name} />}
+    </>
   );
 }
 
@@ -88,9 +97,12 @@ export default function ChannelSidebar() {
   const safeDMs = dms || [];
 
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
-  const [micMuted, setMicMuted] = useState(false);
-  const [deafened, setDeafened] = useState(false);
-  const [joinedVoiceChannelId, setJoinedVoiceChannelId] = useState<string | null>(null);
+
+  // Real voice state from LiveKit integration
+  const { joinVoice, leaveVoice, toggleMute, toggleDeafen } = useVoice();
+  const activeVoiceChannelId = useVoiceStore((s) => s.activeChannelId);
+  const activeVoiceGuildId = useVoiceStore((s) => s.activeGuildId);
+  const selfState = useVoiceStore((s) => s.selfState);
 
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
   const { canManageChannels: canManageGuildChannels } = useGuildPermissions(activeGuild?.permissions);
@@ -102,8 +114,12 @@ export default function ChannelSidebar() {
 
   const handleChannelSelect = (channelId: string, type: number) => {
     if (type === 1) {
-      // Voice channel
-      setJoinedVoiceChannelId(joinedVoiceChannelId === channelId ? null : channelId);
+      // Voice channel — toggle join/leave
+      if (activeVoiceChannelId === channelId) {
+        leaveVoice();
+      } else {
+        joinVoice(activeGuildId!, channelId);
+      }
     } else {
       selectChannel(channelId);
     }
@@ -216,12 +232,10 @@ export default function ChannelSidebar() {
                   <span>Text Channels</span>
                   <Plus
                     className="h-3.5 w-3.5 hover:text-text-primary cursor-pointer"
-                    onClick={() => {
-                      setShowCreateChannel(true);
-                    }}
+                    onClick={() => { setShowCreateChannel(true); }}
                   />
                 </div>
-                <div className="space-y-0.5">{textChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} joinedVoiceChannelId={joinedVoiceChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}</div>
+                <div className="space-y-0.5">{textChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}</div>
               </div>
             )}
 
@@ -231,12 +245,10 @@ export default function ChannelSidebar() {
                   <span>Voice Channels</span>
                   <Plus
                     className="h-3.5 w-3.5 hover:text-text-primary cursor-pointer"
-                    onClick={() => {
-                      setShowCreateChannel(true);
-                    }}
+                    onClick={() => { setShowCreateChannel(true); }}
                   />
                 </div>
-                <div className="space-y-0.5">{voiceChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} joinedVoiceChannelId={joinedVoiceChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}</div>
+                <div className="space-y-0.5">{voiceChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}</div>
               </div>
             )}
 
@@ -261,15 +273,13 @@ export default function ChannelSidebar() {
                     </button>
                     <Plus
                       className="h-3.5 w-3.5 hover:text-text-primary cursor-pointer"
-                      onClick={() => {
-                        setShowCreateChannel(true);
-                      }}
+                      onClick={() => { setShowCreateChannel(true); }}
                     />
                   </div>
 
                   {!isCollapsed && (
                     <div className="pl-2 space-y-0.5">
-                      {catChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} joinedVoiceChannelId={joinedVoiceChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}
+                      {catChannels.map(ch => <ChannelItem key={ch.id} ch={ch} activeChannelId={activeChannelId} handleChannelSelect={handleChannelSelect} setActiveChannelSettingsId={setActiveChannelSettingsId} setShowChannelSettings={setShowChannelSettings} />)}
                       {catChannels.length === 0 && (
                         <span className="text-text-muted/65 text-xs italic pl-6 block py-0.5">
                           Empty category
@@ -349,13 +359,12 @@ export default function ChannelSidebar() {
         )}
       </div>
 
-      {/* 3. Voice Connection State Overlay (Desktop footer overlay) */}
-      {joinedVoiceChannelId && (
+      {/* 3. Voice Connection State (shown when in a voice channel in this guild) */}
+      {activeVoiceChannelId && activeVoiceGuildId === activeGuildId && (
         <VoiceConnection
           channelName={
-            channels.find((c) => c.id === joinedVoiceChannelId)?.name || "Voice Channel"
+            channels.find((c) => c.id === activeVoiceChannelId)?.name || "Voice Channel"
           }
-          onDisconnect={() => setJoinedVoiceChannelId(null)}
         />
       )}
 
@@ -379,19 +388,19 @@ export default function ChannelSidebar() {
         {/* Action icons */}
         <div className="flex items-center gap-0.5 shrink-0">
           <button
-            onClick={() => setMicMuted(!micMuted)}
+            onClick={toggleMute}
             className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary cursor-pointer"
-            title={micMuted ? "Unmute Mic" : "Mute Mic"}
+            title={selfState?.self_mute ? "Unmute Mic" : "Mute Mic"}
           >
-            {micMuted ? <MicOff className="h-4 w-4 text-red-500" /> : <Mic className="h-4 w-4" />}
+            {selfState?.self_mute ? <MicOff className="h-4 w-4 text-red-500" /> : <Mic className="h-4 w-4" />}
           </button>
           
           <button
-            onClick={() => setDeafened(!deafened)}
+            onClick={toggleDeafen}
             className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary cursor-pointer"
-            title={deafened ? "Undeafen Audio" : "Deafen Audio"}
+            title={selfState?.self_deaf ? "Undeafen Audio" : "Deafen Audio"}
           >
-            <Headphones className={`h-4 w-4 ${deafened ? "text-red-500" : ""}`} />
+            <Headphones className={`h-4 w-4 ${selfState?.self_deaf ? "text-red-500" : ""}`} />
           </button>
           
           <button

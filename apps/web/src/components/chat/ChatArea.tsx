@@ -10,9 +10,10 @@ import { useDMs } from "../../services/query/useDMs";
 import { Hash, Volume2, MessageSquare, Loader2, ArrowDown, AtSign } from "lucide-react";
 import MessageItem from "./MessageItem";
 import { getMediaUrl } from "../../lib/media";
-import MessageComposer from "./MessageComposer";
+import MessageComposer from "../chat/MessageComposer";
 import { useChannelPermissions } from "../../hooks/usePermissions";
 import { Message, PermissionFlags, hasPermission } from "../../types";
+import VoiceChannelView from "../voice/VoiceChannelView";
 
 export default function ChatArea() {
   const { activeChannelId } = useChannelStore();
@@ -25,6 +26,8 @@ export default function ChatArea() {
   const activeChannel = channels.find((c) => c.id === activeChannelId);
   const activeDM = (dms || []).find((d) => d.channel_id === activeChannelId);
   const { canManageMessages, canAddReactions } = useChannelPermissions(activeChannel?.permissions, !!activeDM);
+
+  const isVoiceChannel = activeChannel?.type === 1;
 
   useEffect(() => {
     if (!activeGuild && !activeChannel) return;
@@ -55,7 +58,7 @@ export default function ChatArea() {
     deleteMessage,
     addReaction,
     removeReaction,
-  } = useMessages(activeChannelId || undefined);
+  } = useMessages(!isVoiceChannel ? (activeChannelId || undefined) : undefined);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -148,6 +151,10 @@ export default function ChatArea() {
       console.error(err);
     }
   };
+
+  if (isVoiceChannel && activeChannel) {
+    return <VoiceChannelView channelName={activeChannel.name} />;
+  }
 
   if (!activeChannelId || (!activeChannel && !activeDM)) {
     return (

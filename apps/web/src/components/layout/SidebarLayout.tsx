@@ -7,6 +7,8 @@ import GuildList from "../guilds/GuildList";
 import ChannelSidebar from "../channels/ChannelSidebar";
 import ChatArea from "../chat/ChatArea";
 import MembersSidebar from "../members/MembersSidebar";
+import VoiceFloatingOverlay from "../voice/VoiceFloatingOverlay";
+
 
 export default function SidebarLayout() {
   const {
@@ -172,6 +174,7 @@ export default function SidebarLayout() {
           </div>
         </div>
       )}
+      <VoiceFloatingOverlay />
     </div>
   );
 }

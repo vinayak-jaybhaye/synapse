@@ -1,8 +1,8 @@
 import { Message, Channel, Member } from "../../types";
+import { VoiceStateEvent } from "../voice/types";
 
 // ─── Gateway Event Types ─────────────────────────────────────────────────────
 // Discriminated union of all events the realtime gateway can emit.
-// When WebSocket is implemented, the handler maps incoming JSON to these types.
 
 export type GatewayEvent =
   // Messaging
@@ -27,14 +27,16 @@ export type GatewayEvent =
   | { type: "MEMBER_LEAVE"; data: { guild_id: string; user_id: string } }
   | { type: "MEMBER_UPDATE"; data: Member }
 
-  // Voice (future)
-  | { type: "VOICE_STATE_UPDATE"; data: { guild_id: string; channel_id: string; user_id: string; self_mute: boolean; self_deaf: boolean } }
+  // Voice — full state event; `speaking` is intentionally absent (LiveKit-local only)
+  | { type: "VOICE_STATE_UPDATE"; data: VoiceStateEvent }
 
   // Guild
   | { type: "GUILD_UPDATE"; data: { id: string; name?: string; icon_key?: string } }
 
   // Read State
   | { type: "READ_STATE_UPDATE"; data: { channel_id: string; last_read_message_id: string } };
+
+
 
 // ─── Connection State ────────────────────────────────────────────────────────
 
