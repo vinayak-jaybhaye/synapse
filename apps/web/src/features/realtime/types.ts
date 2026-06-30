@@ -11,11 +11,17 @@ export type GatewayEvent =
   | { type: "MESSAGE_DELETE"; data: { id: string; channel_id: string } }
 
   // Typing
-  | { type: "TYPING_START"; data: { channel_id: string; user_id: string; timestamp: number } }
+  | {
+      type: "TYPING_START";
+      data: { channel_id: string; user_id: string; timestamp: number };
+    }
   | { type: "TYPING_STOP"; data: { channel_id: string; user_id: string } }
 
   // Presence
-  | { type: "PRESENCE_UPDATE"; data: { user_id: string; status: string; last_seen?: string } }
+  | {
+      type: "PRESENCE_UPDATE";
+      data: { user_id: string; status: string; last_seen?: string };
+    }
 
   // Channels
   | { type: "CHANNEL_CREATE"; data: Channel }
@@ -31,20 +37,20 @@ export type GatewayEvent =
   | { type: "VOICE_STATE_UPDATE"; data: VoiceStateEvent }
 
   // Guild
-  | { type: "GUILD_UPDATE"; data: { id: string; name?: string; icon_key?: string } }
+  | {
+      type: "GUILD_UPDATE";
+      data: { id: string; name?: string; icon_key?: string };
+    }
 
   // Read State
-  | { type: "READ_STATE_UPDATE"; data: { channel_id: string; last_read_message_id: string } };
-
-
+  | {
+      type: "READ_STATE_UPDATE";
+      data: { channel_id: string; last_read_message_id: string };
+    };
 
 // ─── Connection State ────────────────────────────────────────────────────────
 
-export type GatewayConnectionState =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "reconnecting";
+export type GatewayConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 
 // ─── Gateway Interface ───────────────────────────────────────────────────────
 // The rest of the application programs against this interface.

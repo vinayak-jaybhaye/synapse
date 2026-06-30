@@ -123,7 +123,11 @@ export class WebSocketGateway implements IGateway {
         // Fan-out all other events to registered handlers
         const event = msg as any;
         this.eventHandlers.forEach((h) => {
-          try { h(event); } catch { /* ignore handler errors */ }
+          try {
+            h(event);
+          } catch {
+            /* ignore handler errors */
+          }
         });
       }
     }
@@ -145,7 +149,11 @@ export class WebSocketGateway implements IGateway {
     if (this._state === state) return;
     this._state = state;
     this.stateHandlers.forEach((h) => {
-      try { h(state); } catch { /* ignore */ }
+      try {
+        h(state);
+      } catch {
+        /* ignore */
+      }
     });
   }
 
@@ -159,5 +167,6 @@ export class WebSocketGateway implements IGateway {
 /**
  * Singleton gateway instance.
  */
-export const gateway: IGateway & { subscribeGuild?: (guildId: string) => void } =
-  new WebSocketGateway();
+export const gateway: IGateway & {
+  subscribeGuild?: (guildId: string) => void;
+} = new WebSocketGateway();

@@ -10,6 +10,7 @@ import { channelsKeys } from "../../services/query/useChannels";
 import { membersKeys } from "../../services/query/useMembers";
 import { Message } from "../../types";
 import { useVoiceStore } from "../voice/voiceStore";
+import { useUIStore } from "../../store/ui-store";
 
 /**
  * Hook that connects the gateway to React Query's cache and voice store.
@@ -38,53 +39,42 @@ export function useGateway() {
       switch (event.type) {
         case "MESSAGE_CREATE": {
           const msg = event.data;
-          queryClient.setQueryData(
-            messagesKeys.list(msg.channel_id),
-            (old: any) => {
-              if (!old?.pages) return old;
-              const lastPage = old.pages[0] || [];
-              return {
-                ...old,
-                pages: [[msg, ...lastPage], ...old.pages.slice(1)],
-              };
-            }
-          );
+          queryClient.setQueryData(messagesKeys.list(msg.channel_id), (old: any) => {
+            if (!old?.pages) return old;
+            const lastPage = old.pages[0] || [];
+            return {
+              ...old,
+              pages: [[msg, ...lastPage], ...old.pages.slice(1)],
+            };
+          });
           break;
         }
 
         case "MESSAGE_UPDATE": {
           const msg = event.data;
-          queryClient.setQueryData(
-            messagesKeys.list(msg.channel_id),
-            (old: any) => {
-              if (!old?.pages) return old;
-              return {
-                ...old,
-                pages: old.pages.map((page: Message[]) =>
-                  page.map((m) => (m.id === msg.id ? msg : m))
-                ),
-              };
-            }
-          );
+          queryClient.setQueryData(messagesKeys.list(msg.channel_id), (old: any) => {
+            if (!old?.pages) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: Message[]) =>
+                page.map((m) => (m.id === msg.id ? msg : m)),
+              ),
+            };
+          });
           break;
         }
 
         case "MESSAGE_DELETE": {
           const { id, channel_id } = event.data;
-          queryClient.setQueryData(
-            messagesKeys.list(channel_id),
-            (old: any) => {
-              if (!old?.pages) return old;
-              return {
-                ...old,
-                pages: old.pages.map((page: Message[]) =>
-                  page.map((m) =>
-                    m.id === id ? { ...m, deleted: true, content: "" } : m
-                  )
-                ),
-              };
-            }
-          );
+          queryClient.setQueryData(messagesKeys.list(channel_id), (old: any) => {
+            if (!old?.pages) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: Message[]) =>
+                page.map((m) => (m.id === id ? { ...m, deleted: true, content: "" } : m)),
+              ),
+            };
+          });
           break;
         }
 
@@ -93,7 +83,9 @@ export function useGateway() {
         case "CHANNEL_DELETE": {
           const guildId = "guild_id" in event.data ? event.data.guild_id : undefined;
           if (guildId) {
-            queryClient.invalidateQueries({ queryKey: channelsKeys.list(guildId) });
+            queryClient.invalidateQueries({
+              queryKey: channelsKeys.list(guildId),
+            });
           }
           break;
         }
@@ -103,14 +95,34 @@ export function useGateway() {
         case "MEMBER_UPDATE": {
           const guildId = "guild_id" in event.data ? event.data.guild_id : undefined;
           if (guildId) {
-            queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId) });
+            queryClient.invalidateQueries({
+              queryKey: membersKeys.list(guildId),
+            });
           }
           break;
         }
 
         case "VOICE_STATE_UPDATE": {
+          const eventData = event.data;
           // Route to voice store — never sets `speaking` (LiveKit-local only)
-          voiceStore.updateFromGatewayEvent(event.data);
+          voiceStore.updateFromGatewayEvent(eventData);
+
+          // If the leave event is for the local user, we were kicked/ejected!
+          const { state, action } = eventData;
+          const localUser = useAuthStore.getState().user;
+          if (action === "leave" && localUser && state && state.user_id === localUser.id) {
+            const activeRoom = voiceStore.room;
+            if (activeRoom) {
+              console.warn(
+                "[Gateway] Local user evicted from voice channel; disconnecting local WebRTC room.",
+              );
+              activeRoom.disconnect();
+              voiceStore.clearActive();
+              useUIStore
+                .getState()
+                .showToast("Ejected from the voice channel by a moderator.", "error");
+            }
+          }
           break;
         }
 
