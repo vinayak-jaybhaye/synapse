@@ -2,7 +2,17 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Volume2, VolumeX, Shield, UserMinus, Ban, Edit2, Check, X, ShieldAlert } from "lucide-react";
+import {
+  Volume2,
+  VolumeX,
+  Shield,
+  UserMinus,
+  Ban,
+  Edit2,
+  Check,
+  X,
+  ShieldAlert,
+} from "lucide-react";
 import { guildsApi } from "../../services/api/guilds";
 import { rolesApi } from "../../services/api/roles";
 import { membersKeys } from "../../services/query/useMembers";
@@ -75,7 +85,9 @@ export default function MemberContextMenu({
   // Requester must be owner, OR (requester highest role > target highest role AND target is not owner)
   const canManageTarget =
     requesterIsOwner ||
-    (requesterHighestRolePos > targetHighestRolePos && !targetIsOwner && currentUserId !== member.user_id);
+    (requesterHighestRolePos > targetHighestRolePos &&
+      !targetIsOwner &&
+      currentUserId !== member.user_id);
 
   // Parse permissions
   const BigIntPerms = currentUserPermissions ? BigInt(currentUserPermissions) : 0n;
@@ -102,7 +114,8 @@ export default function MemberContextMenu({
 
   const canKick = !isMe && !isTargetOwner && ((hasKickPerm && canManageTarget) || requesterIsOwner);
   const canBan = !isMe && !isTargetOwner && ((hasBanPerm && canManageTarget) || requesterIsOwner);
-  const canManageRoles = !isTargetOwner && ((hasManageRolesPerm && canManageTarget) || requesterIsOwner);
+  const canManageRoles =
+    !isTargetOwner && ((hasManageRolesPerm && canManageTarget) || requesterIsOwner);
 
   const getDisableReason = () => {
     if (isMe) return "Self Target";
@@ -118,20 +131,22 @@ export default function MemberContextMenu({
 
   // Roles that are lower than the requester's highest role (or all roles if owner)
   const assignableRoles = allRoles.filter(
-    (role) => !role.is_default && (requesterIsOwner || requesterHighestRolePos > role.position)
+    (role) => !role.is_default && (requesterIsOwner || requesterHighestRolePos > role.position),
   );
 
   const handleMuteToggle = async () => {
     try {
       // Backend PatchGuildMember mutates mute status via guilds service (requires MUTE_MEMBERS)
       const isMuted = !member.is_muted;
-      await guildsApi.patchGuildMember(guildId, member.user_id, { nickname: member.nickname || undefined } as any);
-      
+      await guildsApi.patchGuildMember(guildId, member.user_id, {
+        nickname: member.nickname || undefined,
+      } as any);
+
       // Wait, patchGuildMember in service.go:
       // if req.IsMuted != nil { ... }
       // But the api definition in guilds.ts currently only takes nickname. Let's send raw payload
       await apiPatchGuildMemberMute(guildId, member.user_id, isMuted);
-      
+
       queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId) });
       onClose();
     } catch (err) {
@@ -318,7 +333,13 @@ export default function MemberContextMenu({
                       onChange={() => handleToggleRole(role.id, isAssigned)}
                       className="rounded border-border-custom text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
                     />
-                    <span style={{ color: role.color ? "#" + role.color.toString(16).padStart(6, "0") : undefined }}>
+                    <span
+                      style={{
+                        color: role.color
+                          ? "#" + role.color.toString(16).padStart(6, "0")
+                          : undefined,
+                      }}
+                    >
                       {role.name}
                     </span>
                   </label>

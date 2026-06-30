@@ -11,7 +11,7 @@ export const rolesApi = {
     guildId: string,
     name: string,
     permissions: string,
-    color?: number
+    color?: number,
   ): Promise<Role> => {
     const response = await api.post<Role>(`/guilds/${guildId}/roles`, {
       name,
@@ -21,11 +21,7 @@ export const rolesApi = {
     return response.data;
   },
 
-  updateRole: async (
-    guildId: string,
-    roleId: string,
-    updates: Partial<Role>
-  ): Promise<Role> => {
+  updateRole: async (guildId: string, roleId: string, updates: Partial<Role>): Promise<Role> => {
     const response = await api.patch<Role>(`/guilds/${guildId}/roles/${roleId}`, updates);
     return response.data;
   },

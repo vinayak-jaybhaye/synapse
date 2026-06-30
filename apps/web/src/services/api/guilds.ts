@@ -17,7 +17,11 @@ export const guildsApi = {
     return response.data;
   },
 
-  getGuildMembers: async (guildId: string, after: string = "", limit: number = 50): Promise<Member[]> => {
+  getGuildMembers: async (
+    guildId: string,
+    after: string = "",
+    limit: number = 50,
+  ): Promise<Member[]> => {
     const query = new URLSearchParams();
     if (after) query.append("after", after);
     if (limit) query.append("limit", limit.toString());
@@ -29,7 +33,7 @@ export const guildsApi = {
   patchGuildMember: async (
     guildId: string,
     userId: string,
-    data: { nickname?: string }
+    data: { nickname?: string },
   ): Promise<Member> => {
     const response = await api.patch<Member>(`/guilds/${guildId}/members/${userId}`, data);
     return response.data;

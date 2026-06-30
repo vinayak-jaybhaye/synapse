@@ -51,8 +51,8 @@ export default function MessageItem({
   }, [msg.id, register, unregister]);
 
   const isAuthor = msg.author.id === user?.id || msg.author_id === user?.id;
-  const initials = msg.author.username 
-    ? msg.author.username.substring(0, 1).toUpperCase() 
+  const initials = msg.author.username
+    ? msg.author.username.substring(0, 1).toUpperCase()
     : `M${msg.author_id.substring(0, 1).toUpperCase()}`;
   const timestamp = formatTimestamp(msg.created_at);
   const isHighlighted = highlightedMessageId === msg.id;
@@ -77,7 +77,11 @@ export default function MessageItem({
       <UserProfilePopover userId={msg.author_id} side="right" align="start">
         <button className="shrink-0 h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-sm select-none mt-0.5 overflow-hidden hover:opacity-80 transition-opacity focus:outline-none">
           {msg.author?.avatar_key ? (
-            <img src={getMediaUrl(msg.author.avatar_key)} alt={msg.author.username} className="w-full h-full object-cover" />
+            <img
+              src={getMediaUrl(msg.author.avatar_key)}
+              alt={msg.author.username}
+              className="w-full h-full object-cover"
+            />
           ) : (
             initials
           )}
@@ -92,7 +96,9 @@ export default function MessageItem({
         <div className="flex items-baseline gap-2">
           <UserProfilePopover userId={msg.author_id} side="right" align="start">
             <button className="font-semibold text-text-primary hover:underline cursor-pointer text-sm focus:outline-none">
-              {msg.author.display_name || msg.author.username || `Member ID:${msg.author_id.substring(0, 5)}`}
+              {msg.author.display_name ||
+                msg.author.username ||
+                `Member ID:${msg.author_id.substring(0, 5)}`}
             </button>
           </UserProfilePopover>
           <span className="text-[10px] text-text-muted font-medium">{timestamp}</span>

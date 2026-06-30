@@ -19,22 +19,35 @@ export function useChannels(guildId?: string) {
     mutationFn: ({ name, type, topic }: { name: string; type: number; topic?: string }) =>
       channelsApi.createChannel(guildId!, name, type, topic),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: channelsKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: channelsKeys.list(guildId || ""),
+      });
     },
   });
 
   const updateChannelMutation = useMutation({
-    mutationFn: ({ channelId, name, topic }: { channelId: string; name?: string; topic?: string }) =>
-      channelsApi.updateChannel(channelId, { name, topic }),
+    mutationFn: ({
+      channelId,
+      name,
+      topic,
+    }: {
+      channelId: string;
+      name?: string;
+      topic?: string;
+    }) => channelsApi.updateChannel(channelId, { name, topic }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: channelsKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: channelsKeys.list(guildId || ""),
+      });
     },
   });
 
   const deleteChannelMutation = useMutation({
     mutationFn: (channelId: string) => channelsApi.deleteChannel(channelId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: channelsKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: channelsKeys.list(guildId || ""),
+      });
     },
   });
 

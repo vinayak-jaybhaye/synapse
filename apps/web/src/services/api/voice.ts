@@ -13,7 +13,7 @@ export async function joinVoiceChannel(channelId: string): Promise<JoinVoiceResp
   const res = await axios.post<JoinVoiceResponse>(
     `${API_BASE}/channels/${channelId}/voice/join`,
     {},
-    { headers: getAuthHeaders() }
+    { headers: getAuthHeaders() },
   );
   return res.data;
 }
@@ -24,48 +24,57 @@ export async function leaveVoiceChannel(channelId: string): Promise<void> {
   });
 }
 
-
-
 export async function getChannelVoiceStates(channelId: string): Promise<VoiceState[]> {
-  const res = await axios.get<VoiceState[]>(
-    `${API_BASE}/channels/${channelId}/voice`,
-    { headers: getAuthHeaders() }
-  );
+  const res = await axios.get<VoiceState[]>(`${API_BASE}/channels/${channelId}/voice`, {
+    headers: getAuthHeaders(),
+  });
   return res.data;
 }
 
 // ── Moderator Actions ──────────────────────────────────────────────────────────
 
-export async function modServerMute(channelId: string, targetUserId: string, muted: boolean): Promise<void> {
-  const method = muted ? "post" : "delete";
-  await axios[method](
-    `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/mute`,
-    {},
-    { headers: getAuthHeaders() }
-  );
+export async function modServerMute(
+  channelId: string,
+  targetUserId: string,
+  muted: boolean,
+): Promise<void> {
+  const url = `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/mute`;
+  if (muted) {
+    await axios.post(url, {}, { headers: getAuthHeaders() });
+  } else {
+    await axios.delete(url, { headers: getAuthHeaders() });
+  }
 }
 
-export async function modServerDeafen(channelId: string, targetUserId: string, deafened: boolean): Promise<void> {
-  const method = deafened ? "post" : "delete";
-  await axios[method](
-    `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/deafen`,
-    {},
-    { headers: getAuthHeaders() }
-  );
+export async function modServerDeafen(
+  channelId: string,
+  targetUserId: string,
+  deafened: boolean,
+): Promise<void> {
+  const url = `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/deafen`;
+  if (deafened) {
+    await axios.post(url, {}, { headers: getAuthHeaders() });
+  } else {
+    await axios.delete(url, { headers: getAuthHeaders() });
+  }
 }
 
 export async function modDisconnect(channelId: string, targetUserId: string): Promise<void> {
   await axios.post(
     `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/disconnect`,
     {},
-    { headers: getAuthHeaders() }
+    { headers: getAuthHeaders() },
   );
 }
 
-export async function modMove(channelId: string, targetUserId: string, targetChannelId: string): Promise<void> {
+export async function modMove(
+  channelId: string,
+  targetUserId: string,
+  targetChannelId: string,
+): Promise<void> {
   await axios.post(
     `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/move`,
     { target_channel_id: targetChannelId },
-    { headers: getAuthHeaders() }
+    { headers: getAuthHeaders() },
   );
 }

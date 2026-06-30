@@ -39,12 +39,20 @@ export default function JoinGuildModal({ open, onClose, onJoin }: JoinGuildModal
       <div className="w-full max-w-md bg-bg-secondary border border-border-custom rounded-2xl p-6 shadow-2xl flex flex-col gap-5">
         <div>
           <h3 className="text-xl font-bold text-text-primary">Join a Guild</h3>
-          <p className="text-text-muted text-xs mt-1">Enter an invite code to join an existing guild community.</p>
+          <p className="text-text-muted text-xs mt-1">
+            Enter an invite code to join an existing guild community.
+          </p>
         </div>
-        {error && <div className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl">{error}</div>}
+        {error && (
+          <div className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl">
+            {error}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-text-muted">Invite Code</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-text-muted">
+              Invite Code
+            </label>
             <input
               type="text"
               required

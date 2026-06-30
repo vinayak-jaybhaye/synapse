@@ -59,8 +59,8 @@ export default function MessageActions({
             !canAddReactions
               ? "opacity-30 cursor-not-allowed"
               : showEmojiPicker
-              ? "text-indigo-400 bg-bg-tertiary cursor-pointer"
-              : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary cursor-pointer"
+                ? "text-indigo-400 bg-bg-tertiary cursor-pointer"
+                : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary cursor-pointer"
           }`}
           title={canAddReactions ? "Add Reaction" : "You do not have permission to add reactions."}
           aria-label="Add Reaction"

@@ -24,10 +24,19 @@ export function useMessages(channelId?: string) {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content, attachmentUploadIds, replyToMessageId }: { content: string; attachmentUploadIds?: string[]; replyToMessageId?: string }) =>
-      messagesApi.sendMessage(channelId!, content, attachmentUploadIds, replyToMessageId),
+    mutationFn: ({
+      content,
+      attachmentUploadIds,
+      replyToMessageId,
+    }: {
+      content: string;
+      attachmentUploadIds?: string[];
+      replyToMessageId?: string;
+    }) => messagesApi.sendMessage(channelId!, content, attachmentUploadIds, replyToMessageId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messagesKeys.list(channelId || "") });
+      queryClient.invalidateQueries({
+        queryKey: messagesKeys.list(channelId || ""),
+      });
     },
   });
 
@@ -35,14 +44,18 @@ export function useMessages(channelId?: string) {
     mutationFn: ({ messageId, content }: { messageId: string; content: string }) =>
       messagesApi.editMessage(channelId!, messageId, content),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messagesKeys.list(channelId || "") });
+      queryClient.invalidateQueries({
+        queryKey: messagesKeys.list(channelId || ""),
+      });
     },
   });
 
   const deleteMessageMutation = useMutation({
     mutationFn: (messageId: string) => messagesApi.deleteMessage(channelId!, messageId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messagesKeys.list(channelId || "") });
+      queryClient.invalidateQueries({
+        queryKey: messagesKeys.list(channelId || ""),
+      });
     },
   });
 
@@ -50,7 +63,9 @@ export function useMessages(channelId?: string) {
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       messagesApi.addReaction(channelId!, messageId, emoji),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messagesKeys.list(channelId || "") });
+      queryClient.invalidateQueries({
+        queryKey: messagesKeys.list(channelId || ""),
+      });
     },
   });
 
@@ -58,7 +73,9 @@ export function useMessages(channelId?: string) {
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       messagesApi.removeReaction(channelId!, messageId, emoji),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messagesKeys.list(channelId || "") });
+      queryClient.invalidateQueries({
+        queryKey: messagesKeys.list(channelId || ""),
+      });
     },
   });
 

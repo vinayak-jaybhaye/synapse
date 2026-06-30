@@ -7,35 +7,40 @@ interface UnsavedChangesBarProps {
   isSaving: boolean;
 }
 
-export default function UnsavedChangesBar({ show, onSave, onDiscard, isSaving }: UnsavedChangesBarProps) {
+export default function UnsavedChangesBar({
+  show,
+  onSave,
+  onDiscard,
+  isSaving,
+}: UnsavedChangesBarProps) {
   if (!show) return null;
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-50 animate-slideUp">
-      <div className="bg-bg-tertiary border border-border-custom shadow-xl rounded-xl p-3 flex items-center justify-between">
-        <span className="text-sm font-medium text-text-primary pl-2">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-50">
+      <div className="bg-bg-tertiary border border-border-custom shadow-md rounded p-2 flex items-center justify-between text-xs">
+        <span className="font-medium text-text-primary pl-2">
           Careful — you have unsaved changes!
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <button
             onClick={onDiscard}
             disabled={isSaving}
-            className="px-4 py-1.5 text-sm font-medium text-text-primary hover:underline disabled:opacity-50"
+            className="px-3 py-1 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded transition-colors disabled:opacity-50 cursor-pointer"
           >
             Reset
           </button>
           <button
             onClick={onSave}
             disabled={isSaving}
-            className="px-4 py-1.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-3 py-1 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
           >
             {isSaving ? (
               <>
-                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Saving...
+                <div className="w-2.5 h-2.5 border border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Saving...</span>
               </>
             ) : (
-              "Save Changes"
+              <span>Save Changes</span>
             )}
           </button>
         </div>

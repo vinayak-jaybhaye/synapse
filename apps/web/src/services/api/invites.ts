@@ -5,7 +5,7 @@ export const invitesApi = {
   createInvite: async (
     guildId: string,
     maxUses?: number,
-    duration?: number
+    duration?: number,
   ): Promise<{ code: string }> => {
     const response = await api.post<{ code: string }>(`/guilds/${guildId}/invites`, {
       max_uses: maxUses,

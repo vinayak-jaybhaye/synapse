@@ -66,7 +66,7 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
       const payload: any = {};
       if (data.name !== activeGuild.name) payload.name = data.name;
       if (data.description !== activeGuild.description) payload.description = data.description;
-      
+
       if (data.iconUploadId) payload.icon_upload_id = data.iconUploadId;
       if (data.removeIcon) payload.remove_icon = true;
 
@@ -90,25 +90,36 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
     }
   };
 
-  const currentIconUrl = data.removeIcon 
-    ? null 
-    : (activeGuild.icon_key ? getMediaUrl(activeGuild.icon_key) || null : null);
+  const currentIconUrl = data.removeIcon
+    ? null
+    : activeGuild.icon_key
+      ? getMediaUrl(activeGuild.icon_key) || null
+      : null;
 
-  const currentBannerUrl = data.removeBanner 
-    ? null 
-    : (activeGuild.banner_key ? getMediaUrl(activeGuild.banner_key) || null : null);
+  const currentBannerUrl = data.removeBanner
+    ? null
+    : activeGuild.banner_key
+      ? getMediaUrl(activeGuild.banner_key) || null
+      : null;
 
   return (
-    <div className="space-y-6 pb-20">
-      <div>
-        <h3 className="text-xl font-bold text-text-primary">Server Overview</h3>
-        <p className="text-xs text-text-muted mt-1">Manage server identity and appearance.</p>
+    <div className="space-y-5 pb-20">
+      <div className="border-b border-border-custom pb-3">
+        <h3 className="text-sm font-semibold text-text-primary">Server Overview</h3>
+        <p className="text-[11px] text-text-muted mt-0.5 font-normal">
+          Manage server identity and appearance.
+        </p>
       </div>
 
-      <div className="space-y-8">
+      <div className="space-y-4">
         {/* Banner Upload */}
-        <div className="relative group" title={!canManageGuild ? "You need MANAGE_GUILD permission to change the banner." : ""}>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Server Banner Background</label>
+        <div
+          className="relative bg-bg-secondary rounded p-3 space-y-2"
+          title={!canManageGuild ? "You need MANAGE_GUILD permission to change the banner." : ""}
+        >
+          <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+            Server Banner Background
+          </label>
           <MediaUploadControl
             category="guild-banner"
             guildId={activeGuild.id}
@@ -116,7 +127,8 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
             currentUrl={currentBannerUrl}
             disabled={!canManageGuild}
             onUploadSuccess={(id) => {
-              if (data.bannerUploadId) mediaApi.cancelUpload(data.bannerUploadId).catch(console.error);
+              if (data.bannerUploadId)
+                mediaApi.cancelUpload(data.bannerUploadId).catch(console.error);
               handleChange("bannerUploadId", id);
               handleChange("removeBanner", false);
             }}
@@ -125,29 +137,42 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
         </div>
 
         {/* Icon Upload */}
-        <div className="relative group" title={!canManageGuild ? "You need MANAGE_GUILD permission to change the icon." : ""}>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Server Icon</label>
-          <MediaUploadControl
-            category="guild-icon"
-            guildId={activeGuild.id}
-            aspectRatio="square"
-            currentUrl={currentIconUrl}
-            disabled={!canManageGuild}
-            onUploadSuccess={(id) => {
-              if (data.iconUploadId) mediaApi.cancelUpload(data.iconUploadId).catch(console.error);
-              handleChange("iconUploadId", id);
-              handleChange("removeIcon", false);
-            }}
-            onRemove={() => handleChange("removeIcon", true)}
-          />
+        <div
+          className="relative bg-bg-secondary rounded p-3 space-y-2"
+          title={!canManageGuild ? "You need MANAGE_GUILD permission to change the icon." : ""}
+        >
+          <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+            Server Icon
+          </label>
+          <div className="flex justify-start">
+            <MediaUploadControl
+              category="guild-icon"
+              guildId={activeGuild.id}
+              aspectRatio="square"
+              currentUrl={currentIconUrl}
+              disabled={!canManageGuild}
+              onUploadSuccess={(id) => {
+                if (data.iconUploadId)
+                  mediaApi.cancelUpload(data.iconUploadId).catch(console.error);
+                handleChange("iconUploadId", id);
+                handleChange("removeIcon", false);
+              }}
+              onRemove={() => handleChange("removeIcon", true)}
+            />
+          </div>
         </div>
 
         {/* Name */}
-        <div className="relative group" title={!canManageGuild ? "You need MANAGE_GUILD permission to change the name." : ""}>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Server Name</label>
+        <div
+          className="relative bg-bg-secondary rounded p-3 space-y-1.5"
+          title={!canManageGuild ? "You need MANAGE_GUILD permission to change the name." : ""}
+        >
+          <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+            Server Name
+          </label>
           <input
             type="text"
-            className="w-full bg-bg-tertiary border border-border-custom rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-bg-tertiary border border-border-custom rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             value={data.name}
             onChange={(e) => handleChange("name", e.target.value)}
             disabled={!canManageGuild}
@@ -156,10 +181,17 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
         </div>
 
         {/* Description */}
-        <div className="relative group" title={!canManageGuild ? "You need MANAGE_GUILD permission to change the description." : ""}>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Server Description</label>
+        <div
+          className="relative bg-bg-secondary rounded p-3 space-y-1.5"
+          title={
+            !canManageGuild ? "You need MANAGE_GUILD permission to change the description." : ""
+          }
+        >
+          <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+            Server Description
+          </label>
           <textarea
-            className="w-full bg-bg-tertiary border border-border-custom rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-indigo-500 min-h-[100px] resize-y disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-bg-tertiary border border-border-custom rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-indigo-500 min-h-[80px] resize-y disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             value={data.description}
             onChange={(e) => handleChange("description", e.target.value)}
             placeholder="What is this server about?"
@@ -169,11 +201,11 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
         </div>
       </div>
 
-      <UnsavedChangesBar 
-        show={isDirty} 
-        onSave={handleSave} 
-        onDiscard={handleDiscard} 
-        isSaving={isSaving} 
+      <UnsavedChangesBar
+        show={isDirty}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+        isSaving={isSaving}
       />
     </div>
   );

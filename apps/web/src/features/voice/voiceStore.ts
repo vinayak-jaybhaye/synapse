@@ -79,20 +79,22 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   setParticipant(userId, partial) {
     set((s) => {
       const updated = new Map(s.participants);
-      const existing = updated.get(userId) ?? {
-        user_id: userId,
-        channel_id: s.activeChannelId ?? "",
-        guild_id: s.activeGuildId ?? "",
-        self_mute: false,
-        self_deaf: false,
-        server_mute: false,
-        server_deaf: false,
-        video: false,
-        screen_share: false,
-        joined_at: new Date().toISOString(),
-        username: userId,
-        speaking: false,
-      } as VoiceParticipant;
+      const existing =
+        updated.get(userId) ??
+        ({
+          user_id: userId,
+          channel_id: s.activeChannelId ?? "",
+          guild_id: s.activeGuildId ?? "",
+          self_mute: false,
+          self_deaf: false,
+          server_mute: false,
+          server_deaf: false,
+          video: false,
+          screen_share: false,
+          joined_at: new Date().toISOString(),
+          username: userId,
+          speaking: false,
+        } as VoiceParticipant);
       updated.set(userId, { ...existing, ...partial });
       return { participants: updated };
     });

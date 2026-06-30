@@ -5,6 +5,7 @@ import {
   Room,
   RoomEvent,
   ConnectionState,
+  DisconnectReason,
   RoomOptions,
   LocalParticipant,
   RemoteParticipant,
@@ -17,14 +18,13 @@ import {
   LocalAudioTrack,
   LocalVideoTrack,
 } from "livekit-client";
+import { useChannelStore } from "../../store/channel-store";
 import { useVoiceStore } from "./voiceStore";
-import {
-  joinVoiceChannel,
-  leaveVoiceChannel,
-} from "../../services/api/voice";
+import { useUIStore } from "../../store/ui-store";
+import { joinVoiceChannel, leaveVoiceChannel } from "../../services/api/voice";
 
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30s
-const TOKEN_REFRESH_BUFFER_S = 120;   // refresh 2 min before expiry
+const TOKEN_REFRESH_BUFFER_S = 120; // refresh 2 min before expiry
 
 // ─── Room Options ──────────────────────────────────────────────────────────────
 const roomOptions: RoomOptions = {
@@ -46,74 +46,111 @@ export function useVoice() {
   const activeChannelIdRef = useRef<string | null>(null);
 
   // Helper to sync local/remote participant flags to Zustand store
-  const syncParticipantState = useCallback((participant: Participant) => {
-    const userId = participant.identity;
-    const self_mute = !participant.isMicrophoneEnabled;
-    const video = participant.isCameraEnabled;
-    const screen_share = participant.isScreenShareEnabled;
+  const syncParticipantState = useCallback(
+    (participant: Participant) => {
+      const userId = participant.identity;
+      const self_mute = !participant.isMicrophoneEnabled;
+      const video = participant.isCameraEnabled;
+      const screen_share = participant.isScreenShareEnabled;
 
-    let self_deaf = false;
-    let server_mute = false;
-    let server_deaf = false;
+      const existing = useVoiceStore.getState().participants.get(userId);
+      let self_deaf = existing?.self_deaf ?? false;
+      let server_mute = existing?.server_mute ?? false;
+      let server_deaf = existing?.server_deaf ?? false;
 
-    if (participant.metadata) {
-      try {
-        const data = JSON.parse(participant.metadata);
-        if (typeof data.self_deaf === "boolean") self_deaf = data.self_deaf;
-        if (typeof data.server_mute === "boolean") server_mute = data.server_mute;
-        if (typeof data.server_deaf === "boolean") server_deaf = data.server_deaf;
-      } catch {}
-    }
+      if (participant.metadata) {
+        try {
+          const data = JSON.parse(participant.metadata);
+          if (typeof data.self_deaf === "boolean") self_deaf = data.self_deaf;
+          if (typeof data.server_mute === "boolean") server_mute = data.server_mute;
+          if (typeof data.server_deaf === "boolean") server_deaf = data.server_deaf;
+        } catch {}
+      }
 
-    store.setParticipant(userId, {
-      self_mute,
-      self_deaf,
-      server_mute,
-      server_deaf,
-      video,
-      screen_share,
-    });
+      // Extract tracks dynamically to ensure they are synchronized under all race conditions
+      let videoTrack: any = undefined;
+      let screenShareTrack: any = undefined;
+      let audioTrack: any = undefined;
+      let screenShareAudioTrack: any = undefined;
 
-    if (participant instanceof LocalParticipant) {
-      store.setSelfState({
-        user_id: userId,
-        channel_id: store.activeChannelId ?? "",
-        guild_id: store.activeGuildId ?? "",
+      participant.videoTrackPublications.forEach((pub) => {
+        if (pub.track) {
+          if (pub.source === Track.Source.ScreenShare) {
+            screenShareTrack = pub.track;
+          } else {
+            videoTrack = pub.track;
+          }
+        }
+      });
+
+      participant.audioTrackPublications.forEach((pub) => {
+        if (pub.track) {
+          if (pub.source === Track.Source.ScreenShareAudio) {
+            screenShareAudioTrack = pub.track;
+          } else {
+            audioTrack = pub.track;
+          }
+        }
+      });
+
+      store.setParticipant(userId, {
         self_mute,
         self_deaf,
         server_mute,
         server_deaf,
         video,
         screen_share,
-        joined_at: new Date().toISOString(),
+        videoTrack,
+        screenShareTrack,
+        audioTrack,
+        screenShareAudioTrack,
       });
-    }
-  }, [store]);
+
+      if (participant instanceof LocalParticipant) {
+        store.setSelfState({
+          user_id: userId,
+          channel_id: store.activeChannelId ?? "",
+          guild_id: store.activeGuildId ?? "",
+          self_mute,
+          self_deaf,
+          server_mute,
+          server_deaf,
+          video,
+          screen_share,
+          joined_at: new Date().toISOString(),
+        });
+      }
+    },
+    [store],
+  );
 
   // ── Join ────────────────────────────────────────────────────────────────────
-  const joinVoice = useCallback(async (guildId: string, channelId: string) => {
-    if (store.room) {
-      await leaveVoice();
-    }
+  const joinVoice = useCallback(
+    async (guildId: string, channelId: string) => {
+      if (store.room) {
+        await leaveVoice();
+      }
 
-    // 1. Obtain LiveKit token from backend
-    const { livekit_url, token } = await joinVoiceChannel(channelId);
+      // 1. Obtain LiveKit token from backend
+      const { livekit_url, token } = await joinVoiceChannel(channelId);
 
-    // 2. Create room
-    const room = new Room(roomOptions);
-    store.setRoom(room);
-    store.setActive(guildId, channelId);
-    activeChannelIdRef.current = channelId;
+      // 2. Create room
+      const room = new Room(roomOptions);
+      store.setRoom(room);
+      store.setActive(guildId, channelId);
+      activeChannelIdRef.current = channelId;
 
-    // 3. Attach event listeners before connecting
-    attachRoomListeners(room, channelId, guildId);
+      // 3. Attach event listeners before connecting
+      attachRoomListeners(room, channelId, guildId);
 
-    // 4. Connect
-    await room.connect(livekit_url, token);
+      // 4. Connect
+      await room.connect(livekit_url, token);
 
-    // 5. Initial local participant sync
-    syncParticipantState(room.localParticipant);
-  }, [store, syncParticipantState]);
+      // 5. Initial local participant sync
+      syncParticipantState(room.localParticipant);
+    },
+    [store, syncParticipantState],
+  );
 
   // ── Leave ───────────────────────────────────────────────────────────────────
   const leaveVoice = useCallback(async () => {
@@ -123,6 +160,12 @@ export function useVoice() {
     activeChannelIdRef.current = null;
     room?.disconnect();
     store.clearActive();
+
+    // Reset viewed channel if we were looking at the voice channel we're leaving
+    const viewedChannelId = useChannelStore.getState().activeChannelId;
+    if (viewedChannelId === channelId) {
+      useChannelStore.getState().selectChannel(null);
+    }
 
     if (channelId) {
       await leaveVoiceChannel(channelId).catch(() => {});
@@ -140,9 +183,14 @@ export function useVoice() {
       return;
     }
 
-    const isMuted = room.localParticipant.isMicrophoneEnabled === false;
-    await room.localParticipant.setMicrophoneEnabled(isMuted);
-    syncParticipantState(room.localParticipant);
+    try {
+      const isMuted = room.localParticipant.isMicrophoneEnabled === false;
+      await room.localParticipant.setMicrophoneEnabled(isMuted);
+    } catch (err) {
+      console.error("[Voice] Failed to toggle microphone:", err);
+    } finally {
+      syncParticipantState(room.localParticipant);
+    }
   }, [store, syncParticipantState]);
 
   // ── Toggle Deafen ───────────────────────────────────────────────────────────
@@ -165,9 +213,14 @@ export function useVoice() {
       }
     });
 
-    // Update metadata on LiveKit so other participants & backend webhooks are notified
-    await room.localParticipant.setMetadata(JSON.stringify({ self_deaf: nextDeaf }));
-    syncParticipantState(room.localParticipant);
+    try {
+      // Update metadata on LiveKit so other participants & backend webhooks are notified
+      await room.localParticipant.setMetadata(JSON.stringify({ self_deaf: nextDeaf }));
+    } catch (err) {
+      console.error("[Voice] Failed to update deafen metadata:", err);
+    } finally {
+      syncParticipantState(room.localParticipant);
+    }
   }, [store, syncParticipantState]);
 
   // ── Toggle Camera ───────────────────────────────────────────────────────────
@@ -175,9 +228,14 @@ export function useVoice() {
     const { room } = store;
     if (!room) return;
 
-    const isEnabled = room.localParticipant.isCameraEnabled;
-    await room.localParticipant.setCameraEnabled(!isEnabled);
-    syncParticipantState(room.localParticipant);
+    try {
+      const isEnabled = room.localParticipant.isCameraEnabled;
+      await room.localParticipant.setCameraEnabled(!isEnabled);
+    } catch (err) {
+      console.error("[Voice] Failed to toggle camera:", err);
+    } finally {
+      syncParticipantState(room.localParticipant);
+    }
   }, [store, syncParticipantState]);
 
   // ── Toggle Screen Share ─────────────────────────────────────────────────────
@@ -185,9 +243,14 @@ export function useVoice() {
     const { room } = store;
     if (!room) return;
 
-    const isSharing = room.localParticipant.isScreenShareEnabled;
-    await room.localParticipant.setScreenShareEnabled(!isSharing);
-    syncParticipantState(room.localParticipant);
+    try {
+      const isSharing = room.localParticipant.isScreenShareEnabled;
+      await room.localParticipant.setScreenShareEnabled(!isSharing, { audio: true });
+    } catch (err) {
+      console.error("[Voice] Failed to toggle screen share:", err);
+    } finally {
+      syncParticipantState(room.localParticipant);
+    }
   }, [store, syncParticipantState]);
 
   // ── Attach LiveKit Listeners ─────────────────────────────────────────────────
@@ -218,32 +281,62 @@ export function useVoice() {
         const localId = room.localParticipant.identity;
         store.setSpeaking(localId, speakingIds.has(localId));
       })
-      .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: any, participant: RemoteParticipant) => {
-        const userId = participant.identity;
-        if (track.kind === Track.Kind.Audio) {
-          store.setParticipant(userId, { audioTrack: track as RemoteAudioTrack });
-        } else if (track.kind === Track.Kind.Video) {
-          if (track.source === Track.Source.ScreenShare) {
-            store.setParticipant(userId, { screenShareTrack: track as RemoteVideoTrack });
-          } else {
-            store.setParticipant(userId, { videoTrack: track as RemoteVideoTrack });
+      .on(
+        RoomEvent.TrackSubscribed,
+        (track: RemoteTrack, _pub: any, participant: RemoteParticipant) => {
+          const userId = participant.identity;
+          if (track.kind === Track.Kind.Audio) {
+            // If the local user is currently deafened, mute the newly subscribed track immediately
+            const latestState = useVoiceStore.getState();
+            const isDeafened =
+              latestState.selfState?.self_deaf || latestState.selfState?.server_deaf;
+            if (isDeafened && typeof (track as any).setVolume === "function") {
+              (track as any).setVolume(0.0);
+            }
+
+            if (track.source === Track.Source.ScreenShareAudio) {
+              store.setParticipant(userId, {
+                screenShareAudioTrack: track as RemoteAudioTrack,
+              });
+            } else {
+              store.setParticipant(userId, {
+                audioTrack: track as RemoteAudioTrack,
+              });
+            }
+          } else if (track.kind === Track.Kind.Video) {
+            if (track.source === Track.Source.ScreenShare) {
+              store.setParticipant(userId, {
+                screenShareTrack: track as RemoteVideoTrack,
+              });
+            } else {
+              store.setParticipant(userId, {
+                videoTrack: track as RemoteVideoTrack,
+              });
+            }
           }
-        }
-        syncParticipantState(participant);
-      })
-      .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub: any, participant: RemoteParticipant) => {
-        const userId = participant.identity;
-        if (track.kind === Track.Kind.Audio) {
-          store.setParticipant(userId, { audioTrack: undefined });
-        } else if (track.kind === Track.Kind.Video) {
-          if (track.source === Track.Source.ScreenShare) {
-            store.setParticipant(userId, { screenShareTrack: undefined });
-          } else {
-            store.setParticipant(userId, { videoTrack: undefined });
+          syncParticipantState(participant);
+        },
+      )
+      .on(
+        RoomEvent.TrackUnsubscribed,
+        (track: RemoteTrack, _pub: any, participant: RemoteParticipant) => {
+          const userId = participant.identity;
+          if (track.kind === Track.Kind.Audio) {
+            if (track.source === Track.Source.ScreenShareAudio) {
+              store.setParticipant(userId, { screenShareAudioTrack: undefined });
+            } else {
+              store.setParticipant(userId, { audioTrack: undefined });
+            }
+          } else if (track.kind === Track.Kind.Video) {
+            if (track.source === Track.Source.ScreenShare) {
+              store.setParticipant(userId, { screenShareTrack: undefined });
+            } else {
+              store.setParticipant(userId, { videoTrack: undefined });
+            }
           }
-        }
-        syncParticipantState(participant);
-      })
+          syncParticipantState(participant);
+        },
+      )
       .on(RoomEvent.LocalTrackPublished, (pub: any) => {
         const local = room.localParticipant;
         const track = pub.track;
@@ -287,13 +380,43 @@ export function useVoice() {
       .on(RoomEvent.TrackUnmuted, (_pub: any, participant: Participant) => {
         syncParticipantState(participant);
       })
-      .on(RoomEvent.ParticipantMetadataChanged, (_prev: string | undefined, participant: Participant) => {
-        syncParticipantState(participant);
-      })
-      .on(RoomEvent.Disconnected, () => {
+      .on(
+        RoomEvent.ParticipantMetadataChanged,
+        (_prev: string | undefined, participant: Participant) => {
+          syncParticipantState(participant);
+        },
+      )
+      .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
         store.setConnectionState(ConnectionState.Disconnected);
+        if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
+          console.warn("[Voice] Ejected from the voice channel by a moderator.");
+          useUIStore
+            .getState()
+            .showToast("Ejected from the voice channel by a moderator.", "error");
+        }
+        // Always cleanly exit and clear channel states locally on disconnect
+        leaveVoice();
       });
   }
+
+  // Reactively synchronize local hardware states (microphone) with backend/Zustand states (selfState)
+  useEffect(() => {
+    const room = store.room;
+    if (!room || !store.selfState) return;
+
+    const selfMuted = store.selfState.self_mute || store.selfState.server_mute;
+    const isMicEnabled = room.localParticipant.isMicrophoneEnabled;
+
+    if (selfMuted && isMicEnabled) {
+      room.localParticipant.setMicrophoneEnabled(false).catch((err) => {
+        console.error("[Voice] Failed to auto-disable microphone:", err);
+      });
+    } else if (!selfMuted && !isMicEnabled) {
+      room.localParticipant.setMicrophoneEnabled(true).catch((err) => {
+        console.error("[Voice] Failed to auto-enable microphone:", err);
+      });
+    }
+  }, [store.room, store.selfState?.self_mute, store.selfState?.server_mute]);
 
   return {
     room: store.room,
@@ -310,4 +433,3 @@ export function useVoice() {
     toggleScreenShare,
   };
 }
-

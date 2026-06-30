@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { LogOut, User } from "lucide-react";
 import { useAuthStore } from "../../../store/auth-store";
 import { usersApi } from "../../../services/api/users";
 import MediaUploadControl from "../MediaUploadControl";
@@ -10,8 +11,12 @@ import { mediaApi } from "../../../services/api/media";
 import { getMediaUrl } from "../../../lib/media";
 
 export default function ProfileTab() {
-  const { user, setUser } = useAuthStore();
+  const { user, setUser, logout } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
+
+  // States to hold S3 preview URLs or local blob URLs for live preview
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
 
   const { data, isDirty, handleChange, reset } = useSettingsForm({
     displayName: user?.display_name || "",
@@ -29,6 +34,8 @@ export default function ProfileTab() {
     if (data.bannerUploadId) {
       await mediaApi.cancelUpload(data.bannerUploadId).catch(console.error);
     }
+    setAvatarPreview(null);
+    setBannerPreview(null);
     reset();
   };
 
@@ -58,7 +65,7 @@ export default function ProfileTab() {
       const payload: any = {};
       if (data.displayName !== user?.display_name) payload.display_name = data.displayName;
       if (data.bio !== user?.bio) payload.bio = data.bio;
-      
+
       if (data.avatarUploadId) payload.avatar_upload_id = data.avatarUploadId;
       if (data.removeAvatar) payload.remove_avatar = true;
 
@@ -74,6 +81,8 @@ export default function ProfileTab() {
 
       handleChange("avatarUploadId", null);
       handleChange("bannerUploadId", null);
+      setAvatarPreview(null);
+      setBannerPreview(null);
       reset();
     } catch (err) {
       console.error("Failed to save profile", err);
@@ -82,87 +91,221 @@ export default function ProfileTab() {
     }
   };
 
-  const currentAvatarUrl = data.removeAvatar 
-    ? null 
-    : (user?.avatar_key ? getMediaUrl(user.avatar_key) || null : null);
+  // Determine current image sources for inputs and live preview
+  const currentAvatarUrl = data.removeAvatar
+    ? null
+    : user?.avatar_key
+      ? getMediaUrl(user.avatar_key) || null
+      : null;
 
-  const currentBannerUrl = data.removeBanner 
-    ? null 
-    : (user?.banner_key ? getMediaUrl(user.banner_key) || null : null);
+  const currentBannerUrl = data.removeBanner
+    ? null
+    : user?.banner_key
+      ? getMediaUrl(user.banner_key) || null
+      : null;
+
+  const previewAvatarUrl = data.removeAvatar ? null : avatarPreview || currentAvatarUrl;
+
+  const previewBannerUrl = data.removeBanner ? null : bannerPreview || currentBannerUrl;
+
+  const joinedDate = new Date().toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 
   return (
-    <div className="space-y-6 pb-20">
-      <div>
-        <h3 className="text-xl font-bold text-text-primary">My Profile</h3>
-        <p className="text-xs text-text-muted mt-1">Manage your identity details.</p>
+    <div className="space-y-6 pb-24">
+      {/* Header */}
+      <div className="border-b border-border-custom pb-3">
+        <div className="flex items-center gap-1.5">
+          <User className="h-4 w-4 text-text-secondary" />
+          <h3 className="text-sm font-semibold text-text-primary">Profile</h3>
+        </div>
+        <p className="text-[11px] text-text-muted mt-0.5">
+          Customize your display identity, bio, and profile graphics.
+        </p>
       </div>
 
-      <div className="space-y-8">
-        {/* Banner Upload */}
-        <div>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Profile Banner</label>
-          <MediaUploadControl
-            category="banner"
-            aspectRatio="video"
-            currentUrl={currentBannerUrl}
-            onUploadSuccess={(id) => {
-              if (data.bannerUploadId) mediaApi.cancelUpload(data.bannerUploadId).catch(console.error);
-              handleChange("bannerUploadId", id);
-              handleChange("removeBanner", false);
-            }}
-            onRemove={() => handleChange("removeBanner", true)}
-          />
+      {/* Main Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+        {/* Left Form (Col span 3) */}
+        <div className="lg:col-span-3 space-y-4">
+          {/* Banner Upload Card */}
+          <div className="bg-bg-secondary rounded p-3 space-y-2">
+            <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+              Profile Banner
+            </label>
+            <MediaUploadControl
+              category="banner"
+              aspectRatio="video"
+              currentUrl={currentBannerUrl}
+              onUploadSuccess={(id) => {
+                if (data.bannerUploadId)
+                  mediaApi.cancelUpload(data.bannerUploadId).catch(console.error);
+                handleChange("bannerUploadId", id);
+                handleChange("removeBanner", false);
+              }}
+              onPreviewChange={setBannerPreview}
+              onRemove={() => handleChange("removeBanner", true)}
+            />
+          </div>
+
+          {/* Avatar Upload Card */}
+          <div className="bg-bg-secondary rounded p-3 flex flex-col sm:flex-row items-center gap-3">
+            <MediaUploadControl
+              category="avatar"
+              aspectRatio="square"
+              currentUrl={currentAvatarUrl}
+              onUploadSuccess={(id) => {
+                if (data.avatarUploadId)
+                  mediaApi.cancelUpload(data.avatarUploadId).catch(console.error);
+                handleChange("avatarUploadId", id);
+                handleChange("removeAvatar", false);
+              }}
+              onPreviewChange={setAvatarPreview}
+              onRemove={() => handleChange("removeAvatar", true)}
+            />
+            <div className="text-center sm:text-left space-y-0.5">
+              <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+                Avatar Image
+              </label>
+              <p className="text-[10px] text-text-muted">
+                JPG, PNG, GIF or WebP. Recommend square dimensions.
+              </p>
+            </div>
+          </div>
+
+          {/* Form Fields Card */}
+          <div className="bg-bg-secondary rounded p-3 space-y-3">
+            {/* Display Name */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+                Display Name
+              </label>
+              <input
+                type="text"
+                className="w-full bg-bg-tertiary border border-border-custom rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-indigo-500 transition-colors"
+                value={data.displayName}
+                onChange={(e) => handleChange("displayName", e.target.value)}
+                placeholder={user?.username}
+              />
+            </div>
+
+            {/* Username */}
+            <div className="space-y-1 opacity-80">
+              <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+                Username
+              </label>
+              <input
+                type="text"
+                className="w-full bg-bg-tertiary/60 border border-border-custom rounded px-2.5 py-1.5 text-xs text-text-secondary cursor-not-allowed select-all"
+                value={user?.username || ""}
+                disabled
+              />
+            </div>
+
+            {/* Bio */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+                About Me
+              </label>
+              <textarea
+                className="w-full bg-bg-tertiary border border-border-custom rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-indigo-500 min-h-[80px] resize-y transition-colors"
+                value={data.bio}
+                onChange={(e) => handleChange("bio", e.target.value)}
+                placeholder="Tell everyone a little bit about yourself..."
+                maxLength={190}
+              />
+            </div>
+          </div>
+
+          {/* Account Actions */}
+          <div className="bg-bg-secondary rounded p-3 space-y-2">
+            <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+              Account Actions
+            </label>
+            <div>
+              <button
+                onClick={() => logout()}
+                type="button"
+                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Log Out
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Avatar Upload */}
-        <div>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Avatar</label>
-          <MediaUploadControl
-            category="avatar"
-            aspectRatio="square"
-            currentUrl={currentAvatarUrl}
-            onUploadSuccess={(id) => {
-              if (data.avatarUploadId) mediaApi.cancelUpload(data.avatarUploadId).catch(console.error);
-              handleChange("avatarUploadId", id);
-              handleChange("removeAvatar", false);
-            }}
-            onRemove={() => handleChange("removeAvatar", true)}
-          />
-        </div>
+        {/* Right Preview Card (Col span 2) */}
+        <div className="lg:col-span-2 flex flex-col items-center gap-2 lg:sticky lg:top-4">
+          <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider select-none">
+            Live Preview
+          </span>
 
-        {/* Display Name */}
-        <div>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Display Name</label>
-          <input
-            type="text"
-            className="w-full bg-bg-tertiary border border-border-custom rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-indigo-500"
-            value={data.displayName}
-            onChange={(e) => handleChange("displayName", e.target.value)}
-            placeholder={user?.username}
-          />
-        </div>
+          {/* User Profile Card Replica */}
+          <div className="w-full max-w-[240px] bg-[#18191c] border border-border-custom rounded overflow-hidden shadow flex flex-col text-text-primary select-none">
+            {/* Banner */}
+            <div
+              className={`h-20 w-full shrink-0 ${!previewBannerUrl ? "bg-indigo-600" : ""}`}
+              style={
+                previewBannerUrl
+                  ? {
+                      backgroundImage: `url(${previewBannerUrl})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }
+                  : {}
+              }
+            />
 
-        {/* Username (Read Only for now, typically requires password confirmation) */}
-        <div>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Username</label>
-          <input
-            type="text"
-            className="w-full bg-bg-tertiary border border-border-custom rounded-md px-3 py-2 text-sm text-text-secondary opacity-70 cursor-not-allowed"
-            value={user?.username || ""}
-            disabled
-          />
-        </div>
+            {/* Body */}
+            <div className="px-3 pb-3 min-w-0">
+              {/* Avatar */}
+              <div className="relative -mt-8 mb-2 flex justify-between items-end">
+                <div className="w-16 h-16 rounded-full border-[3px] border-[#18191c] bg-indigo-500 flex items-center justify-center font-bold text-white text-xl overflow-hidden relative shrink-0">
+                  {previewAvatarUrl ? (
+                    <img src={previewAvatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    user?.username?.charAt(0).toUpperCase() || "?"
+                  )}
+                </div>
+              </div>
 
-        {/* Bio */}
-        <div>
-          <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">About Me</label>
-          <textarea
-            className="w-full bg-bg-tertiary border border-border-custom rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-indigo-500 min-h-[100px] resize-y"
-            value={data.bio}
-            onChange={(e) => handleChange("bio", e.target.value)}
-            placeholder="Tell everyone a little bit about yourself..."
-            maxLength={190}
-          />
+              {/* User Info */}
+              <div className="mb-2.5 min-w-0">
+                <h2 className="text-sm font-bold leading-tight truncate text-text-primary">
+                  {data.displayName || user?.display_name || user?.username || "Guest User"}
+                </h2>
+                <p className="text-[11px] text-text-muted truncate">
+                  @{user?.username || "username"}
+                </p>
+              </div>
+
+              <div className="h-px bg-border-custom w-full my-2.5" />
+
+              {/* Bio */}
+              {(data.bio || user?.bio) && (
+                <div className="mb-3 max-h-[60px] overflow-y-auto no-scrollbar min-w-0">
+                  <h3 className="text-[9px] font-bold text-text-primary uppercase tracking-wider mb-0.5">
+                    About Me
+                  </h3>
+                  <p className="text-[11px] text-text-secondary whitespace-pre-wrap break-words">
+                    {data.bio || user?.bio}
+                  </p>
+                </div>
+              )}
+
+              {/* Joined Date */}
+              <div className="min-w-0">
+                <h3 className="text-[9px] font-bold text-text-primary uppercase tracking-wider mb-0.5">
+                  Member Since
+                </h3>
+                <p className="text-[11px] text-text-secondary truncate">{joinedDate}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

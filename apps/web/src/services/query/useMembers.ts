@@ -31,7 +31,9 @@ export function useMembers(guildId?: string) {
     mutationFn: ({ userId, nickname }: { userId: string; nickname?: string }) =>
       guildsApi.patchGuildMember(guildId!, userId, { nickname }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: membersKeys.list(guildId || ""),
+      });
     },
   });
 
@@ -39,7 +41,9 @@ export function useMembers(guildId?: string) {
     mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
       rolesApi.assignRole(guildId!, userId, roleId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: membersKeys.list(guildId || ""),
+      });
     },
   });
 
@@ -47,7 +51,9 @@ export function useMembers(guildId?: string) {
     mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
       rolesApi.unassignRole(guildId!, userId, roleId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: membersKeys.list(guildId || ""),
+      });
     },
   });
 

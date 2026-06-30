@@ -11,7 +11,7 @@ export const channelsApi = {
     guildId: string,
     name: string,
     type: number,
-    topic?: string
+    topic?: string,
   ): Promise<Channel> => {
     const response = await api.post<Channel>(`/guilds/${guildId}/channels`, {
       name,
@@ -23,7 +23,7 @@ export const channelsApi = {
 
   updateChannel: async (
     channelId: string,
-    data: { name?: string; topic?: string }
+    data: { name?: string; topic?: string },
   ): Promise<Channel> => {
     const response = await api.patch<Channel>(`/channels/${channelId}`, data);
     return response.data;
@@ -34,10 +34,10 @@ export const channelsApi = {
   },
 
   getChannelRolePermissions: async (
-    channelId: string
+    channelId: string,
   ): Promise<import("../../types").ChannelRolePermissionOverride[]> => {
     const response = await api.get<import("../../types").ChannelRolePermissionOverride[]>(
-      `/channels/${channelId}/permissions`
+      `/channels/${channelId}/permissions`,
     );
     return response.data || [];
   },
@@ -46,7 +46,7 @@ export const channelsApi = {
     channelId: string,
     roleId: string,
     allow_permissions: string,
-    deny_permissions: string
+    deny_permissions: string,
   ): Promise<void> => {
     await api.put(`/channels/${channelId}/permissions/${roleId}`, {
       allow_permissions,
@@ -54,10 +54,7 @@ export const channelsApi = {
     });
   },
 
-  deleteChannelRolePermission: async (
-    channelId: string,
-    roleId: string
-  ): Promise<void> => {
+  deleteChannelRolePermission: async (channelId: string, roleId: string): Promise<void> => {
     await api.delete(`/channels/${channelId}/permissions/${roleId}`);
   },
 };

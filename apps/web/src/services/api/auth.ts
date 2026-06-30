@@ -8,13 +8,20 @@ export interface AuthResponse {
 
 export const authApi = {
   login: async (email: string, password: string): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>("/auth/login", { email, password });
-    console.log(response.data)
+    const response = await api.post<AuthResponse>("/auth/login", {
+      email,
+      password,
+    });
+    console.log(response.data);
     return response.data;
   },
 
   register: async (username: string, email: string, password: string): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>("/auth/register", { username, email, password });
+    const response = await api.post<AuthResponse>("/auth/register", {
+      username,
+      email,
+      password,
+    });
     return response.data;
   },
 
@@ -29,7 +36,10 @@ export const authApi = {
   },
 
   createDM: async (recipientId: string): Promise<{ channel_id: string; recipient_id: string }> => {
-    const response = await api.post<{ channel_id: string; recipient_id: string }>("/dms", {
+    const response = await api.post<{
+      channel_id: string;
+      recipient_id: string;
+    }>("/dms", {
       recipient_id: recipientId,
     });
     return response.data;

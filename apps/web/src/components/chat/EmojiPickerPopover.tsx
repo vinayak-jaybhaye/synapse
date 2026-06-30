@@ -28,12 +28,16 @@ export default function EmojiPickerPopover({
   anchorRef,
 }: EmojiPickerPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ bottom: string; left?: string; right?: string }>({ bottom: "100%", left: "0px" });
+  const [position, setPosition] = useState<{
+    bottom: string;
+    left?: string;
+    right?: string;
+  }>({ bottom: "100%", left: "0px" });
 
   useEffect(() => {
     if (open && anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
-      
+
       // If the anchor is on the left side of the screen, align the left edge of the picker to the anchor.
       // Otherwise, align the right edge of the picker.
       if (rect.left < 360) {
@@ -65,7 +69,7 @@ export default function EmojiPickerPopover({
       if (anchorRef.current && anchorRef.current.contains(e.target as Node)) {
         return;
       }
-      
+
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -73,7 +77,7 @@ export default function EmojiPickerPopover({
 
     window.addEventListener("keydown", handleKeyDown);
     document.addEventListener("mousedown", handleClickOutside);
-    
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("mousedown", handleClickOutside);

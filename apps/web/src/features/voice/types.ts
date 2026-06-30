@@ -1,4 +1,9 @@
-import { RemoteAudioTrack, RemoteVideoTrack, LocalAudioTrack, LocalVideoTrack } from "livekit-client";
+import {
+  RemoteAudioTrack,
+  RemoteVideoTrack,
+  LocalAudioTrack,
+  LocalVideoTrack,
+} from "livekit-client";
 
 // ─── Voice State (mirrors Go VoiceState) ─────────────────────────────────────
 
@@ -35,6 +40,7 @@ export interface VoiceParticipant extends VoiceState {
   audioTrack?: RemoteAudioTrack | LocalAudioTrack;
   videoTrack?: RemoteVideoTrack | LocalVideoTrack;
   screenShareTrack?: RemoteVideoTrack | LocalVideoTrack;
+  screenShareAudioTrack?: RemoteAudioTrack | LocalAudioTrack;
 }
 
 // ─── API Response Types ───────────────────────────────────────────────────────

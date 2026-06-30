@@ -48,5 +48,9 @@ export function formatDate(iso: string): string {
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return date.toLocaleDateString([], { weekday: "long" });
-  return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

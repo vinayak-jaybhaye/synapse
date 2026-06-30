@@ -36,12 +36,12 @@ export default function CreateDMModal({ open, onClose }: CreateDMModalProps) {
       setError("");
       // Call create DM endpoint
       const newDM = await createDM(recipientId);
-      
+
       // Auto-select the new DM
       if (newDM && newDM.channel_id) {
         selectChannel(newDM.channel_id);
       }
-      
+
       onClose();
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to create DM");
@@ -52,7 +52,7 @@ export default function CreateDMModal({ open, onClose }: CreateDMModalProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 font-sans">
-      <div 
+      <div
         className="w-full max-w-[440px] bg-bg-primary rounded-xl shadow-2xl flex flex-col mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >

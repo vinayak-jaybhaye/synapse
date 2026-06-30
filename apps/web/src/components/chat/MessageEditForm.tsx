@@ -8,7 +8,11 @@ interface MessageEditFormProps {
   onCancel: () => void;
 }
 
-export default function MessageEditForm({ initialContent, onSubmit, onCancel }: MessageEditFormProps) {
+export default function MessageEditForm({
+  initialContent,
+  onSubmit,
+  onCancel,
+}: MessageEditFormProps) {
   const [editContent, setEditContent] = useState(initialContent);
 
   const handleEditSubmit = async () => {

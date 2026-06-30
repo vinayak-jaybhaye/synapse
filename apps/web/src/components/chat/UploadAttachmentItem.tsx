@@ -43,7 +43,9 @@ export default function UploadAttachmentItem({
               src={upload.previewUrl}
               alt={upload.file.name}
               className={`w-full h-full object-cover ${
-                upload.state === "UPLOADING" || upload.state === "QUEUED" ? "opacity-50 blur-sm" : ""
+                upload.state === "UPLOADING" || upload.state === "QUEUED"
+                  ? "opacity-50 blur-sm"
+                  : ""
               } transition-all`}
             />
           </div>
@@ -52,7 +54,9 @@ export default function UploadAttachmentItem({
             <video
               src={upload.previewUrl}
               className={`w-full h-full object-cover ${
-                upload.state === "UPLOADING" || upload.state === "QUEUED" ? "opacity-50 blur-sm" : ""
+                upload.state === "UPLOADING" || upload.state === "QUEUED"
+                  ? "opacity-50 blur-sm"
+                  : ""
               } transition-all`}
             />
           </div>
@@ -62,9 +66,7 @@ export default function UploadAttachmentItem({
             <span className="text-xs font-medium text-text-secondary line-clamp-2 break-all">
               {upload.file.name}
             </span>
-            <span className="text-[10px] text-text-muted">
-              {formatSize(upload.file.size)}
-            </span>
+            <span className="text-[10px] text-text-muted">{formatSize(upload.file.size)}</span>
           </div>
         )}
       </div>
@@ -76,9 +78,7 @@ export default function UploadAttachmentItem({
             <span className="text-[10px] font-semibold text-white/90 uppercase tracking-wider">
               {upload.state}
             </span>
-            <span className="text-[10px] font-mono text-white">
-              {Math.round(upload.progress)}%
-            </span>
+            <span className="text-[10px] font-mono text-white">{Math.round(upload.progress)}%</span>
           </div>
           <div className="h-1.5 w-full bg-black/50 rounded-full overflow-hidden">
             <div
@@ -93,9 +93,7 @@ export default function UploadAttachmentItem({
       {upload.state === "FAILED" && (
         <div className="absolute inset-0 bg-red-950/80 flex flex-col items-center justify-center p-4">
           <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
-          <span className="text-xs font-semibold text-red-200 text-center mb-3">
-            Upload Failed
-          </span>
+          <span className="text-xs font-semibold text-red-200 text-center mb-3">Upload Failed</span>
           <button
             onClick={() => onRetry(upload.id)}
             className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"

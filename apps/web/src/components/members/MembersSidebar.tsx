@@ -6,7 +6,7 @@ import { useMembers } from "../../services/query/useMembers";
 import { useRoles } from "../../services/query/useRoles";
 import { useGuilds } from "../../services/query/useGuilds";
 import { useAuthStore } from "../../store/auth-store";
-import { Crown, VolumeX, Shield, Loader2 } from "lucide-react";
+import { Crown, VolumeX, Shield, Loader2, X } from "lucide-react";
 import UserProfilePopover from "../../features/profile/components/UserProfilePopover";
 import MemberContextMenu from "./MemberContextMenu";
 import { getMediaUrl } from "../../lib/media";
@@ -16,13 +16,28 @@ const getRoleColorHex = (colorNum?: number) => {
   return "#" + colorNum.toString(16).padStart(6, "0");
 };
 
-export default function MembersSidebar() {
+interface MembersSidebarProps {
+  onClose?: () => void;
+}
+
+export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
   const { activeGuildId } = useGuildStore();
   const { guilds } = useGuilds();
-  const { infiniteMembers: members, infiniteError, infiniteIsLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useMembers(activeGuildId || undefined);
+  const {
+    infiniteMembers: members,
+    infiniteError,
+    infiniteIsLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useMembers(activeGuildId || undefined);
   const { roles } = useRoles(activeGuildId || undefined);
   const { user } = useAuthStore();
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; member: any } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    member: any;
+  } | null>(null);
 
   const currentMember = members.find((m) => m.user_id === user?.id);
   const currentUserRoles = currentMember?.roles || [];
@@ -39,7 +54,7 @@ export default function MembersSidebar() {
           fetchNextPage();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     observer.observe(observerTarget);
@@ -119,13 +134,17 @@ export default function MembersSidebar() {
         >
           <div className="relative shrink-0 h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-xs select-none overflow-hidden">
             {m.avatar_key ? (
-              <img src={getMediaUrl(m.avatar_key)} alt={m.username} className="w-full h-full object-cover" />
+              <img
+                src={getMediaUrl(m.avatar_key)}
+                alt={m.username}
+                className="w-full h-full object-cover"
+              />
             ) : (
               m.username.substring(0, 2).toUpperCase()
             )}
             <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-emerald-500 border-[2px] border-bg-primary rounded-full z-10" />
           </div>
-          
+
           <div className="flex flex-col min-w-0">
             <span
               style={{ color: roleColor || "inherit" }}
@@ -141,103 +160,111 @@ export default function MembersSidebar() {
             <span className="text-[10px] text-text-muted truncate">@{m.username}</span>
           </div>
 
-          {m.is_muted && (
-            <VolumeX className="h-3 w-3 text-red-400 shrink-0 ml-auto" />
-          )}
+          {m.is_muted && <VolumeX className="h-3 w-3 text-red-400 shrink-0 ml-auto" />}
         </div>
       </UserProfilePopover>
     );
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-bg-secondary p-3 space-y-4 overflow-y-auto">
-      {/* Group by Roles */}
-      {sortedRoles.map((role) => {
-        const roleMembers = groupedMembers[role.id] || [];
-        if (roleMembers.length === 0) return null;
-        
-        const roleColor = getRoleColorHex(role.color);
+    <div className="flex-1 flex flex-col h-full bg-bg-secondary overflow-hidden">
+      {onClose && (
+        <div className="h-12 border-b border-border-custom px-4 flex items-center justify-between shrink-0 shadow-sm bg-bg-secondary">
+          <span className="font-bold text-text-primary text-sm">Server Members</span>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-white/10 rounded text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+            title="Close Sidebar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      <div className="flex-1 p-3 space-y-4 overflow-y-auto">
+        {/* Group by Roles */}
+        {sortedRoles.map((role) => {
+          const roleMembers = groupedMembers[role.id] || [];
+          if (roleMembers.length === 0) return null;
 
-        return (
-          <div key={role.id} className="space-y-1">
-            <h3
-              style={{ color: roleColor }}
-              className="text-xxs font-bold uppercase tracking-wider px-2 flex items-center gap-1.5 select-none"
-            >
-              <Shield className="h-3 w-3" />
-              <span>{role.name} — {roleMembers.length}</span>
+          const roleColor = getRoleColorHex(role.color);
+
+          return (
+            <div key={role.id} className="space-y-1">
+              <h3
+                style={{ color: roleColor }}
+                className="text-xxs font-bold uppercase tracking-wider px-2 flex items-center gap-1.5 select-none"
+              >
+                <Shield className="h-3 w-3" />
+                <span>
+                  {role.name} — {roleMembers.length}
+                </span>
+              </h3>
+              <div className="space-y-0.5">
+                {roleMembers.map((m) => renderMember(m, roleColor))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Group "Online" (no roles or default only) */}
+        {onlineMembers.length > 0 && (
+          <div className="space-y-1">
+            <h3 className="text-text-muted text-xxs font-bold uppercase tracking-wider px-2 select-none">
+              Online — {onlineMembers.length}
             </h3>
-            <div className="space-y-0.5">
-              {roleMembers.map((m) => renderMember(m, roleColor))}
+            <div className="space-y-0.5">{onlineMembers.map((m) => renderMember(m))}</div>
+          </div>
+        )}
+
+        {infiniteError && (
+          <div className="text-red-500 text-xs p-2">Error: {(infiniteError as Error).message}</div>
+        )}
+
+        {/* Group Offline */}
+        {offlineMembers.length > 0 && (
+          <div className="space-y-1">
+            <h3 className="text-text-muted text-xxs font-bold uppercase tracking-wider px-2 select-none">
+              Offline — {offlineMembers.length}
+            </h3>
+            <div className="space-y-0.5 opacity-50">
+              {offlineMembers.map((m) => renderMember(m))}
             </div>
           </div>
-        );
-      })}
+        )}
 
-      {/* Group "Online" (no roles or default only) */}
-      {onlineMembers.length > 0 && (
-        <div className="space-y-1">
-          <h3 className="text-text-muted text-xxs font-bold uppercase tracking-wider px-2 select-none">
-            Online — {onlineMembers.length}
-          </h3>
-          <div className="space-y-0.5">
-            {onlineMembers.map((m) => renderMember(m))}
+        {/* Infinite Scroll Trigger */}
+        {hasNextPage && (
+          <div ref={observerRef} className="h-8 flex items-center justify-center py-2">
+            {isFetchingNextPage ? (
+              <Loader2 className="h-5 w-5 text-indigo-500 animate-spin" />
+            ) : null}
           </div>
-        </div>
-      )}
+        )}
 
-      {infiniteError && (
-        <div className="text-red-500 text-xs p-2">
-          Error: {(infiniteError as Error).message}
-        </div>
-      )}
+        {members.length === 0 && !infiniteIsLoading && (
+          <div className="text-center text-text-muted text-xs py-8">No members in this server</div>
+        )}
 
-      {/* Group Offline */}
-      {offlineMembers.length > 0 && (
-        <div className="space-y-1">
-          <h3 className="text-text-muted text-xxs font-bold uppercase tracking-wider px-2 select-none">
-            Offline — {offlineMembers.length}
-          </h3>
-          <div className="space-y-0.5 opacity-50">
-            {offlineMembers.map((m) => renderMember(m))}
+        {infiniteIsLoading && (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 text-indigo-500 animate-spin" />
           </div>
-        </div>
-      )}
-
-      {/* Infinite Scroll Trigger */}
-      {hasNextPage && (
-        <div ref={observerRef} className="h-8 flex items-center justify-center py-2">
-          {isFetchingNextPage ? (
-            <Loader2 className="h-5 w-5 text-indigo-500 animate-spin" />
-          ) : null}
-        </div>
-      )}
-
-      {members.length === 0 && !infiniteIsLoading && (
-        <div className="text-center text-text-muted text-xs py-8">
-          No members in this server
-        </div>
-      )}
-
-      {infiniteIsLoading && (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 text-indigo-500 animate-spin" />
-        </div>
-      )}
-      {contextMenu && (
-        <MemberContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          member={contextMenu.member}
-          guildId={activeGuildId}
-          guildOwnerId={activeGuild.owner_id}
-          currentUserId={user?.id || ""}
-          currentUserPermissions={activeGuild.permissions}
-          currentUserRoles={currentUserRoles}
-          allRoles={roles}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+        )}
+        {contextMenu && (
+          <MemberContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            member={contextMenu.member}
+            guildId={activeGuildId}
+            guildOwnerId={activeGuild.owner_id}
+            currentUserId={user?.id || ""}
+            currentUserPermissions={activeGuild.permissions}
+            currentUserRoles={currentUserRoles}
+            allRoles={roles}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -7,7 +7,17 @@ import { useMessages } from "../../services/query/useMessages";
 import { useChannels } from "../../services/query/useChannels";
 import { useGuilds } from "../../services/query/useGuilds";
 import { useDMs } from "../../services/query/useDMs";
-import { Hash, Volume2, MessageSquare, Loader2, ArrowDown, AtSign } from "lucide-react";
+import { useUIStore } from "../../store/ui-store";
+import {
+  Hash,
+  Volume2,
+  MessageSquare,
+  Loader2,
+  ArrowDown,
+  AtSign,
+  Menu,
+  Users,
+} from "lucide-react";
 import MessageItem from "./MessageItem";
 import { getMediaUrl } from "../../lib/media";
 import MessageComposer from "../chat/MessageComposer";
@@ -17,6 +27,20 @@ import VoiceChannelView from "../voice/VoiceChannelView";
 
 export default function ChatArea() {
   const { activeChannelId } = useChannelStore();
+  const {
+    membersSidebarCollapsed,
+    setMembersSidebarCollapsed,
+    setMobileMembersOpen,
+    setMobileChannelsOpen,
+  } = useUIStore();
+
+  const handleToggleMembers = () => {
+    if (window.innerWidth < 1024) {
+      setMobileMembersOpen(true);
+    } else {
+      setMembersSidebarCollapsed(!membersSidebarCollapsed);
+    }
+  };
   const { activeGuildId } = useGuildStore();
   const { guilds } = useGuilds();
   const { channels } = useChannels(activeGuildId || undefined);
@@ -25,13 +49,16 @@ export default function ChatArea() {
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
   const activeChannel = channels.find((c) => c.id === activeChannelId);
   const activeDM = (dms || []).find((d) => d.channel_id === activeChannelId);
-  const { canManageMessages, canAddReactions } = useChannelPermissions(activeChannel?.permissions, !!activeDM);
+  const { canManageMessages, canAddReactions } = useChannelPermissions(
+    activeChannel?.permissions,
+    !!activeDM,
+  );
 
   const isVoiceChannel = activeChannel?.type === 1;
 
   useEffect(() => {
     if (!activeGuild && !activeChannel) return;
-    
+
     const printPerms = (name: string, permString: string | undefined) => {
       if (!permString) return;
       const results: Record<string, string> = {};
@@ -58,7 +85,7 @@ export default function ChatArea() {
     deleteMessage,
     addReaction,
     removeReaction,
-  } = useMessages(!isVoiceChannel ? (activeChannelId || undefined) : undefined);
+  } = useMessages(!isVoiceChannel ? activeChannelId || undefined : undefined);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -87,7 +114,7 @@ export default function ChatArea() {
           });
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     observer.observe(observerTarget);
@@ -137,14 +164,17 @@ export default function ChatArea() {
     const container = scrollRef.current;
     if (!container) return;
 
-    const scrolledUp =
-      container.scrollHeight - container.scrollTop - container.clientHeight > 300;
+    const scrolledUp = container.scrollHeight - container.scrollTop - container.clientHeight > 300;
     setShowScrollBottomBtn(scrolledUp);
   };
 
   const handleSend = async (content: string, uploadIds?: string[]) => {
     try {
-      await sendMessage({ content, attachmentUploadIds: uploadIds, replyToMessageId: replyTarget?.id });
+      await sendMessage({
+        content,
+        attachmentUploadIds: uploadIds,
+        replyToMessageId: replyTarget?.id,
+      });
       setReplyTarget(null);
       scrollToBottom("smooth");
     } catch (err) {
@@ -158,15 +188,29 @@ export default function ChatArea() {
 
   if (!activeChannelId || (!activeChannel && !activeDM)) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-text-muted gap-3 h-full bg-bg-primary">
-        <div className="h-16 w-16 rounded-full bg-bg-secondary flex items-center justify-center font-bold text-text-muted text-2xl select-none">
-          💬
+      <div className="flex-1 flex flex-col h-full bg-bg-primary">
+        {/* Mobile Header trigger on welcome page */}
+        <div className="md:hidden h-12 shrink-0 bg-bg-secondary border-b border-border-custom flex items-center px-3 shadow-sm z-10">
+          <button
+            onClick={() => setMobileChannelsOpen(true)}
+            className="p-1.5 hover:bg-bg-tertiary rounded text-text-secondary hover:text-text-primary cursor-pointer"
+            aria-label="Toggle channels sidebar"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="font-bold text-text-primary ml-2 select-none">Synapse</span>
         </div>
-        <div>
-          <h2 className="text-lg font-bold text-text-primary">Welcome to Synapse!</h2>
-          <p className="text-sm mt-1 max-w-sm">
-            Select a channel from the left sidebar to start collaborating.
-          </p>
+
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-text-muted gap-3">
+          <div className="h-16 w-16 rounded-full bg-bg-secondary flex items-center justify-center font-bold text-text-muted text-2xl select-none">
+            💬
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-text-primary">Welcome to Synapse!</h2>
+            <p className="text-sm mt-1 max-w-sm">
+              Select a channel from the left sidebar to start collaborating.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -176,30 +220,47 @@ export default function ChatArea() {
     <div className="flex flex-col h-full w-full bg-bg-primary relative">
       {/* 1. Header */}
       <div className="h-12 border-b border-border-custom px-4 flex items-center justify-between shrink-0 shadow-sm z-10 bg-bg-primary">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+          {/* Mobile Menu trigger (shows on mobile screens to toggle channels sidebar) */}
+          <button
+            onClick={() => setMobileChannelsOpen(true)}
+            className="md:hidden p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary shrink-0 cursor-pointer"
+            aria-label="Toggle channels sidebar"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
           {activeDM ? (
-            <AtSign className="h-5 w-5 text-text-muted" />
+            <AtSign className="h-5 w-5 text-text-muted shrink-0" />
           ) : activeChannel?.type === 1 ? (
-            <Volume2 className="h-5 w-5 text-text-muted" />
+            <Volume2 className="h-5 w-5 text-text-muted shrink-0" />
           ) : (
-            <Hash className="h-5 w-5 text-text-muted" />
+            <Hash className="h-5 w-5 text-text-muted shrink-0" />
           )}
-          <span className="font-bold text-text-primary">
-            {activeDM 
-              ? activeDM.recipient.display_name || activeDM.recipient.username 
+          <span className="font-bold text-text-primary truncate">
+            {activeDM
+              ? activeDM.recipient.display_name || activeDM.recipient.username
               : activeChannel?.name}
           </span>
           {activeChannel?.topic && (
             <>
-              <div className="w-px h-4 bg-border-custom mx-1" />
-              <span className="text-sm font-medium text-text-secondary truncate max-w-sm">
+              <div className="hidden sm:block w-px h-4 bg-border-custom mx-1" />
+              <span className="hidden sm:block text-sm font-medium text-text-secondary truncate max-w-sm">
                 {activeChannel.topic}
               </span>
             </>
           )}
         </div>
-        <div className="flex items-center gap-4 text-text-secondary">
-          {/* Header Actions (Search, Pinned Messages, etc.) placeholder */}
+        <div className="flex items-center gap-3 text-text-secondary shrink-0">
+          {/* Toggle Members Sidebar Trigger (Shows on mobile and desktop) */}
+          <button
+            onClick={handleToggleMembers}
+            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary cursor-pointer"
+            aria-label="Toggle server members list"
+            title="Toggle Member List"
+          >
+            <Users className="h-5 w-5" />
+          </button>
         </div>
       </div>
 
@@ -229,9 +290,15 @@ export default function ChatArea() {
               <>
                 <div className="h-20 w-20 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-3xl select-none mb-2 overflow-hidden">
                   {activeDM.recipient.avatar_key ? (
-                    <img src={getMediaUrl(activeDM.recipient.avatar_key)} alt={activeDM.recipient.username} className="w-full h-full object-cover" />
+                    <img
+                      src={getMediaUrl(activeDM.recipient.avatar_key)}
+                      alt={activeDM.recipient.username}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    (activeDM.recipient.display_name || activeDM.recipient.username).charAt(0).toUpperCase()
+                    (activeDM.recipient.display_name || activeDM.recipient.username)
+                      .charAt(0)
+                      .toUpperCase()
                   )}
                 </div>
                 <h2 className="text-2xl font-bold text-text-primary">
@@ -241,13 +308,21 @@ export default function ChatArea() {
                   {activeDM.recipient.username}
                 </h3>
                 <p className="text-text-secondary text-sm">
-                  This is the beginning of your direct message history with <span className="font-semibold text-text-primary">@{activeDM.recipient.username}</span>.
+                  This is the beginning of your direct message history with{" "}
+                  <span className="font-semibold text-text-primary">
+                    @{activeDM.recipient.username}
+                  </span>
+                  .
                 </p>
               </>
             ) : (
               <>
                 <div className="h-16 w-16 rounded-full bg-bg-secondary flex items-center justify-center font-bold text-text-primary text-3xl select-none mb-2">
-                  {activeChannel?.type === 1 ? <Volume2 className="h-8 w-8" /> : <Hash className="h-8 w-8" />}
+                  {activeChannel?.type === 1 ? (
+                    <Volume2 className="h-8 w-8" />
+                  ) : (
+                    <Hash className="h-8 w-8" />
+                  )}
                 </div>
                 <h2 className="text-2xl font-bold text-text-primary">
                   Welcome to #{activeChannel?.name}!

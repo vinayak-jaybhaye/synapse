@@ -13,25 +13,15 @@ export function useChannelPermissions(channelId: string | undefined) {
   });
 
   const updatePermission = useMutation({
-    mutationFn: (data: {
-      roleId: string;
-      allow: string;
-      deny: string;
-    }) =>
-      channelsApi.updateChannelRolePermission(
-        channelId!,
-        data.roleId,
-        data.allow,
-        data.deny
-      ),
+    mutationFn: (data: { roleId: string; allow: string; deny: string }) =>
+      channelsApi.updateChannelRolePermission(channelId!, data.roleId, data.allow, data.deny),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
     },
   });
 
   const deletePermission = useMutation({
-    mutationFn: (roleId: string) =>
-      channelsApi.deleteChannelRolePermission(channelId!, roleId),
+    mutationFn: (roleId: string) => channelsApi.deleteChannelRolePermission(channelId!, roleId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
     },

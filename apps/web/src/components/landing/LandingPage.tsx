@@ -49,7 +49,8 @@ export default function LandingPage() {
           </span>
         </h1>
         <p className="text-zinc-400 text-base md:text-xl max-w-2xl leading-relaxed">
-          Synapse is an open-source, ultra-fast real-time messaging and voice community app. Built on Go and React/Next.js for speed, stability, and scale.
+          Synapse is an open-source, ultra-fast real-time messaging and voice community app. Built
+          on Go and React/Next.js for speed, stability, and scale.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 mt-4 w-full sm:w-auto">
           <Link
@@ -73,10 +74,18 @@ export default function LandingPage() {
       <footer className="relative w-full max-w-7xl mx-auto px-6 py-8 border-t border-zinc-900/80 flex flex-col md:flex-row items-center justify-between gap-4 text-zinc-500 text-sm z-10">
         <div>© {new Date().getFullYear()} Synapse. All rights reserved.</div>
         <div className="flex gap-6">
-          <a href="#" className="hover:text-zinc-300">Docs</a>
-          <a href="#" className="hover:text-zinc-300">GitHub</a>
-          <a href="#" className="hover:text-zinc-300">Terms</a>
-          <a href="#" className="hover:text-zinc-300">Privacy</a>
+          <a href="#" className="hover:text-zinc-300">
+            Docs
+          </a>
+          <a href="#" className="hover:text-zinc-300">
+            GitHub
+          </a>
+          <a href="#" className="hover:text-zinc-300">
+            Terms
+          </a>
+          <a href="#" className="hover:text-zinc-300">
+            Privacy
+          </a>
         </div>
       </footer>
     </div>

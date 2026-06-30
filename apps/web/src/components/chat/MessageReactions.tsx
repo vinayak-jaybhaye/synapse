@@ -22,7 +22,7 @@ export default function MessageReactions({
   if (!reactions || reactions.length === 0) return null;
 
   const handleReactionClick = async (rs: ReactionSummary) => {
-    // Basic toggle mechanism 
+    // Basic toggle mechanism
     try {
       await onAddReaction(messageId, rs.emoji);
     } catch (err) {

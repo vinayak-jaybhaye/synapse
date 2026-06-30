@@ -6,9 +6,9 @@ export const usersApi = {
     const response = await api.get(`/users/${userId}/profile`);
     return response.data;
   },
-  
+
   updateProfile: async (payload: any) => {
-    const response = await api.patch('/users/@me', payload);
+    const response = await api.patch("/users/@me", payload);
     return response.data;
   },
 };

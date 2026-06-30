@@ -5,19 +5,19 @@ import { create } from "zustand";
 interface MessageRegistryState {
   // A map of message ID to its DOM element
   elements: Map<string, HTMLElement>;
-  
+
   // Register a message element when it mounts
   register: (id: string, element: HTMLElement) => void;
-  
+
   // Unregister a message element when it unmounts
   unregister: (id: string) => void;
-  
+
   // Imperatively get a message element
   getElement: (id: string) => HTMLElement | undefined;
 
   // The ID of the currently highlighted message, used to trigger the CSS animation
   highlightedMessageId: string | null;
-  
+
   // Action to trigger a jump and highlight
   scrollToMessage: (id: string) => void;
 }

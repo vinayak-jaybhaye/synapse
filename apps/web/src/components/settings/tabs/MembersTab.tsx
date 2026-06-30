@@ -11,7 +11,7 @@ import { useGuildPermissions } from "../../../hooks/usePermissions";
 import { useBans, bansKeys } from "../../../services/query/useBans";
 import { guildsApi } from "../../../services/api/guilds";
 import { getRoleColorHex } from "../../../lib/utils";
-import { Search, UserMinus, Ban, Volume2, VolumeX, ShieldCheck, ShieldX } from "lucide-react";
+import { Search, UserMinus, Ban, Volume2, VolumeX, ShieldCheck } from "lucide-react";
 
 export default function MembersTab() {
   const queryClient = useQueryClient();
@@ -20,7 +20,9 @@ export default function MembersTab() {
   const { user } = useAuthStore();
 
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
-  const { canKickMembers, canBanMembers, canManageRoles } = useGuildPermissions(activeGuild?.permissions);
+  const { canKickMembers, canBanMembers, canManageRoles } = useGuildPermissions(
+    activeGuild?.permissions,
+  );
   const requesterIsOwner = user?.id === activeGuild?.owner_id;
 
   const { members, assignRole, unassignRole } = useMembers(activeGuildId || undefined);
@@ -78,7 +80,9 @@ export default function MembersTab() {
     if (confirm(`Are you sure you want to kick @${username}?`)) {
       try {
         await guildsApi.kickMember(activeGuildId!, targetUserId);
-        queryClient.invalidateQueries({ queryKey: membersKeys.list(activeGuildId || "") });
+        queryClient.invalidateQueries({
+          queryKey: membersKeys.list(activeGuildId || ""),
+        });
       } catch (err: any) {
         alert(err.message || "Failed to kick member");
       }
@@ -90,8 +94,12 @@ export default function MembersTab() {
     if (reason !== null) {
       try {
         await guildsApi.banMember(activeGuildId!, targetUserId, reason || undefined);
-        queryClient.invalidateQueries({ queryKey: membersKeys.list(activeGuildId || "") });
-        queryClient.invalidateQueries({ queryKey: bansKeys.list(activeGuildId || "") });
+        queryClient.invalidateQueries({
+          queryKey: membersKeys.list(activeGuildId || ""),
+        });
+        queryClient.invalidateQueries({
+          queryKey: bansKeys.list(activeGuildId || ""),
+        });
       } catch (err: any) {
         alert(err.message || "Failed to ban member");
       }
@@ -102,7 +110,9 @@ export default function MembersTab() {
     if (confirm(`Are you sure you want to lift the ban for @${username}?`)) {
       try {
         await unbanMember(targetUserId);
-        queryClient.invalidateQueries({ queryKey: bansKeys.list(activeGuildId || "") });
+        queryClient.invalidateQueries({
+          queryKey: bansKeys.list(activeGuildId || ""),
+        });
       } catch (err: any) {
         alert(err.message || "Failed to unban user");
       }
@@ -111,30 +121,34 @@ export default function MembersTab() {
 
   const handleMuteToggle = async (targetUserId: string, currentMute: boolean) => {
     try {
-      // Direct raw patch to update is_muted status
       const { api } = await import("../../../lib/api");
-      await api.patch(`/guilds/${activeGuildId}/members/${targetUserId}`, { is_muted: !currentMute });
-      queryClient.invalidateQueries({ queryKey: membersKeys.list(activeGuildId || "") });
+      await api.patch(`/guilds/${activeGuildId}/members/${targetUserId}`, {
+        is_muted: !currentMute,
+      });
+      queryClient.invalidateQueries({
+        queryKey: membersKeys.list(activeGuildId || ""),
+      });
     } catch (err: any) {
       alert(err.message || "Failed to update mute status");
     }
   };
 
-  // Muted members filtered from active members list
   const mutedMembers = members.filter((m) => m.is_muted);
 
   return (
-    <div className="flex-1 flex flex-col gap-4 min-h-0">
-      <div>
-        <h3 className="text-xl font-bold text-text-primary font-outfit">Members Directory</h3>
-        <p className="text-xs text-text-muted mt-1">Manage server memberships, roles, mutes, and bans.</p>
+    <div className="flex-1 flex flex-col gap-3.5 min-h-0">
+      <div className="border-b border-border-custom pb-3">
+        <h3 className="text-sm font-semibold text-text-primary">Members Directory</h3>
+        <p className="text-[11px] text-text-muted mt-0.5 font-normal">
+          Manage server memberships, roles, mutes, and bans.
+        </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border-custom shrink-0 gap-2 mb-1">
+      <div className="flex border-b border-border-custom shrink-0 gap-1.5 text-xs">
         <button
           onClick={() => setCurrentSubTab("all")}
-          className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-colors ${
+          className={`px-3 py-1.5 font-semibold border-b-2 cursor-pointer transition-colors ${
             currentSubTab === "all"
               ? "border-indigo-500 text-text-primary"
               : "border-transparent text-text-muted hover:text-text-primary"
@@ -144,7 +158,7 @@ export default function MembersTab() {
         </button>
         <button
           onClick={() => setCurrentSubTab("muted")}
-          className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-colors ${
+          className={`px-3 py-1.5 font-semibold border-b-2 cursor-pointer transition-colors ${
             currentSubTab === "muted"
               ? "border-indigo-500 text-text-primary"
               : "border-transparent text-text-muted hover:text-text-primary"
@@ -155,7 +169,7 @@ export default function MembersTab() {
         {(canBanMembers || requesterIsOwner) && (
           <button
             onClick={() => setCurrentSubTab("banned")}
-            className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-colors ${
+            className={`px-3 py-1.5 font-semibold border-b-2 cursor-pointer transition-colors ${
               currentSubTab === "banned"
                 ? "border-indigo-500 text-text-primary"
                 : "border-transparent text-text-muted hover:text-text-primary"
@@ -174,18 +188,18 @@ export default function MembersTab() {
             currentSubTab === "banned"
               ? "Search banned users..."
               : currentSubTab === "muted"
-              ? "Search muted members..."
-              : "Search members..."
+                ? "Search muted members..."
+                : "Search members..."
           }
           value={memberSearch}
           onChange={(e) => setMemberSearch(e.target.value)}
-          className="w-full bg-bg-secondary border border-border-custom focus:border-indigo-500 rounded-xl pl-9 pr-4 py-2 text-xs text-text-primary outline-none"
+          className="w-full bg-bg-tertiary border border-border-custom focus:border-indigo-500 rounded pl-8 pr-3 py-1 text-xs text-text-primary outline-none transition-colors"
         />
-        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-text-muted" />
+        <Search className="absolute left-2.5 top-1.5 h-3.5 w-3.5 text-text-muted" />
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+      <div className="flex-1 overflow-y-auto divide-y divide-border-custom pr-1">
         {/* ALL MEMBERS TAB */}
         {currentSubTab === "all" &&
           members
@@ -195,17 +209,19 @@ export default function MembersTab() {
               return (
                 <div
                   key={m.user_id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-bg-secondary border border-border-custom rounded-xl gap-3 shadow-sm hover:border-border-custom/80 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between py-2 px-1 gap-2.5 hover:bg-bg-secondary/30 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 bg-indigo-500 rounded-full flex items-center justify-center font-bold text-white text-xs select-none">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="h-8 w-8 bg-indigo-500 rounded-full flex items-center justify-center font-bold text-white text-[11px] select-none shrink-0">
                       {m.username.substring(0, 2).toUpperCase()}
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                        <span>{m.nickname || m.display_name || m.username}</span>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
+                        <span className="truncate">
+                          {m.nickname || m.display_name || m.username}
+                        </span>
                         {m.user_id === activeGuild?.owner_id && (
-                          <span className="text-[10px] bg-amber-500/10 text-amber-500 px-1 py-0.5 rounded border border-amber-500/20 font-normal scale-90">
+                          <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1 py-0.2 rounded border border-amber-500/20 font-normal">
                             Owner
                           </span>
                         )}
@@ -215,7 +231,7 @@ export default function MembersTab() {
                   </div>
 
                   {/* Actions Grid */}
-                  <div className="flex flex-wrap items-center gap-2 justify-end">
+                  <div className="flex flex-wrap items-center gap-1.5 justify-end">
                     {/* Roles Badges */}
                     <div className="flex flex-wrap gap-1">
                       {roles
@@ -235,7 +251,7 @@ export default function MembersTab() {
                                 color: hex,
                                 backgroundColor: hex + "12",
                               }}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold border rounded-md px-2 py-0.5 select-none leading-none shrink-0"
+                              className="inline-flex items-center gap-1 text-[9px] font-semibold border rounded px-1.5 py-0.5 select-none leading-none shrink-0"
                             >
                               <span>{r.name}</span>
                               {canRemoveRole && (
@@ -257,28 +273,28 @@ export default function MembersTab() {
                         <button
                           onClick={() =>
                             setActiveMemberDropdown(
-                              activeMemberDropdown === m.user_id ? null : m.user_id
+                              activeMemberDropdown === m.user_id ? null : m.user_id,
                             )
                           }
-                          className="h-6 px-2 border border-border-custom hover:border-text-muted rounded bg-bg-tertiary text-[10px] font-bold text-text-secondary hover:text-text-primary cursor-pointer flex items-center gap-1.5"
+                          className="h-5 px-1.5 border border-border-custom hover:border-text-muted rounded bg-bg-tertiary text-[9px] font-bold text-text-secondary hover:text-text-primary cursor-pointer flex items-center gap-1"
                         >
                           <span>+ Add Role</span>
                         </button>
 
                         {activeMemberDropdown === m.user_id && (
-                          <div className="absolute right-0 mt-1.5 w-40 bg-bg-secondary border border-border-custom rounded-lg shadow-xl py-1.5 z-40 max-h-40 overflow-y-auto">
+                          <div className="absolute right-0 mt-1 w-36 bg-bg-secondary border border-border-custom rounded shadow-md py-1 z-40 max-h-32 overflow-y-auto">
                             {roles
                               .filter(
                                 (r) =>
                                   !r.is_default &&
                                   !(m.roles || []).includes(r.id) &&
-                                  (requesterIsOwner || requesterHighestRolePos > r.position)
+                                  (requesterIsOwner || requesterHighestRolePos > r.position),
                               )
                               .map((r) => (
                                 <button
                                   key={r.id}
                                   onClick={() => handleAssignRole(m.user_id, r.id)}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-bg-primary text-xs font-semibold text-text-secondary hover:text-text-primary cursor-pointer truncate"
+                                  className="w-full text-left px-2.5 py-1 hover:bg-bg-tertiary text-xs font-semibold text-text-secondary hover:text-text-primary cursor-pointer truncate select-none"
                                 >
                                   {r.name}
                                 </button>
@@ -287,9 +303,9 @@ export default function MembersTab() {
                               (r) =>
                                 !r.is_default &&
                                 !(m.roles || []).includes(r.id) &&
-                                (requesterIsOwner || requesterHighestRolePos > r.position)
+                                (requesterIsOwner || requesterHighestRolePos > r.position),
                             ).length === 0 && (
-                              <span className="block px-3 py-1 text-[10px] text-text-muted italic">
+                              <span className="block px-2.5 py-1 text-[9px] text-text-muted italic select-none">
                                 No roles to add
                               </span>
                             )}
@@ -300,19 +316,23 @@ export default function MembersTab() {
 
                     {/* Mute, Kick, Ban inline actions */}
                     {m.user_id !== user?.id && m.user_id !== activeGuild?.owner_id && (
-                      <div className="flex items-center gap-1 border-l border-border-custom/50 pl-2">
+                      <div className="flex items-center gap-1 border-l border-border-custom/50 pl-1.5">
                         {/* Mute button */}
                         {editable && (
                           <button
                             onClick={() => handleMuteToggle(m.user_id, m.is_muted)}
-                            className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                            className={`p-1 rounded cursor-pointer transition-colors ${
                               m.is_muted
                                 ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
                                 : "text-text-muted hover:bg-bg-tertiary hover:text-text-primary"
                             }`}
                             title={m.is_muted ? "Unmute Server Audio" : "Server Mute Audio"}
                           >
-                            {m.is_muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                            {m.is_muted ? (
+                              <VolumeX className="h-3.5 w-3.5" />
+                            ) : (
+                              <Volume2 className="h-3.5 w-3.5" />
+                            )}
                           </button>
                         )}
 
@@ -320,10 +340,10 @@ export default function MembersTab() {
                         {(canKickMembers || requesterIsOwner) && editable && (
                           <button
                             onClick={() => handleKick(m.user_id, m.username)}
-                            className="p-1.5 text-text-muted hover:bg-red-500/10 hover:text-red-400 rounded-lg cursor-pointer transition-colors"
+                            className="p-1 text-text-muted hover:bg-red-500/10 hover:text-red-400 rounded cursor-pointer transition-colors"
                             title="Kick Member"
                           >
-                            <UserMinus className="h-4 w-4" />
+                            <UserMinus className="h-3.5 w-3.5" />
                           </button>
                         )}
 
@@ -331,10 +351,10 @@ export default function MembersTab() {
                         {(canBanMembers || requesterIsOwner) && editable && (
                           <button
                             onClick={() => handleBan(m.user_id, m.username)}
-                            className="p-1.5 text-text-muted hover:bg-red-500/10 hover:text-red-400 rounded-lg cursor-pointer transition-colors"
+                            className="p-1 text-text-muted hover:bg-red-500/10 hover:text-red-400 rounded cursor-pointer transition-colors"
                             title="Ban Member"
                           >
-                            <Ban className="h-4 w-4" />
+                            <Ban className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </div>
@@ -353,14 +373,14 @@ export default function MembersTab() {
               return (
                 <div
                   key={m.user_id}
-                  className="flex items-center justify-between p-3.5 bg-bg-secondary border border-border-custom rounded-xl shadow-sm"
+                  className="flex items-center justify-between py-2 px-1 hover:bg-bg-secondary/30 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center font-bold text-xs select-none">
-                      <VolumeX className="h-4 w-4" />
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center font-bold text-xs select-none">
+                      <VolumeX className="h-3.5 w-3.5" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-text-primary">
+                      <h4 className="text-xs font-semibold text-text-primary">
                         {m.nickname || m.display_name || m.username}
                       </h4>
                       <p className="text-[10px] text-text-muted">@{m.username}</p>
@@ -370,7 +390,7 @@ export default function MembersTab() {
                   {editable && (
                     <button
                       onClick={() => handleMuteToggle(m.user_id, m.is_muted)}
-                      className="px-3 py-1.5 bg-bg-tertiary border border-border-custom hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold text-text-secondary cursor-pointer transition-all"
+                      className="px-2.5 py-1 bg-bg-tertiary border border-border-custom hover:bg-bg-secondary rounded text-xs font-semibold text-text-secondary hover:text-text-primary cursor-pointer transition-colors"
                     >
                       Unmute Member
                     </button>
@@ -379,7 +399,9 @@ export default function MembersTab() {
               );
             })}
         {currentSubTab === "muted" && mutedMembers.length === 0 && (
-          <div className="text-center text-text-muted text-xs py-8">No muted members in this server.</div>
+          <div className="text-center text-text-muted text-xs py-6">
+            No muted members in this server.
+          </div>
         )}
 
         {/* BANNED MEMBERS TAB */}
@@ -390,19 +412,19 @@ export default function MembersTab() {
             .map((b) => (
               <div
                 key={b.user_id}
-                className="flex items-center justify-between p-3.5 bg-bg-secondary border border-border-custom rounded-xl shadow-sm"
+                className="flex items-center justify-between py-2 px-1 hover:bg-bg-secondary/30 transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center font-bold text-xs select-none">
-                    <Ban className="h-4 w-4" />
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center font-bold text-xs select-none">
+                    <Ban className="h-3.5 w-3.5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-text-primary">
+                    <h4 className="text-xs font-semibold text-text-primary">
                       {b.display_name || b.username}
                     </h4>
                     <p className="text-[10px] text-text-muted">@{b.username}</p>
                     {b.reason && (
-                      <p className="text-[10px] text-red-400/90 mt-1 italic font-medium">
+                      <p className="text-[10px] text-red-400/90 mt-0.5 italic font-medium">
                         Reason: &quot;{b.reason}&quot;
                       </p>
                     )}
@@ -411,7 +433,7 @@ export default function MembersTab() {
 
                 <button
                   onClick={() => handleUnban(b.user_id, b.username)}
-                  className="px-3 py-1.5 bg-bg-tertiary border border-border-custom hover:border-indigo-500 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5"
+                  className="px-2.5 py-1 bg-bg-tertiary border border-border-custom hover:border-indigo-500 text-indigo-400 hover:text-indigo-300 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />
                   <span>Revoke Ban</span>
@@ -419,7 +441,7 @@ export default function MembersTab() {
               </div>
             ))}
         {currentSubTab === "banned" && bans.length === 0 && (
-          <div className="text-center text-text-muted text-xs py-8">No banned users.</div>
+          <div className="text-center text-text-muted text-xs py-6">No banned users.</div>
         )}
       </div>
     </div>

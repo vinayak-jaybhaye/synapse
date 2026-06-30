@@ -17,10 +17,19 @@ export function useRoles(guildId?: string) {
   });
 
   const createRoleMutation = useMutation({
-    mutationFn: ({ name, permissions, color }: { name: string; permissions: string; color?: number }) =>
-      rolesApi.createRole(guildId!, name, permissions, color),
+    mutationFn: ({
+      name,
+      permissions,
+      color,
+    }: {
+      name: string;
+      permissions: string;
+      color?: number;
+    }) => rolesApi.createRole(guildId!, name, permissions, color),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: rolesKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: rolesKeys.list(guildId || ""),
+      });
     },
   });
 
@@ -28,14 +37,18 @@ export function useRoles(guildId?: string) {
     mutationFn: ({ roleId, updates }: { roleId: string; updates: Partial<Role> }) =>
       rolesApi.updateRole(guildId!, roleId, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: rolesKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: rolesKeys.list(guildId || ""),
+      });
     },
   });
 
   const deleteRoleMutation = useMutation({
     mutationFn: (roleId: string) => rolesApi.deleteRole(guildId!, roleId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: rolesKeys.list(guildId || "") });
+      queryClient.invalidateQueries({
+        queryKey: rolesKeys.list(guildId || ""),
+      });
     },
   });
 

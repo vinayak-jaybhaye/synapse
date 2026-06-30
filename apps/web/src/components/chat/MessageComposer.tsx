@@ -18,14 +18,28 @@ interface MessageComposerProps {
   isDM?: boolean;
 }
 
-export default function MessageComposer({ channelId, placeholder, onSend, draftKey, permissions, isDM }: MessageComposerProps) {
+export default function MessageComposer({
+  channelId,
+  placeholder,
+  onSend,
+  draftKey,
+  permissions,
+  isDM,
+}: MessageComposerProps) {
   const { drafts, setDraft } = useUIStore();
   const [inputText, setInputText] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUploadState[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  const { canSendMessages, canAttachFiles, canEmbedLinks, canMentionEveryone, canUseExternalEmojis, canUseExternalStickers } = useChannelPermissions(permissions, isDM);
+  const {
+    canSendMessages,
+    canAttachFiles,
+    canEmbedLinks,
+    canMentionEveryone,
+    canUseExternalEmojis,
+    canUseExternalStickers,
+  } = useChannelPermissions(permissions, isDM);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
@@ -91,9 +105,7 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
     }
   };
 
-  const isUploading = pendingUploads.some(
-    (u) => u.state === "QUEUED" || u.state === "UPLOADING"
-  );
+  const isUploading = pendingUploads.some((u) => u.state === "QUEUED" || u.state === "UPLOADING");
   const canSend = (inputText.trim().length > 0 || pendingUploads.length > 0) && !isUploading;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,7 +121,7 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
     if (draftKey) {
       setDraft(draftKey, "");
     }
-    
+
     // Clear uploads from UI so they don't get canceled on unmount
     const completedUploads = pendingUploads;
     setPendingUploads([]);
@@ -145,7 +157,7 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
     const currentText = inputText;
 
     const newText = currentText.substring(0, start) + emoji.native + currentText.substring(end);
-    
+
     setInputText(newText);
     if (draftKey) {
       setDraft(draftKey, newText);
@@ -182,9 +194,9 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
       // 1. Generate Upload URL
       const extMatch = uploadState.file.name.match(/(\.[^.]+)$/);
       const extension = extMatch ? extMatch[1] : "";
-      
+
       setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADING" } : u))
+        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADING" } : u)),
       );
 
       const { upload_url, upload_id } = await mediaApi.generateAttachmentUploadUrl(channelId, {
@@ -196,7 +208,7 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
       });
 
       setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, uploadId: upload_id } : u))
+        prev.map((u) => (u.id === uploadState.id ? { ...u, uploadId: upload_id } : u)),
       );
 
       // 2. Put file to S3
@@ -204,7 +216,7 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
         if (progressEvent.total) {
           const progress = (progressEvent.loaded * 100) / progressEvent.total;
           setPendingUploads((prev) =>
-            prev.map((u) => (u.id === uploadState.id ? { ...u, progress } : u))
+            prev.map((u) => (u.id === uploadState.id ? { ...u, progress } : u)),
           );
         }
       });
@@ -213,12 +225,12 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
       await mediaApi.markUploadComplete(upload_id);
 
       setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADED", progress: 100 } : u))
+        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADED", progress: 100 } : u)),
       );
     } catch (error) {
       console.error("Upload failed for file", uploadState.file.name, error);
       setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED" } : u))
+        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED" } : u)),
       );
     }
   };
@@ -238,7 +250,7 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
     if (!upload) return;
 
     setPendingUploads((prev) => prev.filter((u) => u.id !== id));
-    
+
     if (upload.previewUrl) {
       URL.revokeObjectURL(upload.previewUrl);
     }
@@ -282,9 +294,11 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
   };
 
   return (
-    <div 
+    <div
       className={`relative bg-bg-secondary border rounded-xl transition-colors ${
-        isDragging ? "border-indigo-500 bg-indigo-500/10" : "border-border-custom/80 focus-within:border-indigo-500/70"
+        isDragging
+          ? "border-indigo-500 bg-indigo-500/10"
+          : "border-border-custom/80 focus-within:border-indigo-500/70"
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -305,31 +319,30 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
       )}
 
       {/* Input Bar */}
-      <form
-        onSubmit={handleSubmit}
-        className="px-4 py-2.5 flex items-end gap-3 relative"
-      >
-        <input 
-          type="file" 
-          multiple 
-          className="hidden" 
-          ref={fileInputRef} 
-          onChange={handleFileSelect} 
+      <form onSubmit={handleSubmit} className="px-4 py-2.5 flex items-end gap-3 relative">
+        <input
+          type="file"
+          multiple
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
         />
-        
+
         <div className="relative flex items-center mb-0.5">
           <button
             ref={emojiButtonRef}
             type="button"
             className={`p-1.5 rounded cursor-pointer transition-colors ${
-              showEmojiPicker ? "text-indigo-400 bg-bg-tertiary" : "text-text-secondary hover:text-text-primary"
+              showEmojiPicker
+                ? "text-indigo-400 bg-bg-tertiary"
+                : "text-text-secondary hover:text-text-primary"
             }`}
             title="Emoji Picker"
             onClick={() => setShowEmojiPicker((prev) => !prev)}
           >
             <Smile className="h-4.5 w-4.5" />
           </button>
-          
+
           <EmojiPickerPopover
             open={showEmojiPicker}
             onClose={() => {
@@ -347,7 +360,11 @@ export default function MessageComposer({ channelId, placeholder, onSend, draftK
           value={inputText}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          placeholder={canSendMessages ? placeholder : "You do not have permission to send messages in this channel."}
+          placeholder={
+            canSendMessages
+              ? placeholder
+              : "You do not have permission to send messages in this channel."
+          }
           aria-label={placeholder}
           rows={1}
           className="flex-1 bg-transparent border-none outline-none text-text-primary text-sm placeholder-text-muted resize-none max-h-[250px] py-1.5 min-h-[36px] no-scrollbar leading-relaxed"

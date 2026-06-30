@@ -30,7 +30,11 @@ export default function MessageContent({ msg }: MessageContentProps) {
       {msg.attachments && msg.attachments.length > 0 && (
         <div className="flex flex-wrap gap-3 mt-1">
           {msg.attachments.map((attachment) => (
-            <AttachmentRenderer key={attachment.id} attachment={attachment} channelId={msg.channel_id} />
+            <AttachmentRenderer
+              key={attachment.id}
+              attachment={attachment}
+              channelId={msg.channel_id}
+            />
           ))}
         </div>
       )}
@@ -38,10 +42,16 @@ export default function MessageContent({ msg }: MessageContentProps) {
   );
 }
 
-function AttachmentRenderer({ attachment, channelId }: { attachment: Attachment; channelId: string }) {
+function AttachmentRenderer({
+  attachment,
+  channelId,
+}: {
+  attachment: Attachment;
+  channelId: string;
+}) {
   const isImage = attachment.mime_type.startsWith("image/");
   const isVideo = attachment.mime_type.startsWith("video/");
-  
+
   return (
     <div className="max-w-[400px]">
       {isImage || isVideo ? (
@@ -53,7 +63,15 @@ function AttachmentRenderer({ attachment, channelId }: { attachment: Attachment;
   );
 }
 
-function MediaAttachment({ attachment, isVideo, channelId }: { attachment: Attachment; isVideo: boolean; channelId: string }) {
+function MediaAttachment({
+  attachment,
+  isVideo,
+  channelId,
+}: {
+  attachment: Attachment;
+  isVideo: boolean;
+  channelId: string;
+}) {
   const token = localStorage.getItem("synapse_token");
   const url = `${api.defaults.baseURL}/channels/${channelId}/attachments/${attachment.id}?token=${token}`;
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -63,7 +81,7 @@ function MediaAttachment({ attachment, isVideo, channelId }: { attachment: Attac
       <>
         <div className="group relative rounded-lg overflow-hidden border border-border-custom bg-black max-h-[350px] inline-block">
           <video src={url} controls className="max-h-[350px] w-auto max-w-full" />
-          <button 
+          <button
             onClick={() => setIsViewerOpen(true)}
             className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
             title="Expand Video"
@@ -71,7 +89,7 @@ function MediaAttachment({ attachment, isVideo, channelId }: { attachment: Attac
             <Maximize2 className="w-4 h-4" />
           </button>
         </div>
-        
+
         <MediaViewerModal
           url={url}
           fileName={attachment.file_name}
@@ -85,13 +103,17 @@ function MediaAttachment({ attachment, isVideo, channelId }: { attachment: Attac
 
   return (
     <>
-      <button 
+      <button
         onClick={() => setIsViewerOpen(true)}
         className="block relative rounded-lg overflow-hidden border border-border-custom bg-bg-tertiary max-h-[350px] cursor-zoom-in transition-opacity hover:opacity-90 focus:outline-none"
       >
-        <img src={url} alt={attachment.file_name} className="max-h-[350px] w-auto max-w-full object-contain" />
+        <img
+          src={url}
+          alt={attachment.file_name}
+          className="max-h-[350px] w-auto max-w-full object-contain"
+        />
       </button>
-      
+
       <MediaViewerModal
         url={url}
         fileName={attachment.file_name}
@@ -123,12 +145,13 @@ function FileAttachment({ attachment, channelId }: { attachment: Attachment; cha
         <File className="w-6 h-6 text-indigo-400" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-text-primary truncate" title={attachment.file_name}>
+        <div
+          className="text-sm font-medium text-text-primary truncate"
+          title={attachment.file_name}
+        >
           {attachment.file_name}
         </div>
-        <div className="text-xs text-text-muted">
-          {formatSize(attachment.file_size)}
-        </div>
+        <div className="text-xs text-text-muted">{formatSize(attachment.file_size)}</div>
       </div>
       <button
         onClick={handleDownload}

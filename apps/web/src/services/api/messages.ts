@@ -5,11 +5,11 @@ export const messagesApi = {
   getMessages: async (
     channelId: string,
     before?: string,
-    limit: number = 50
+    limit: number = 50,
   ): Promise<Message[]> => {
     const url = `/channels/${channelId}/messages?limit=${limit}${before ? `&before=${before}` : ""}`;
     const response = await api.get<Message[]>(url);
-    console.log(response.data)
+    console.log(response.data);
     return response.data || [];
   },
 
@@ -17,7 +17,7 @@ export const messagesApi = {
     channelId: string,
     content: string,
     attachmentUploadIds?: string[],
-    replyToMessageId?: string
+    replyToMessageId?: string,
   ): Promise<Message> => {
     const payload: any = { content };
     if (replyToMessageId) {
@@ -30,11 +30,7 @@ export const messagesApi = {
     return response.data;
   },
 
-  editMessage: async (
-    channelId: string,
-    messageId: string,
-    content: string
-  ): Promise<Message> => {
+  editMessage: async (channelId: string, messageId: string, content: string): Promise<Message> => {
     const response = await api.patch<Message>(`/channels/${channelId}/messages/${messageId}`, {
       content,
     });
@@ -52,10 +48,14 @@ export const messagesApi = {
   },
 
   addReaction: async (channelId: string, messageId: string, emoji: string): Promise<void> => {
-    await api.put(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+    await api.put(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+    );
   },
 
   removeReaction: async (channelId: string, messageId: string, emoji: string): Promise<void> => {
-    await api.delete(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+    await api.delete(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+    );
   },
 };

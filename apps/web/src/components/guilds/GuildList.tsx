@@ -5,21 +5,24 @@ import { useGuilds } from "../../services/query/useGuilds";
 import { useGuildStore } from "../../store/guild-store";
 import { useUIStore } from "../../store/ui-store";
 import { useAuthStore } from "../../store/auth-store";
-import { Plus, Compass, LogOut, Settings2, ShieldAlert } from "lucide-react";
+import { Plus, Compass, ShieldAlert } from "lucide-react";
 import { getMediaUrl } from "../../lib/media";
 
 export default function GuildList() {
   const { guilds } = useGuilds();
   const { activeGuildId, selectGuild } = useGuildStore();
   const { setShowCreateGuild, setShowJoinGuild, setShowSettings } = useUIStore();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
 
   const handleGuildSelect = (guildId: string | null) => {
     selectGuild(guildId);
   };
 
   return (
-    <nav className="flex-1 flex flex-col items-center justify-between h-full w-full" aria-label="Guild navigation">
+    <nav
+      className="flex-1 flex flex-col items-center justify-between h-full w-full"
+      aria-label="Guild navigation"
+    >
       {/* Upper Section */}
       <div className="flex flex-col items-center space-y-2 w-full">
         {/* Direct Messages Icon (represented as Home/Initials) */}
@@ -59,7 +62,11 @@ export default function GuildList() {
                   <div className="absolute left-0 w-1 h-10 bg-white rounded-r-md -ml-3" />
                 )}
                 {g.icon_key ? (
-                  <img src={getMediaUrl(g.icon_key)} alt={g.name} className={`w-full h-full object-cover ${isActive ? 'rounded-2xl' : 'rounded-3xl hover:rounded-2xl'} transition-all duration-200`} />
+                  <img
+                    src={getMediaUrl(g.icon_key)}
+                    alt={g.name}
+                    className={`w-full h-full object-cover ${isActive ? "rounded-2xl" : "rounded-3xl hover:rounded-2xl"} transition-all duration-200`}
+                  />
                 ) : (
                   <span>{initials}</span>
                 )}
@@ -89,33 +96,26 @@ export default function GuildList() {
         </div>
       </div>
 
-      {/* Lower Section (Profile / Settings / Logout) */}
-      <div className="flex flex-col items-center space-y-3 w-full shrink-0">
+      {/* Lower Section (Profile / Settings) */}
+      <div className="flex flex-col items-center pb-2 w-full shrink-0">
         <button
           onClick={() => setShowSettings(true)}
-          className="h-10 w-10 rounded-full bg-bg-secondary text-text-secondary hover:text-white hover:bg-bg-primary flex items-center justify-center transition-colors cursor-pointer"
+          className="h-11 w-11 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs select-none overflow-hidden cursor-pointer hover:rounded-2xl transition-all duration-200"
           title="User Settings"
           aria-label="User Settings"
         >
-          <Settings2 className="h-5 w-5" />
-        </button>
-
-        <button
-          onClick={() => logout()}
-          className="h-10 w-10 rounded-full bg-bg-secondary text-red-400 hover:text-white hover:bg-red-500 flex items-center justify-center transition-colors cursor-pointer"
-          title="Log Out"
-          aria-label="Log Out"
-        >
-          <LogOut className="h-5 w-5" />
-        </button>
-
-        <div className="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs select-none overflow-hidden">
           {user?.avatar_key ? (
-            <img src={getMediaUrl(user.avatar_key)} alt={user.username} className="w-full h-full object-cover" />
+            <img
+              src={getMediaUrl(user.avatar_key)}
+              alt={user.username}
+              className="w-full h-full object-cover"
+            />
+          ) : user?.username ? (
+            user.username.substring(0, 2).toUpperCase()
           ) : (
-            user?.username ? user.username.substring(0, 2).toUpperCase() : "U"
+            "U"
           )}
-        </div>
+        </button>
       </div>
     </nav>
   );

@@ -23,7 +23,10 @@ export default function CreateChannelModal({ open, onClose, onCreate }: CreateCh
     if (!channelName.trim()) return;
 
     try {
-      const newChan = await onCreate({ name: channelName.trim(), type: channelType });
+      const newChan = await onCreate({
+        name: channelName.trim(),
+        type: channelType,
+      });
       setChannelName("");
       onClose();
 
@@ -49,10 +52,16 @@ export default function CreateChannelModal({ open, onClose, onCreate }: CreateCh
           <h3 className="text-xl font-bold text-text-primary">Create Channel</h3>
           <p className="text-text-muted text-xs mt-1">Add a new workspace channel in the guild.</p>
         </div>
-        {error && <div className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl">{error}</div>}
+        {error && (
+          <div className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl">
+            {error}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-text-muted">Channel Type</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-text-muted">
+              Channel Type
+            </label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 text-sm cursor-pointer text-text-primary">
                 <input
@@ -75,7 +84,9 @@ export default function CreateChannelModal({ open, onClose, onCreate }: CreateCh
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-text-muted">Channel Name</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-text-muted">
+              Channel Name
+            </label>
             <input
               type="text"
               required

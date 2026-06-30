@@ -12,7 +12,13 @@ interface MediaViewerModalProps {
   onClose: () => void;
 }
 
-export default function MediaViewerModal({ url, fileName, isOpen, onClose, isVideo }: MediaViewerModalProps) {
+export default function MediaViewerModal({
+  url,
+  fileName,
+  isOpen,
+  onClose,
+  isVideo,
+}: MediaViewerModalProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -56,21 +62,21 @@ export default function MediaViewerModal({ url, fileName, isOpen, onClose, isVid
       </div>
 
       {/* Main Content Area */}
-      <div 
+      <div
         className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {isVideo ? (
-          <video 
-            src={url} 
-            controls 
+          <video
+            src={url}
+            controls
             autoPlay
             className="max-w-full max-h-[90vh] object-contain rounded drop-shadow-2xl"
           />
         ) : (
-          <img 
-            src={url} 
-            alt={fileName} 
+          <img
+            src={url}
+            alt={fileName}
             className="max-w-full max-h-[90vh] object-contain rounded drop-shadow-2xl"
           />
         )}
@@ -79,6 +85,6 @@ export default function MediaViewerModal({ url, fileName, isOpen, onClose, isVid
       {/* Background click listener */}
       <div className="absolute inset-0 z-[-1]" onClick={onClose} />
     </div>,
-    document.body
+    document.body,
   );
 }

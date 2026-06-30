@@ -39,7 +39,6 @@ export interface User {
   email: string;
 }
 
-
 export const PermissionFlags = {
   CREATE_INSTANT_INVITE: 1n << 0n,
   KICK_MEMBERS: 1n << 1n,
