@@ -154,9 +154,21 @@ func (s *service) ServerMute(ctx context.Context, guildID, channelID, actorID, t
 		return err
 	}
 
+	// Build metadata JSON payload to keep self_deaf, server_mute and server_deaf in sync in LiveKit
+	metaObj := map[string]bool{
+		"self_deaf":   state.SelfDeaf,
+		"server_mute": state.ServerMute,
+		"server_deaf": state.ServerDeaf,
+	}
+	metaBytes, _ := json.Marshal(metaObj)
+	metaStr := string(metaBytes)
+
 	roomName := RoomName(guildID, state.ChannelID)
 	identity := fmt.Sprintf("%d", targetID)
-	_ = s.lk.ApplyParticipantPermissions(ctx, roomName, identity, !state.ServerMute, !state.ServerDeaf)
+	if err := s.lk.ApplyParticipantPermissions(ctx, roomName, identity, !state.ServerMute, !state.ServerDeaf, !state.ServerDeaf, metaStr); err != nil {
+		slog.Error("voice: failed to apply participant permissions in LiveKit", "err", err, "room", roomName, "identity", identity)
+		return err
+	}
 
 	return nil
 }
@@ -211,9 +223,21 @@ func (s *service) ServerDeafen(ctx context.Context, guildID, channelID, actorID,
 		return err
 	}
 
+	// Build metadata JSON payload to keep self_deaf, server_mute and server_deaf in sync in LiveKit
+	metaObj := map[string]bool{
+		"self_deaf":   state.SelfDeaf,
+		"server_mute": state.ServerMute,
+		"server_deaf": state.ServerDeaf,
+	}
+	metaBytes, _ := json.Marshal(metaObj)
+	metaStr := string(metaBytes)
+
 	roomName := RoomName(guildID, state.ChannelID)
 	identity := fmt.Sprintf("%d", targetID)
-	_ = s.lk.ApplyParticipantPermissions(ctx, roomName, identity, !state.ServerMute, !state.ServerDeaf)
+	if err := s.lk.ApplyParticipantPermissions(ctx, roomName, identity, !state.ServerMute, !state.ServerDeaf, !state.ServerDeaf, metaStr); err != nil {
+		slog.Error("voice: failed to apply participant permissions in LiveKit", "err", err, "room", roomName, "identity", identity)
+		return err
+	}
 
 	return nil
 }
@@ -223,15 +247,14 @@ func (s *service) DisconnectMember(ctx context.Context, guildID, channelID, acto
 		return err
 	}
 
-	state, err := s.repo.GetVoiceState(ctx, guildID, targetID)
-	if err != nil || state == nil {
-		return errors.NewNotFound("target user is not in a voice channel")
-	}
-
-	roomName := RoomName(guildID, state.ChannelID)
+	roomName := RoomName(guildID, channelID)
 	identity := fmt.Sprintf("%d", targetID)
+
+	// Remove from LiveKit directly
 	_ = s.lk.RemoveParticipant(ctx, roomName, identity)
-	_ = s.repo.DeleteVoiceState(ctx, guildID, targetID, state.ChannelID)
+
+	// Delete voice state in Redis (triggers leave event propagation)
+	_ = s.repo.DeleteVoiceState(ctx, guildID, targetID, channelID)
 
 	return nil
 }

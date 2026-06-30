@@ -77,15 +77,17 @@ func (c *LiveKitClient) RemoveParticipant(ctx context.Context, roomName, identit
 	return err
 }
 
-// ApplyParticipantPermissions updates a participant's permissions on the LiveKit server.
-func (c *LiveKitClient) ApplyParticipantPermissions(ctx context.Context, roomName, identity string, canPublish, canSubscribe bool) error {
+// ApplyParticipantPermissions updates a participant's permissions and metadata on the LiveKit server.
+func (c *LiveKitClient) ApplyParticipantPermissions(ctx context.Context, roomName, identity string, canPublish, canSubscribe, canUpdateMetadata bool, metadata string) error {
 	_, err := c.roomSvc.UpdateParticipant(ctx, &lkproto.UpdateParticipantRequest{
 		Room:     roomName,
 		Identity: identity,
+		Metadata: metadata,
 		Permission: &lkproto.ParticipantPermission{
-			CanPublish:     canPublish,
-			CanSubscribe:   canSubscribe,
-			CanPublishData: true,
+			CanPublish:        canPublish,
+			CanSubscribe:      canSubscribe,
+			CanPublishData:    true,
+			CanUpdateMetadata: canUpdateMetadata,
 		},
 	})
 	return err

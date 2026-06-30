@@ -2,6 +2,7 @@ package voice
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -62,7 +63,23 @@ func (r *redisRepository) UpsertVoiceState(ctx context.Context, state *VoiceStat
 	pipe.HSet(ctx, key, fields)
 	pipe.SAdd(ctx, channelMembersSetKey(state.GuildID, state.ChannelID), strconv.FormatInt(state.UserID, 10))
 	_, err := pipe.Exec(ctx)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Publish to Redis Pub/Sub channel "guild:{guildID}" for real-time gateway propagation
+	eventPayload := map[string]any{
+		"action":   "update",
+		"guild_id": strconv.FormatInt(state.GuildID, 10),
+		"state":    state,
+	}
+	payloadBytes, jsonErr := json.Marshal(eventPayload)
+	if jsonErr == nil {
+		channel := fmt.Sprintf("guild:%d", state.GuildID)
+		_ = r.rdb.Publish(ctx, channel, payloadBytes).Err()
+	}
+
+	return nil
 }
 
 // GetVoiceState fetches a single user's voice state hash from Redis.
@@ -96,6 +113,22 @@ func (r *redisRepository) DeleteVoiceState(ctx context.Context, guildID, userID 
 	card, err := r.rdb.SCard(ctx, memberKey).Result()
 	if err == nil && card == 0 {
 		_ = r.rdb.Del(ctx, memberKey)
+	}
+
+	// Publish to Redis Pub/Sub channel "guild:{guildID}" for real-time gateway propagation of the leave event
+	eventPayload := map[string]any{
+		"action":   "leave",
+		"guild_id": strconv.FormatInt(guildID, 10),
+		"state": map[string]any{
+			"user_id":    strconv.FormatInt(userID, 10),
+			"channel_id": strconv.FormatInt(channelID, 10),
+			"guild_id":   strconv.FormatInt(guildID, 10),
+		},
+	}
+	payloadBytes, jsonErr := json.Marshal(eventPayload)
+	if jsonErr == nil {
+		channel := fmt.Sprintf("guild:%d", guildID)
+		_ = r.rdb.Publish(ctx, channel, payloadBytes).Err()
 	}
 
 	return nil
