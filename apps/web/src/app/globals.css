@@ -111,7 +111,7 @@
   --color-bg-secondary: var(--bg-secondary);
   --color-bg-tertiary: var(--bg-tertiary);
   --color-border-custom: var(--border-color);
-  
+
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
@@ -128,7 +128,9 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans-custom);
   font-size: var(--font-size-base);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 /* Custom Scrollbar Styles for premium feel */
@@ -153,12 +155,12 @@ em-emoji-picker {
   --rgb-background: transparent;
   --font-family: var(--font-sans-custom);
   --border-radius: 12px;
-  
+
   /* Map to Synapse Theme Colors */
   --color-b: var(--bg-secondary);
   --rgb-accent: 79, 70, 229; /* indigo-600 */
   --color-border: var(--border-color);
-  
+
   --rgb-color: var(--text-primary);
   --rgb-input: var(--bg-tertiary);
 }

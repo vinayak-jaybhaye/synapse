@@ -36,6 +36,12 @@ interface UIState {
   membersSidebarCollapsed: boolean;
   setMembersSidebarCollapsed: (collapsed: boolean) => void;
 
+  // Mobile drawer states
+  mobileChannelsOpen: boolean;
+  setMobileChannelsOpen: (open: boolean) => void;
+  mobileMembersOpen: boolean;
+  setMobileMembersOpen: (open: boolean) => void;
+
   // Panel widths
   channelSidebarWidth: number;
   setChannelSidebarWidth: (width: number) => void;
@@ -55,6 +61,11 @@ interface UIState {
   // Drafts
   drafts: Record<string, string>;
   setDraft: (channelId: string, text: string) => void;
+
+  // Toast notifications
+  toast: { message: string; type: "info" | "error" | "success"; id: number } | null;
+  showToast: (message: string, type?: "info" | "error" | "success") => void;
+  hideToast: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => {
@@ -121,6 +132,11 @@ export const useUIStore = create<UIState>((set) => {
       set({ membersSidebarCollapsed: collapsed });
     },
 
+    mobileChannelsOpen: false,
+    setMobileChannelsOpen: (open) => set({ mobileChannelsOpen: open }),
+    mobileMembersOpen: false,
+    setMobileMembersOpen: (open) => set({ mobileMembersOpen: open }),
+
     channelSidebarWidth: getLocalStorageNumber("synapse_channel_sidebar_width", 240),
     setChannelSidebarWidth: (width) => {
       if (typeof window !== "undefined") {
@@ -170,5 +186,9 @@ export const useUIStore = create<UIState>((set) => {
       set((state) => ({
         drafts: { ...state.drafts, [channelId]: text },
       })),
+
+    toast: null,
+    showToast: (message, type = "info") => set({ toast: { message, type, id: Date.now() } }),
+    hideToast: () => set({ toast: null }),
   };
 });

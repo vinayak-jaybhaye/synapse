@@ -92,10 +92,7 @@ export default function Home() {
         onCreate={createChannel}
       />
 
-      <CreateDMModal
-        open={showCreateDM}
-        onClose={() => setShowCreateDM(false)}
-      />
+      <CreateDMModal open={showCreateDM} onClose={() => setShowCreateDM(false)} />
 
       <InviteModal />
 

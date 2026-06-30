@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUIStore } from "../../store/ui-store";
+import Toast from "./Toast";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -14,7 +15,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false,
           },
         },
-      })
+      }),
   );
 
   const theme = useUIStore((s) => s.theme);
@@ -29,7 +30,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         c.startsWith("theme-") ||
         c.startsWith("font-size-") ||
         c.startsWith("font-family-") ||
-        c.startsWith("density-")
+        c.startsWith("density-"),
     );
     root.classList.remove(...classesToRemove);
 
@@ -41,6 +42,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <Toast />
       {children}
     </QueryClientProvider>
   );
