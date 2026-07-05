@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 
 	_ "github.com/joho/godotenv/autoload"
+	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"github.com/synapse/gateway/internal/config"
 	"github.com/synapse/gateway/internal/pubsub"
@@ -30,6 +32,17 @@ func main() {
 	}
 	slog.Info("gateway: connected to Redis", "addr", cfg.RedisAddress())
 
+	// Postgres client
+	db, err := sql.Open("postgres", cfg.PostgresDSN())
+	if err != nil {
+		log.Fatalf("gateway: failed to open postgres connection: %v", err)
+	}
+	defer db.Close()
+	if err := db.Ping(); err != nil {
+		log.Fatalf("gateway: failed to ping postgres: %v", err)
+	}
+	slog.Info("gateway: connected to Postgres")
+
 	// Hub — manages connections + guild-level broadcast
 	hub := websocket.NewHub()
 	go hub.Run()
@@ -41,7 +54,7 @@ func main() {
 	// HTTP routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		websocket.ServeWS(hub, cfg.JWTSecret, w, r)
+		websocket.ServeWS(hub, db, cfg.SessionCookieName, w, r)
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

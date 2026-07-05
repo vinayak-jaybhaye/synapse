@@ -18,6 +18,16 @@ interface AuthState {
   clearError: () => void;
 }
 
+function getOrCreateDeviceID(): string {
+  if (typeof window === "undefined") return "web-ssr";
+  let deviceId = localStorage.getItem("synapse_device_id");
+  if (!deviceId) {
+    deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem("synapse_device_id", deviceId);
+  }
+  return deviceId;
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
@@ -32,9 +42,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const { token, user } = await authApi.login(email, password);
-      localStorage.setItem("synapse_token", token);
-      set({ token, user, isAuthenticated: true, isLoading: false });
+      const deviceId = getOrCreateDeviceID();
+      const { user } = await authApi.login(email, password, deviceId, "web");
+      localStorage.setItem("synapse_logged_in", "true");
+      localStorage.removeItem("synapse_token");
+      set({ token: null, user, isAuthenticated: true, isLoading: false });
     } catch (err: any) {
       const message = err.message || "Login failed.";
       set({ error: message, isLoading: false });
@@ -45,9 +57,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (username, email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const { token, user } = await authApi.register(username, email, password);
-      localStorage.setItem("synapse_token", token);
-      set({ token, user, isAuthenticated: true, isLoading: false });
+      const deviceId = getOrCreateDeviceID();
+      const { user } = await authApi.register(username, email, password, deviceId, "web");
+      localStorage.setItem("synapse_logged_in", "true");
+      localStorage.removeItem("synapse_token");
+      set({ token: null, user, isAuthenticated: true, isLoading: false });
     } catch (err: any) {
       const message = err.message || "Registration failed.";
       set({ error: message, isLoading: false });
@@ -56,6 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    localStorage.removeItem("synapse_logged_in");
     localStorage.removeItem("synapse_token");
     set({ user: null, token: null, isAuthenticated: false, error: null });
   },
@@ -66,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await authApi.getMe();
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (err: any) {
+      localStorage.removeItem("synapse_logged_in");
       localStorage.removeItem("synapse_token");
       set({
         user: null,
@@ -78,12 +94,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initAuth: async () => {
     if (typeof window === "undefined") return;
-    const token = localStorage.getItem("synapse_token");
-    if (!token) {
+    const loggedIn = localStorage.getItem("synapse_logged_in") === "true";
+    if (!loggedIn) {
       set({ isLoading: false });
       return;
     }
-    set({ token, isLoading: true });
+    set({ isLoading: true });
     try {
       await get().fetchMe();
     } catch (err) {

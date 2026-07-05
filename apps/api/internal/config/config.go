@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 )
 
 type Config struct {
@@ -33,6 +35,14 @@ type Config struct {
 	LiveKitAPIKey    string
 	LiveKitAPISecret string
 	VoiceStateTTL    int // seconds; default 60
+
+	// Session Configuration
+	SessionCookieName   string
+	SessionCookieSecure bool
+	SessionTTL          time.Duration
+
+	// CORS Configuration
+	AllowedOrigins      map[string]bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -121,30 +131,63 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	sessionCookieName := os.Getenv("SESSION_COOKIE_NAME")
+	if sessionCookieName == "" {
+		sessionCookieName = "session_token"
+	}
+
+	sessionCookieSecure := true
+	if os.Getenv("SESSION_COOKIE_SECURE") == "false" {
+		sessionCookieSecure = false
+	}
+
+	sessionTTLStr := os.Getenv("SESSION_TTL_DAYS")
+	sessionTTL := 30 * 24 * time.Hour
+	if sessionTTLStr != "" {
+		if val, err := strconv.Atoi(sessionTTLStr); err == nil && val > 0 {
+			sessionTTL = time.Duration(val) * 24 * time.Hour
+		}
+	}
+
+	allowedOriginsStr := os.Getenv("ALLOWED_ORIGINS")
+	allowedOrigins := make(map[string]bool)
+	if allowedOriginsStr != "" {
+		for _, o := range strings.Split(allowedOriginsStr, ",") {
+			allowedOrigins[strings.TrimSpace(o)] = true
+		}
+	} else {
+		allowedOrigins["http://localhost:3000"] = true
+		allowedOrigins["http://127.0.0.1:3000"] = true
+	}
+
 	return &Config{
-		Port:               port,
-		DBHost:             dbHost,
-		DBPort:             dbPort,
-		DBUser:             dbUser,
-		DBPassword:         dbPassword,
-		DBName:             dbName,
-		DBSSLMode:          dbSSLMode,
-		RedisHost:          redisHost,
-		RedisPort:          redisPort,
-		RedisPassword:      redisPassword,
-		RedisDB:            redisDB,
-		JWTSecret:          jwtSecret,
-		NodeID:             nodeID,
-		AWSRegion:          awsRegion,
-		AWSAccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-		AWSSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		S3Bucket:           os.Getenv("S3_BUCKET"),
-		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
-		S3UsePathStyle:     s3UsePathStyle,
-		LiveKitURL:         os.Getenv("LIVEKIT_URL"),
-		LiveKitAPIKey:      os.Getenv("LIVEKIT_API_KEY"),
-		LiveKitAPISecret:   os.Getenv("LIVEKIT_API_SECRET"),
-		VoiceStateTTL:      voiceStateTTL,
+		Port:                port,
+		DBHost:              dbHost,
+		DBPort:              dbPort,
+		DBUser:              dbUser,
+		DBPassword:          dbPassword,
+		DBName:              dbName,
+		DBSSLMode:           dbSSLMode,
+		RedisHost:           redisHost,
+		RedisPort:           redisPort,
+		RedisPassword:       redisPassword,
+		RedisDB:             redisDB,
+		JWTSecret:           jwtSecret,
+		NodeID:              nodeID,
+		AWSRegion:           awsRegion,
+		AWSAccessKeyID:      os.Getenv("AWS_ACCESS_KEY_ID"),
+		AWSSecretAccessKey:  os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		S3Bucket:            os.Getenv("S3_BUCKET"),
+		S3Endpoint:          os.Getenv("S3_ENDPOINT"),
+		S3UsePathStyle:      s3UsePathStyle,
+		LiveKitURL:          os.Getenv("LIVEKIT_URL"),
+		LiveKitAPIKey:       os.Getenv("LIVEKIT_API_KEY"),
+		LiveKitAPISecret:    os.Getenv("LIVEKIT_API_SECRET"),
+		VoiceStateTTL:       voiceStateTTL,
+		SessionCookieName:   sessionCookieName,
+		SessionCookieSecure: sessionCookieSecure,
+		SessionTTL:          sessionTTL,
+		AllowedOrigins:      allowedOrigins,
 	}, nil
 }
 

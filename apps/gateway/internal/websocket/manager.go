@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -44,12 +46,13 @@ type OutboundMessage struct {
 
 // Client represents a single WebSocket connection.
 type Client struct {
-	hub      *Hub
-	conn     *websocket.Conn
-	send     chan []byte
-	userID   int64
-	guildIDs []int64
-	jwtSecret string
+	hub         *Hub
+	conn        *websocket.Conn
+	send        chan []byte
+	userID      int64
+	guildIDs    []int64
+	db          *sql.DB
+	cookieToken string
 }
 
 var upgrader = websocket.Upgrader{
@@ -62,18 +65,29 @@ var upgrader = websocket.Upgrader{
 }
 
 // ServeWS upgrades an HTTP connection to WebSocket and starts read/write pumps.
-func ServeWS(hub *Hub, jwtSecret string, w http.ResponseWriter, r *http.Request) {
+func ServeWS(hub *Hub, db *sql.DB, cookieName string, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("gateway: websocket upgrade failed", "err", err)
 		return
 	}
 
+	// Extract session token from cookie
+	var cookieToken string
+	cookie, err := r.Cookie(cookieName)
+	if err == nil && cookie.Value != "" {
+		cookieToken = cookie.Value
+	} else {
+		// Fallback to query param
+		cookieToken = r.URL.Query().Get("token")
+	}
+
 	client := &Client{
-		hub:       hub,
-		conn:      conn,
-		send:      make(chan []byte, 256),
-		jwtSecret: jwtSecret,
+		hub:         hub,
+		conn:        conn,
+		send:        make(chan []byte, 256),
+		db:          db,
+		cookieToken: cookieToken,
 	}
 
 	go client.writePump()
@@ -162,20 +176,25 @@ func (c *Client) handleIdentify(data json.RawMessage) {
 		return
 	}
 
-	claims, err := gtwauth.ValidateToken(payload.Token, c.jwtSecret)
+	token := payload.Token
+	if token == "" {
+		token = c.cookieToken
+	}
+
+	userID, err := gtwauth.ValidateSession(context.Background(), c.db, token)
 	if err != nil {
 		c.conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "invalid token"))
 		return
 	}
 
-	c.userID = claims.UserID
-	c.guildIDs = claims.GuildIDs
+	c.userID = userID
+	c.guildIDs = nil
 	c.hub.Register <- c
 
 	c.send <- mustMarshal(OutboundMessage{
 		Type: Ready,
-		Data: map[string]any{"user_id": claims.UserID},
+		Data: map[string]any{"user_id": userID},
 	})
 }
 

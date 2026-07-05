@@ -97,6 +97,17 @@ func (m *mockChannelRepo) GetByID(ctx context.Context, id int64) (*channels.Chan
 	return m.channels[id], nil
 }
 
+func (m *mockChannelRepo) GetGuildIDForChannel(ctx context.Context, channelID int64) (int64, error) {
+	ch, ok := m.channels[channelID]
+	if !ok {
+		return 0, errors.New("channel not found")
+	}
+	if ch.GuildID == nil {
+		return 0, nil
+	}
+	return *ch.GuildID, nil
+}
+
 func (m *mockChannelRepo) ListGuildChannels(ctx context.Context, guildID int64) ([]channels.Channel, error) {
 	return nil, nil
 }

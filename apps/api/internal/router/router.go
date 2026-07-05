@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/synapse/api/internal/auth"
 	"github.com/synapse/api/internal/channels"
+	"github.com/synapse/api/internal/config"
 	"github.com/synapse/api/internal/guilds"
 	"github.com/synapse/api/internal/invites"
 	"github.com/synapse/api/internal/media"
@@ -17,7 +18,8 @@ import (
 
 func SetupRoutes(
 	r *gin.Engine,
-	tokenService auth.TokenService,
+	sessionService auth.SessionService,
+	cfg *config.Config,
 	authHandler *auth.AuthHandler,
 	userHandler *users.Handler,
 	guildHandler *guilds.Handler,
@@ -41,8 +43,19 @@ func SetupRoutes(
 
 	// Protected Routes Group
 	protected := v1.Group("/")
-	protected.Use(middleware.AuthMiddleware(tokenService))
+	protected.Use(middleware.SessionMiddleware(sessionService, cfg.SessionCookieName))
 	{
+		// Session & Device Management
+		protected.POST("/auth/logout", authHandler.Logout)
+		protected.POST("/auth/logout-all", authHandler.LogoutAll)
+		protected.GET("/users/me/devices", authHandler.GetDevices)
+		protected.GET("/users/@me/devices", authHandler.GetDevices)
+		protected.GET("/users/me/sessions", authHandler.GetSessions)
+		protected.GET("/users/@me/sessions", authHandler.GetSessions)
+		protected.DELETE("/users/me/devices/:id", authHandler.DeleteDevice)
+		protected.DELETE("/users/@me/devices/:id", authHandler.DeleteDevice)
+		protected.DELETE("/users/me/sessions/:id", authHandler.DeleteSession)
+		protected.DELETE("/users/@me/sessions/:id", authHandler.DeleteSession)
 		// Users
 		protected.GET("/users/@me", userHandler.GetMe)
 		protected.PATCH("/users/@me", userHandler.UpdateProfile)

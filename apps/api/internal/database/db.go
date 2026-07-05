@@ -74,7 +74,7 @@ func (db *DB) runMigrations() error {
 	var usersExists bool
 	err := db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'users')").Scan(&usersExists)
 	if err != nil {
-		return fmt.Errorf("failed to check public tables: %w", err)
+		return fmt.Errorf("failed to check public tables for users: %w", err)
 	}
 
 	if !usersExists {
@@ -84,6 +84,22 @@ func (db *DB) runMigrations() error {
 		}
 	} else {
 		slog.Info("Users table exists, skipping initial migrations")
+	}
+
+	// 2. Devices and Sessions schema
+	var devicesExists bool
+	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'devices')").Scan(&devicesExists)
+	if err != nil {
+		return fmt.Errorf("failed to check public tables for devices: %w", err)
+	}
+
+	if !devicesExists {
+		slog.Info("Devices table not found, running devices and sessions migration...")
+		if err := db.runMigrationFile("002_devices_and_sessions.sql"); err != nil {
+			return err
+		}
+	} else {
+		slog.Info("Devices table exists, skipping devices and sessions migration")
 	}
 
 	slog.Info("Database migrations completed successfully")

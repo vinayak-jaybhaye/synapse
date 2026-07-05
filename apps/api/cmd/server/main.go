@@ -61,10 +61,32 @@ func main() {
 	channelRepo := channels.NewPGRepository(db.PG)
 	messageRepo := messages.NewPGRepository(db.PG)
 	inviteRepo := invites.NewPGRepository(db.PG)
+	sessionRepo := auth.NewPGSessionRepository(db.PG)
 
 	// 6. Instantiate Services
-	tokenService := auth.NewJWTService(cfg.JWTSecret, "synapse-api", time.Hour*24)
-	authService := auth.NewAuthService(authRepo, tokenService)
+	authService := auth.NewAuthService(authRepo)
+	sessionService := auth.NewSessionService(sessionRepo, authRepo, cfg)
+
+	// Start session cleanup on startup & background ticker
+	go func() {
+		ctx := context.Background()
+		if count, err := sessionService.CleanupExpired(ctx); err == nil && count > 0 {
+			slog.Info("Cleaned up expired sessions on startup", "count", count)
+		} else if err != nil {
+			slog.Error("Failed to clean up expired sessions on startup", "error", err)
+		}
+
+		ticker := time.NewTicker(12 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			count, err := sessionService.CleanupExpired(ctx)
+			if err != nil {
+				slog.Error("Failed to clean up expired sessions", "error", err)
+			} else if count > 0 {
+				slog.Info("Successfully cleaned up expired sessions", "count", count)
+			}
+		}
+	}()
 
 	// Media Service
 	s3Storage, err := media.NewS3Storage(context.Background(), cfg)
@@ -108,7 +130,7 @@ func main() {
 	voiceHandler := voice.NewHandler(voiceService, channelRepo)
 
 	// 7. Instantiate Handlers
-	authHandler := auth.NewAuthHandler(authService)
+	authHandler := auth.NewAuthHandler(authService, sessionService, cfg)
 	userHandler := users.NewHandler(userService)
 	roleHandler := roles.NewHandler(roleService)
 	guildHandler := guilds.NewHandler(guildService)
@@ -123,12 +145,13 @@ func main() {
 	// Apply Middlewares
 	r.Use(middleware.RecoveryMiddleware())
 	r.Use(middleware.LoggingMiddleware())
-	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.CORSMiddleware(cfg.AllowedOrigins))
 
 	// 9. Register Routes
 	router.SetupRoutes(
 		r,
-		tokenService,
+		sessionService,
+		cfg,
 		authHandler,
 		userHandler,
 		guildHandler,
