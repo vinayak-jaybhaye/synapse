@@ -2,10 +2,11 @@
 
 import React from "react";
 import { useUIStore } from "../../store/ui-store";
-import { User, Palette, Accessibility, X } from "lucide-react";
+import { User, Palette, Accessibility, X, Shield } from "lucide-react";
 import ProfileTab from "./tabs/ProfileTab";
 import AppearanceTab from "./tabs/AppearanceTab";
 import AccessibilityTab from "./tabs/AccessibilityTab";
+import DevicesSessionsTab from "./tabs/DevicesSessionsTab";
 
 export default function UserSettingsModal() {
   const { showSettings, setShowSettings } = useUIStore();
@@ -74,6 +75,18 @@ export default function UserSettingsModal() {
               <span className="hidden sm:inline">Accessibility</span>
               <span className="sm:hidden">Access</span>
             </button>
+
+            <button
+              onClick={() => setSettingsTab("devices")}
+              className={`shrink-0 md:w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-medium text-left transition-colors cursor-pointer border ${
+                settingsTab === "devices"
+                  ? "bg-bg-secondary border-border-custom text-text-primary"
+                  : "border-transparent text-text-secondary hover:bg-bg-secondary/40 hover:text-text-primary"
+              }`}
+            >
+              <Shield className="h-3.5 w-3.5" />
+              <span>Devices & Sessions</span>
+            </button>
           </div>
         </div>
 
@@ -91,6 +104,7 @@ export default function UserSettingsModal() {
           {settingsTab === "profile" && <ProfileTab />}
           {settingsTab === "appearance" && <AppearanceTab />}
           {settingsTab === "accessibility" && <AccessibilityTab />}
+          {settingsTab === "devices" && <DevicesSessionsTab />}
         </div>
       </div>
     </div>
