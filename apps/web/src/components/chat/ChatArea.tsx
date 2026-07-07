@@ -21,9 +21,12 @@ import {
 import MessageItem from "./MessageItem";
 import { getMediaUrl } from "../../lib/media";
 import MessageComposer from "../chat/MessageComposer";
+import TypingIndicator from "./TypingIndicator";
 import { useChannelPermissions } from "../../hooks/usePermissions";
-import { Message, PermissionFlags, hasPermission } from "../../types";
+import { Message, PermissionFlags, hasPermission, UserSummary } from "../../types";
 import VoiceChannelView from "../voice/VoiceChannelView";
+import { useUserProfile } from "../../features/profile/api/use-profile";
+import { messagesApi } from "../../services/api/messages";
 
 export default function ChatArea() {
   const { activeChannelId } = useChannelStore();
@@ -48,7 +51,18 @@ export default function ChatArea() {
 
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
   const activeChannel = channels.find((c) => c.id === activeChannelId);
-  const activeDM = (dms || []).find((d) => d.channel_id === activeChannelId);
+
+  const isPendingDM = activeChannelId?.startsWith("pending-dm-");
+  const targetUserId = isPendingDM ? activeChannelId?.replace("pending-dm-", "") : null;
+  const { data: targetProfile } = useUserProfile(targetUserId || "", !!targetUserId);
+
+  let activeDM = (dms || []).find((d) => d.channel_id === activeChannelId);
+  if (isPendingDM && targetProfile) {
+    activeDM = {
+      channel_id: activeChannelId!,
+      recipient: targetProfile as unknown as UserSummary,
+    };
+  }
   const { canManageMessages, canAddReactions } = useChannelPermissions(
     activeChannel?.permissions,
     !!activeDM,
@@ -85,7 +99,8 @@ export default function ChatArea() {
     deleteMessage,
     addReaction,
     removeReaction,
-  } = useMessages(!isVoiceChannel ? activeChannelId || undefined : undefined);
+  } = useMessages(!isVoiceChannel && !isPendingDM ? activeChannelId || undefined : undefined);
+  const { createDM } = useDMs();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -168,8 +183,18 @@ export default function ChatArea() {
     setShowScrollBottomBtn(scrolledUp);
   };
 
+  const { selectChannel } = useChannelStore();
+
   const handleSend = async (content: string, uploadIds?: string[]) => {
     try {
+      if (isPendingDM && targetUserId) {
+        const newDM = await createDM(targetUserId);
+        await messagesApi.sendMessage(newDM.channel_id, content, uploadIds, replyTarget?.id);
+        selectChannel(newDM.channel_id);
+        setReplyTarget(null);
+        return;
+      }
+
       await sendMessage({
         content,
         attachmentUploadIds: uploadIds,
@@ -181,6 +206,38 @@ export default function ChatArea() {
       console.error(err);
     }
   };
+
+  const handleReply = React.useCallback((msg: Message) => {
+    setReplyTarget(msg);
+  }, []);
+
+  const handleEdit = React.useCallback(
+    async (messageId: string, content: string) => {
+      await editMessage({ messageId, content });
+    },
+    [editMessage],
+  );
+
+  const handleDelete = React.useCallback(
+    async (messageId: string) => {
+      await deleteMessage(messageId);
+    },
+    [deleteMessage],
+  );
+
+  const handleAddReaction = React.useCallback(
+    async (messageId: string, emoji: string) => {
+      await addReaction({ messageId, emoji });
+    },
+    [addReaction],
+  );
+
+  const handleRemoveReaction = React.useCallback(
+    async (messageId: string, emoji: string) => {
+      await removeReaction({ messageId, emoji });
+    },
+    [removeReaction],
+  );
 
   if (isVoiceChannel && activeChannel) {
     return <VoiceChannelView channelName={activeChannel.name} />;
@@ -345,19 +402,11 @@ export default function ChatArea() {
               <MessageItem
                 key={msg.id}
                 msg={msg}
-                onReply={() => setReplyTarget(msg)}
-                onEdit={async (messageId, content) => {
-                  await editMessage({ messageId, content });
-                }}
-                onDelete={async (messageId) => {
-                  await deleteMessage(messageId);
-                }}
-                onAddReaction={async (messageId, emoji) => {
-                  await addReaction({ messageId, emoji });
-                }}
-                onRemoveReaction={async (messageId, emoji) => {
-                  await removeReaction({ messageId, emoji });
-                }}
+                onReply={() => handleReply(msg)}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onAddReaction={handleAddReaction}
+                onRemoveReaction={handleRemoveReaction}
                 canManageMessages={canManageMessages}
                 canAddReactions={canAddReactions}
               />
@@ -385,7 +434,10 @@ export default function ChatArea() {
             <div className="flex items-center gap-1.5 truncate">
               <span>Replying to</span>
               <span className="font-semibold text-text-primary">
-                @{replyTarget.author_id.substring(0, 5)}
+                @
+                {replyTarget.author?.display_name ||
+                  replyTarget.author?.username ||
+                  replyTarget.author_id.substring(0, 5)}
               </span>
               <span className="truncate italic">"{replyTarget.content || "deleted message"}"</span>
             </div>
@@ -398,7 +450,13 @@ export default function ChatArea() {
             </button>
           </div>
         )}
-        <div className="px-4 pb-4 bg-bg-primary">
+        <div className="relative px-4 pb-4 bg-bg-primary">
+          <TypingIndicator
+            channelId={activeChannelId}
+            dmRecipientName={
+              activeDM ? activeDM.recipient.display_name || activeDM.recipient.username : undefined
+            }
+          />
           <MessageComposer
             channelId={activeChannelId}
             placeholder={`Message ${activeDM ? `@${activeDM.recipient.username}` : `#${activeChannel?.name}`}`}

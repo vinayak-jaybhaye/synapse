@@ -15,7 +15,7 @@ interface UserProfileCardProps {
 }
 
 export default function UserProfileCard({ profile, isLoading, onClose }: UserProfileCardProps) {
-  const { createDM } = useDMs();
+  const { dms } = useDMs();
   const { selectChannel } = useChannelStore();
   const { selectGuild } = useGuildStore();
   const { user: currentUser } = useAuthStore();
@@ -25,12 +25,14 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
   const handleMessage = async () => {
     if (!profile) return;
     try {
-      const dm = await createDM(profile.id);
-      if (dm && dm.channel_id) {
-        selectGuild(null);
-        selectChannel(dm.channel_id);
-        if (onClose) onClose();
+      const existingDM = dms?.find((d) => d.recipient.id === profile.id);
+      selectGuild(null);
+      if (existingDM) {
+        selectChannel(existingDM.channel_id);
+      } else {
+        selectChannel(`pending-dm-${profile.id}`);
       }
+      if (onClose) onClose();
     } catch (err) {
       console.error("Failed to start DM:", err);
     }
