@@ -5,13 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/synapse/api/internal/snowflake"
 )
 
 type Repository interface {
 	Create(ctx context.Context, invite *Invite) error
 	GetByCode(ctx context.Context, code string) (*Invite, error)
 	GetInviteMetadata(ctx context.Context, code string) (*InviteMetadata, error)
-	JoinGuildTx(ctx context.Context, code string, guildID, userID int64) error
+	JoinGuildTx(ctx context.Context, code string, guildID, userID int64, event *OutboxEvent) error
 	IsMember(ctx context.Context, guildID, userID int64) (bool, error)
 	IsBanned(ctx context.Context, guildID, userID int64) (bool, error)
 }
@@ -79,7 +81,7 @@ func (r *pgRepository) GetInviteMetadata(ctx context.Context, code string) (*Inv
 	return &m, nil
 }
 
-func (r *pgRepository) JoinGuildTx(ctx context.Context, code string, guildID, userID int64) error {
+func (r *pgRepository) JoinGuildTx(ctx context.Context, code string, guildID, userID int64, event *OutboxEvent) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin join tx: %w", err)
@@ -119,6 +121,17 @@ func (r *pgRepository) JoinGuildTx(ctx context.Context, code string, guildID, us
 	_, err = tx.ExecContext(ctx, insertMemberRole, guildID, userID, defaultRoleID)
 	if err != nil {
 		return fmt.Errorf("failed to insert default member role: %w", err)
+	}
+
+	if event != nil {
+		insertOutbox := `
+			INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+			VALUES ($1, $2, $3, $4, $5, 0, $6)
+		`
+		_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+		if err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

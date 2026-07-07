@@ -68,16 +68,17 @@ func (r *redisRepository) UpsertVoiceState(ctx context.Context, state *VoiceStat
 	}
 
 	// Publish to Redis Pub/Sub channel "guild:{guildID}" for real-time gateway propagation
-	eventPayload := map[string]any{
-		"action":   "update",
-		"guild_id": strconv.FormatInt(state.GuildID, 10),
-		"state":    state,
-	}
-	payloadBytes, jsonErr := json.Marshal(eventPayload)
-	if jsonErr == nil {
-		channel := fmt.Sprintf("guild:%d", state.GuildID)
-		_ = r.rdb.Publish(ctx, channel, payloadBytes).Err()
-	}
+	b, _ := json.Marshal(map[string]any{
+		"op": "DISPATCH",
+		"t":  "VOICE_STATE_UPDATE",
+		"d": map[string]any{
+			"action":   "update",
+			"guild_id": strconv.FormatInt(state.GuildID, 10),
+			"state":    state,
+		},
+	})
+	channel := fmt.Sprintf("guild:%d", state.GuildID)
+	_ = r.rdb.Publish(ctx, channel, string(b)).Err()
 
 	return nil
 }
@@ -116,20 +117,21 @@ func (r *redisRepository) DeleteVoiceState(ctx context.Context, guildID, userID 
 	}
 
 	// Publish to Redis Pub/Sub channel "guild:{guildID}" for real-time gateway propagation of the leave event
-	eventPayload := map[string]any{
-		"action":   "leave",
-		"guild_id": strconv.FormatInt(guildID, 10),
-		"state": map[string]any{
-			"user_id":    strconv.FormatInt(userID, 10),
-			"channel_id": strconv.FormatInt(channelID, 10),
-			"guild_id":   strconv.FormatInt(guildID, 10),
+	b, _ := json.Marshal(map[string]any{
+		"op": "DISPATCH",
+		"t":  "VOICE_STATE_UPDATE",
+		"d": map[string]any{
+			"action":   "leave",
+			"guild_id": strconv.FormatInt(guildID, 10),
+			"state": map[string]any{
+				"user_id":    strconv.FormatInt(userID, 10),
+				"channel_id": strconv.FormatInt(channelID, 10),
+				"guild_id":   strconv.FormatInt(guildID, 10),
+			},
 		},
-	}
-	payloadBytes, jsonErr := json.Marshal(eventPayload)
-	if jsonErr == nil {
-		channel := fmt.Sprintf("guild:%d", guildID)
-		_ = r.rdb.Publish(ctx, channel, payloadBytes).Err()
-	}
+	})
+	channel := fmt.Sprintf("guild:%d", guildID)
+	_ = r.rdb.Publish(ctx, channel, string(b)).Err()
 
 	return nil
 }

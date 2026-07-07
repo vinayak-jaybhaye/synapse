@@ -102,6 +102,26 @@ func (db *DB) runMigrations() error {
 		slog.Info("Devices table exists, skipping devices and sessions migration")
 	}
 
+	// 3. Outbox and Consistency schemas
+	// We'll use a simple check for the partition_key column to see if 004 was run.
+	var partitionKeyExists bool
+	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'outbox_events' AND column_name = 'partition_key')").Scan(&partitionKeyExists)
+	if err != nil {
+		return fmt.Errorf("failed to check for partition_key column: %w", err)
+	}
+
+	if !partitionKeyExists {
+		slog.Info("partition_key not found, running 003 and 004 migrations...")
+		if err := db.runMigrationFile("003_session_user_consistency.sql"); err != nil {
+			slog.Warn("Failed to run 003 migration (might already be applied)", "error", err)
+		}
+		if err := db.runMigrationFile("004_outbox_partitioning.sql"); err != nil {
+			return err
+		}
+	} else {
+		slog.Info("Outbox partitioning exists, skipping 003 and 004 migrations")
+	}
+
 	slog.Info("Database migrations completed successfully")
 	return nil
 }

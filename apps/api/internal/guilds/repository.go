@@ -16,10 +16,10 @@ type Repository interface {
 	GetByID(ctx context.Context, id int64) (*Guild, error)
 	GetMember(ctx context.Context, guildID, userID int64) (*GuildMember, error)
 	ListMembersCursor(ctx context.Context, guildID, afterUserID int64, limit int) ([]MemberWithUser, error)
-	UpdateMember(ctx context.Context, m *GuildMember) error
-	UpdateGuild(ctx context.Context, g *Guild) error
-	RemoveMember(ctx context.Context, guildID, userID int64) error
-	BanMember(ctx context.Context, guildID, userID, bannedByID int64, reason string) error
+	UpdateMember(ctx context.Context, m *GuildMember, event *OutboxEvent) error
+	UpdateGuild(ctx context.Context, g *Guild, event *OutboxEvent) error
+	RemoveMember(ctx context.Context, guildID, userID int64, event *OutboxEvent) error
+	BanMember(ctx context.Context, guildID, userID, bannedByID int64, reason string, event *OutboxEvent) error
 	ListBans(ctx context.Context, guildID int64) ([]BanWithUser, error)
 	RemoveBan(ctx context.Context, guildID, userID int64) error
 }
@@ -188,35 +188,92 @@ func (r *pgRepository) ListMembersCursor(ctx context.Context, guildID, afterUser
 	return list, nil
 }
 
-func (r *pgRepository) UpdateMember(ctx context.Context, m *GuildMember) error {
+func (r *pgRepository) UpdateMember(ctx context.Context, m *GuildMember, event *OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `
 		UPDATE guild_members 
 		SET nickname = $1, is_muted = $2 
 		WHERE guild_id = $3 AND user_id = $4
 	`
-	_, err := r.db.ExecContext(ctx, query, m.Nickname, m.IsMuted, m.GuildID, m.UserID)
+	_, err = tx.ExecContext(ctx, query, m.Nickname, m.IsMuted, m.GuildID, m.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to update guild member: %w", err)
 	}
-	return nil
+
+	if event != nil {
+		insertOutbox := `
+			INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+			VALUES ($1, $2, $3, $4, $5, 0, $6)
+		`
+		_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+		if err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
 }
 
-func (r *pgRepository) UpdateGuild(ctx context.Context, g *Guild) error {
+func (r *pgRepository) UpdateGuild(ctx context.Context, g *Guild, event *OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `UPDATE guilds SET name = $1, description = $2, icon_key = $3, banner_key = $4, updated_at = NOW(), version = version + 1 WHERE id = $5 AND deleted_at IS NULL`
-	_, err := r.db.ExecContext(ctx, query, g.Name, g.Description, g.IconKey, g.BannerKey, g.ID)
-	return err
+	_, err = tx.ExecContext(ctx, query, g.Name, g.Description, g.IconKey, g.BannerKey, g.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update guild: %w", err)
+	}
+
+	if event != nil {
+		insertOutbox := `
+			INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+			VALUES ($1, $2, $3, $4, $5, 0, $6)
+		`
+		_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+		if err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
 }
 
-func (r *pgRepository) RemoveMember(ctx context.Context, guildID, userID int64) error {
+func (r *pgRepository) RemoveMember(ctx context.Context, guildID, userID int64, event *OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2`
-	_, err := r.db.ExecContext(ctx, query, guildID, userID)
+	_, err = tx.ExecContext(ctx, query, guildID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to remove guild member: %w", err)
 	}
-	return nil
+
+	if event != nil {
+		insertOutbox := `
+			INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+			VALUES ($1, $2, $3, $4, $5, 0, $6)
+		`
+		_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+		if err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
 }
 
-func (r *pgRepository) BanMember(ctx context.Context, guildID, userID, bannedByID int64, reason string) error {
+func (r *pgRepository) BanMember(ctx context.Context, guildID, userID, bannedByID int64, reason string, event *OutboxEvent) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin ban tx: %w", err)
@@ -239,6 +296,17 @@ func (r *pgRepository) BanMember(ctx context.Context, guildID, userID, bannedByI
 	_, err = tx.ExecContext(ctx, banQuery, guildID, userID, bannedByID, reason)
 	if err != nil {
 		return fmt.Errorf("failed to insert ban: %w", err)
+	}
+
+	if event != nil {
+		insertOutbox := `
+			INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+			VALUES ($1, $2, $3, $4, $5, 0, $6)
+		`
+		_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+		if err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

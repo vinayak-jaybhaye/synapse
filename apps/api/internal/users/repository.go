@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -174,6 +175,20 @@ func (r *pgRepository) CreateOrGetDM(ctx context.Context, creatorID, recipientID
 	_, err = tx.ExecContext(ctx, insertConv, convID, channelID, user1ID, user2ID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert direct conversation: %w", err)
+	}
+
+	// Insert into outbox_events
+	payloadBytes, _ := json.Marshal(map[string]any{
+		"channel_id": fmt.Sprintf("%d", channelID),
+		"user1_id":   fmt.Sprintf("%d", user1ID),
+		"user2_id":   fmt.Sprintf("%d", user2ID),
+	})
+	// Use snowflake IDs instead of random() for strictly chronological event ordering across partitions.
+	// Use 0 for status as the column is smallint, not a string ('PENDING').
+	insertOutbox := `INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) VALUES ($1, $2, $3, $4, $5, 0, $6)`
+	_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), "user", channelID, "USER_DM_CREATE", payloadBytes, int16(channelID%16))
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert outbox event: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {

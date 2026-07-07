@@ -3,24 +3,27 @@ package messages
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/synapse/api/internal/snowflake"
 )
 
 type Repository interface {
 	GetByID(ctx context.Context, id int64) (*Message, error)
-	ListMessagesCursor(ctx context.Context, channelID, beforeID int64, limit int) ([]MessageResponse, error)
-	CreateMessageWithAttachments(ctx context.Context, msg *Message, event *OutboxEvent, uploadIDs []int64) error
-	Update(ctx context.Context, msg *Message) error
-	SoftDelete(ctx context.Context, id int64) error
-	AddReaction(ctx context.Context, messageID, userID int64, emoji string) error
-	RemoveReaction(ctx context.Context, messageID, userID int64, emoji string) error
+	ListMessagesCursor(ctx context.Context, channelID, userID, beforeID int64, limit int) ([]MessageResponse, error)
+	CreateMessageWithAttachments(ctx context.Context, msg *Message, uploadIDs []int64) (*MessageResponse, error)
+	Update(ctx context.Context, msg *Message, event *OutboxEvent) error
+	SoftDelete(ctx context.Context, id int64, event *OutboxEvent) error
+	AddReaction(ctx context.Context, messageID, userID int64, emoji string, event *OutboxEvent) error
+	RemoveReaction(ctx context.Context, messageID, userID int64, emoji string, event *OutboxEvent) error
 	UpdateReadStatePostgres(ctx context.Context, channelID, userID, lastReadMessageID int64) error
 	IsDMParticipant(ctx context.Context, channelID int64, userID int64) (bool, error)
 	GetAttachmentWithChannel(ctx context.Context, attachmentID int64) (*Attachment, int64, error)
+	GetUserSummary(ctx context.Context, userID int64) (*UserSummary, error)
 }
 
 type pgRepository struct {
@@ -125,7 +128,7 @@ func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Message, error) 
 	return &msg, nil
 }
 
-func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, beforeID int64, limit int) ([]MessageResponse, error) {
+func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, userID, beforeID int64, limit int) ([]MessageResponse, error) {
 	var query string
 	var rows *sql.Rows
 	var err error
@@ -231,12 +234,12 @@ func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, before
 	}
 
 	reactionQuery := `
-		SELECT message_id, emoji, COUNT(*) AS count
+		SELECT message_id, emoji, COUNT(*) AS count, BOOL_OR(user_id = $2) AS me
 		FROM message_reactions
 		WHERE message_id = ANY($1)
 		GROUP BY message_id, emoji
 	`
-	reactRows, err := r.db.QueryContext(ctx, reactionQuery, pq.Array(messageIDs))
+	reactRows, err := r.db.QueryContext(ctx, reactionQuery, pq.Array(messageIDs), userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query message reactions: %w", err)
 	}
@@ -246,9 +249,11 @@ func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, before
 	for reactRows.Next() {
 		var msgID int64
 		var rs ReactionSummary
-		if err := reactRows.Scan(&msgID, &rs.Emoji, &rs.Count); err != nil {
+		var me bool
+		if err := reactRows.Scan(&msgID, &rs.Emoji, &rs.Count, &me); err != nil {
 			return nil, fmt.Errorf("failed to scan reaction row: %w", err)
 		}
+		rs.Me = me
 		reactionsMap[msgID] = append(reactionsMap[msgID], rs)
 	}
 
@@ -292,10 +297,10 @@ func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, before
 	return list, nil
 }
 
-func (r *pgRepository) CreateMessageWithAttachments(ctx context.Context, msg *Message, event *OutboxEvent, uploadIDs []int64) error {
+func (r *pgRepository) CreateMessageWithAttachments(ctx context.Context, msg *Message, uploadIDs []int64) (*MessageResponse, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to begin message tx: %w", err)
+		return nil, fmt.Errorf("failed to begin message tx: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -312,7 +317,7 @@ func (r *pgRepository) CreateMessageWithAttachments(ctx context.Context, msg *Me
 
 	_, err = tx.ExecContext(ctx, query, msg.ID, msg.ChannelID, msg.AuthorID, replyID, msg.MessageType, msg.Content, msg.Metadata, msg.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("failed to insert message inside tx: %w", err)
+		return nil, fmt.Errorf("failed to insert message inside tx: %w", err)
 	}
 
 	// 2. Consume Attachments
@@ -330,7 +335,7 @@ func (r *pgRepository) CreateMessageWithAttachments(ctx context.Context, msg *Me
 		`
 		rows, err := tx.QueryContext(ctx, consumeQuery, pq.Array(uploadIDs), msg.AuthorID, msg.ID)
 		if err != nil {
-			return fmt.Errorf("failed to consume pending uploads: %w", err)
+			return nil, fmt.Errorf("failed to consume pending uploads: %w", err)
 		}
 		defer rows.Close()
 
@@ -339,61 +344,204 @@ func (r *pgRepository) CreateMessageWithAttachments(ctx context.Context, msg *Me
 			consumedCount++
 		}
 		if consumedCount != len(uploadIDs) {
-			return errors.New("one or more attachments could not be verified or are not uploaded")
+			return nil, errors.New("one or more attachments could not be verified or are not uploaded")
 		}
 	}
 
-	// 3. Insert Outbox Event
-	insertOutbox := `
-		INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status) 
-		VALUES ($1, $2, $3, $4, $5, 0)
+	// 3. Fetch full message to build MessageResponse
+	var pID sql.NullInt64
+	var pAuthorID sql.NullInt64
+	var pUsername sql.NullString
+	var pContent sql.NullString
+	var pDeletedAt sql.NullTime
+	var uUsername string
+	var uDisplayName sql.NullString
+	var uAvatarKey sql.NullString
+	var uBannerKey sql.NullString
+	var uBio sql.NullString
+
+	fetchQuery := `
+		SELECT 
+			m.reply_to_message_id,
+			p.id, p.author_id, pu.username, p.content, p.deleted_at,
+			u.username, u.display_name, u.avatar_key, u.banner_key, u.bio
+		FROM messages m
+		LEFT JOIN messages p ON m.reply_to_message_id = p.id
+		LEFT JOIN users pu ON p.author_id = pu.id
+		LEFT JOIN users u ON m.author_id = u.id
+		WHERE m.id = $1
 	`
-	_, err = tx.ExecContext(ctx, insertOutbox, event.ID, event.AggregateType, event.AggregateID, event.EventType, event.Payload)
+	err = tx.QueryRowContext(ctx, fetchQuery, msg.ID).Scan(
+		&replyID, &pID, &pAuthorID, &pUsername, &pContent, &pDeletedAt,
+		&uUsername, &uDisplayName, &uAvatarKey, &uBannerKey, &uBio,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to insert outbox event inside tx: %w", err)
+		return nil, fmt.Errorf("failed to fetch full message inside tx: %w", err)
+	}
+
+	var rp *ReplyPreview
+	if replyID.Valid {
+		rp = scanReplyPreview(pID, pAuthorID, pUsername, pContent, pDeletedAt)
+	}
+
+	author := UserSummary{
+		ID:          msg.AuthorID,
+		Username:    uUsername,
+		DisplayName: uDisplayName.String,
+		AvatarKey:   uAvatarKey.String,
+		BannerKey:   uBannerKey.String,
+		Bio:         uBio.String,
+	}
+
+	var attachments []Attachment
+	if len(uploadIDs) > 0 {
+		attQuery := `SELECT id, storage_key, file_name, file_size, mime_type FROM message_attachments WHERE message_id = $1`
+		rows, err := tx.QueryContext(ctx, attQuery, msg.ID)
+		if err == nil {
+			for rows.Next() {
+				var a Attachment
+				a.MessageID = msg.ID
+				if err := rows.Scan(&a.ID, &a.StorageKey, &a.FileName, &a.FileSize, &a.MimeType); err == nil {
+					attachments = append(attachments, a)
+				}
+			}
+			rows.Close()
+		}
+	}
+
+	response := &MessageResponse{
+		ID:               msg.ID,
+		ChannelID:        msg.ChannelID,
+		AuthorID:         msg.AuthorID,
+		Author:           author,
+		ReplyToMessageID: msg.ReplyToMessageID,
+		ReplyPreview:     rp,
+		MessageType:      msg.MessageType,
+		Content:          msg.Content,
+		CreatedAt:        msg.CreatedAt,
+		Attachments:      attachments,
+	}
+
+	// 4. Build and Insert Outbox Event
+	importJson, _ := json.Marshal(response)
+	insertOutbox := `
+		INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+		VALUES ($1, $2, $3, $4, $5, 0, $6)
+	`
+	_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), "channel", msg.ChannelID, "MESSAGE_CREATE", importJson, int16(msg.ChannelID%16))
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert outbox event inside tx: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit message tx: %w", err)
+		return nil, fmt.Errorf("failed to commit message tx: %w", err)
 	}
 
-	return nil
+	return response, nil
 }
 
-func (r *pgRepository) Update(ctx context.Context, msg *Message) error {
+func (r *pgRepository) Update(ctx context.Context, msg *Message, event *OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin update tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `UPDATE messages SET content = $1, edited_at = $2 WHERE id = $3 AND deleted_at IS NULL`
-	_, err := r.db.ExecContext(ctx, query, msg.Content, msg.EditedAt, msg.ID)
+	_, err = tx.ExecContext(ctx, query, msg.Content, msg.EditedAt, msg.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update message: %w", err)
 	}
-	return nil
+
+	insertOutbox := `
+		INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+		VALUES ($1, $2, $3, $4, $5, 0, $6)
+	`
+	_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+	if err != nil {
+		return fmt.Errorf("failed to insert outbox event: %w", err)
+	}
+
+	return tx.Commit()
 }
 
-func (r *pgRepository) SoftDelete(ctx context.Context, id int64) error {
+func (r *pgRepository) SoftDelete(ctx context.Context, id int64, event *OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin delete tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `UPDATE messages SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL`
-	_, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	_, err = tx.ExecContext(ctx, query, time.Now(), id)
 	if err != nil {
 		return fmt.Errorf("failed to soft-delete message: %w", err)
 	}
-	return nil
+
+	insertOutbox := `
+		INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+		VALUES ($1, $2, $3, $4, $5, 0, $6)
+	`
+	_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+	if err != nil {
+		return fmt.Errorf("failed to insert outbox event: %w", err)
+	}
+
+	return tx.Commit()
 }
 
-func (r *pgRepository) AddReaction(ctx context.Context, messageID, userID int64, emoji string) error {
+func (r *pgRepository) AddReaction(ctx context.Context, messageID, userID int64, emoji string, event *OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin add reaction tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `INSERT INTO message_reactions (message_id, user_id, emoji) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
-	_, err := r.db.ExecContext(ctx, query, messageID, userID, emoji)
+	res, err := tx.ExecContext(ctx, query, messageID, userID, emoji)
 	if err != nil {
 		return fmt.Errorf("failed to add message reaction: %w", err)
 	}
-	return nil
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected > 0 && event != nil {
+		insertOutbox := `
+			INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+			VALUES ($1, $2, $3, $4, $5, 0, $6)
+		`
+		_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+		if err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+	return tx.Commit()
 }
 
-func (r *pgRepository) RemoveReaction(ctx context.Context, messageID, userID int64, emoji string) error {
+func (r *pgRepository) RemoveReaction(ctx context.Context, messageID, userID int64, emoji string, event *OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin remove reaction tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `DELETE FROM message_reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3`
-	_, err := r.db.ExecContext(ctx, query, messageID, userID, emoji)
+	res, err := tx.ExecContext(ctx, query, messageID, userID, emoji)
 	if err != nil {
 		return fmt.Errorf("failed to remove message reaction: %w", err)
 	}
-	return nil
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected > 0 && event != nil {
+		insertOutbox := `
+			INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, partition_key) 
+			VALUES ($1, $2, $3, $4, $5, 0, $6)
+		`
+		_, err = tx.ExecContext(ctx, insertOutbox, snowflake.GenerateID(), event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.PartitionKey)
+		if err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+	return tx.Commit()
 }
 
 func (r *pgRepository) UpdateReadStatePostgres(ctx context.Context, channelID, userID, lastReadMessageID int64) error {
@@ -444,4 +592,24 @@ func (r *pgRepository) GetAttachmentWithChannel(ctx context.Context, attachmentI
 		return nil, 0, fmt.Errorf("failed to get attachment: %w", err)
 	}
 	return &a, channelID, nil
+}
+
+func (r *pgRepository) GetUserSummary(ctx context.Context, userID int64) (*UserSummary, error) {
+	query := `SELECT id, username, display_name, avatar_key, banner_key, bio FROM users WHERE id = $1`
+	var u UserSummary
+	var displayName, avatarKey, bannerKey, bio sql.NullString
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&u.ID, &u.Username, &displayName, &avatarKey, &bannerKey, &bio,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("user not found")
+		}
+		return nil, fmt.Errorf("failed to fetch user summary: %w", err)
+	}
+	u.DisplayName = displayName.String
+	u.AvatarKey = avatarKey.String
+	u.BannerKey = bannerKey.String
+	u.Bio = bio.String
+	return &u, nil
 }
