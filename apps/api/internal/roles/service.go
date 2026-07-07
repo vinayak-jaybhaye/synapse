@@ -2,6 +2,7 @@ package roles
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/permissions"
@@ -52,6 +53,7 @@ func (s *service) GetRoles(ctx context.Context, guildID, userID int64) ([]Role, 
 	// To keep it simple and robust, let's verify memberships
 	rlist, err := s.repo.GetMemberRoles(ctx, guildID, userID)
 	if err != nil {
+		slog.Error("Failed to fetch member roles for authorization", "guild_id", guildID, "user_id", userID, "error", err)
 		return nil, errors.NewForbidden("not a member of the guild")
 	}
 	if len(rlist) == 0 {
@@ -88,6 +90,7 @@ func (s *service) CreateRole(ctx context.Context, guildID, userID int64, req *Cr
 		Position:    maxPos + 1,
 		Permissions: perms,
 		IsDefault:   false,
+		IsHoisted:   req.IsHoisted != nil && *req.IsHoisted,
 		Version:     1,
 	}
 
@@ -130,6 +133,9 @@ func (s *service) UpdateRole(ctx context.Context, guildID, roleID, userID int64,
 	}
 	if req.Position != nil {
 		rl.Position = *req.Position
+	}
+	if req.IsHoisted != nil {
+		rl.IsHoisted = *req.IsHoisted
 	}
 
 	if err := s.repo.Update(ctx, rl); err != nil {

@@ -1,0 +1,1 @@
+ALTER TABLE roles ADD COLUMN is_hoisted BOOLEAN NOT NULL DEFAULT false;

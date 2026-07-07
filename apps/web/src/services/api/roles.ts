@@ -12,11 +12,13 @@ export const rolesApi = {
     name: string,
     permissions: string,
     color?: number,
+    isHoisted?: boolean,
   ): Promise<Role> => {
     const response = await api.post<Role>(`/guilds/${guildId}/roles`, {
       name,
       permissions,
       color,
+      is_hoisted: isHoisted,
     });
     return response.data;
   },

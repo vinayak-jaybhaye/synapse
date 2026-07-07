@@ -3,7 +3,7 @@ package permissions
 // Permission represents a bitwise permission flag in Synapse.
 type Permission uint64
 
-// Core bitwise permission constants (Discord-scale bitmasks)
+// Core bitwise permission constants
 const (
 	// General Guild Permissions
 	CREATE_INSTANT_INVITE Permission = 1 << 0

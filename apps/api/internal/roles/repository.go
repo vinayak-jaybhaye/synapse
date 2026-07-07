@@ -29,10 +29,10 @@ func NewPGRepository(db *sql.DB) Repository {
 }
 
 func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Role, error) {
-	query := `SELECT id, guild_id, name, color, position, permissions, is_default, version FROM roles WHERE id = $1`
+	query := `SELECT id, guild_id, name, color, position, permissions, is_default, is_hoisted, version FROM roles WHERE id = $1`
 	var rl Role
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&rl.ID, &rl.GuildID, &rl.Name, &rl.Color, &rl.Position, &rl.Permissions, &rl.IsDefault, &rl.Version,
+		&rl.ID, &rl.GuildID, &rl.Name, &rl.Color, &rl.Position, &rl.Permissions, &rl.IsDefault, &rl.IsHoisted, &rl.Version,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -44,7 +44,7 @@ func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Role, error) {
 }
 
 func (r *pgRepository) ListRoles(ctx context.Context, guildID int64) ([]Role, error) {
-	query := `SELECT id, guild_id, name, color, position, permissions, is_default, version FROM roles WHERE guild_id = $1 ORDER BY position DESC`
+	query := `SELECT id, guild_id, name, color, position, permissions, is_default, is_hoisted, version FROM roles WHERE guild_id = $1 ORDER BY position DESC`
 	rows, err := r.db.QueryContext(ctx, query, guildID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list roles: %w", err)
@@ -54,7 +54,7 @@ func (r *pgRepository) ListRoles(ctx context.Context, guildID int64) ([]Role, er
 	var list []Role
 	for rows.Next() {
 		var rl Role
-		if err := rows.Scan(&rl.ID, &rl.GuildID, &rl.Name, &rl.Color, &rl.Position, &rl.Permissions, &rl.IsDefault, &rl.Version); err != nil {
+		if err := rows.Scan(&rl.ID, &rl.GuildID, &rl.Name, &rl.Color, &rl.Position, &rl.Permissions, &rl.IsDefault, &rl.IsHoisted, &rl.Version); err != nil {
 			return nil, fmt.Errorf("failed to scan role row: %w", err)
 		}
 		list = append(list, rl)
@@ -63,9 +63,9 @@ func (r *pgRepository) ListRoles(ctx context.Context, guildID int64) ([]Role, er
 }
 
 func (r *pgRepository) Create(ctx context.Context, rl *Role) error {
-	query := `INSERT INTO roles (id, guild_id, name, color, position, permissions, is_default, version) 
-	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err := r.db.ExecContext(ctx, query, rl.ID, rl.GuildID, rl.Name, rl.Color, rl.Position, rl.Permissions, rl.IsDefault, rl.Version)
+	query := `INSERT INTO roles (id, guild_id, name, color, position, permissions, is_default, is_hoisted, version) 
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	_, err := r.db.ExecContext(ctx, query, rl.ID, rl.GuildID, rl.Name, rl.Color, rl.Position, rl.Permissions, rl.IsDefault, rl.IsHoisted, rl.Version)
 	if err != nil {
 		return fmt.Errorf("failed to insert role: %w", err)
 	}
@@ -73,8 +73,8 @@ func (r *pgRepository) Create(ctx context.Context, rl *Role) error {
 }
 
 func (r *pgRepository) Update(ctx context.Context, rl *Role) error {
-	query := `UPDATE roles SET name = $1, color = $2, position = $3, permissions = $4, version = version + 1 WHERE id = $5`
-	_, err := r.db.ExecContext(ctx, query, rl.Name, rl.Color, rl.Position, rl.Permissions, rl.ID)
+	query := `UPDATE roles SET name = $1, color = $2, position = $3, permissions = $4, is_hoisted = $5, version = version + 1 WHERE id = $6`
+	_, err := r.db.ExecContext(ctx, query, rl.Name, rl.Color, rl.Position, rl.Permissions, rl.IsHoisted, rl.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update role: %w", err)
 	}
@@ -110,12 +110,12 @@ func (r *pgRepository) RemoveMemberRole(ctx context.Context, guildID, userID, ro
 
 func (r *pgRepository) GetMemberRoles(ctx context.Context, guildID, userID int64) ([]Role, error) {
 	query := `
-		SELECT r.id, r.guild_id, r.name, r.color, r.position, r.permissions, r.is_default, r.version 
+		SELECT r.id, r.guild_id, r.name, r.color, r.position, r.permissions, r.is_default, r.is_hoisted, r.version 
 		FROM roles r
 		INNER JOIN member_roles mr ON r.id = mr.role_id
 		WHERE mr.guild_id = $1 AND mr.user_id = $2
 		UNION
-		SELECT id, guild_id, name, color, position, permissions, is_default, version
+		SELECT id, guild_id, name, color, position, permissions, is_default, is_hoisted, version
 		FROM roles
 		WHERE guild_id = $1 AND is_default = TRUE
 		ORDER BY position DESC
@@ -129,7 +129,7 @@ func (r *pgRepository) GetMemberRoles(ctx context.Context, guildID, userID int64
 	var list []Role
 	for rows.Next() {
 		var rl Role
-		if err := rows.Scan(&rl.ID, &rl.GuildID, &rl.Name, &rl.Color, &rl.Position, &rl.Permissions, &rl.IsDefault, &rl.Version); err != nil {
+		if err := rows.Scan(&rl.ID, &rl.GuildID, &rl.Name, &rl.Color, &rl.Position, &rl.Permissions, &rl.IsDefault, &rl.IsHoisted, &rl.Version); err != nil {
 			return nil, fmt.Errorf("failed to scan member role row: %w", err)
 		}
 		list = append(list, rl)

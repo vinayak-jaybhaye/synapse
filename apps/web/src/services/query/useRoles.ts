@@ -21,11 +21,13 @@ export function useRoles(guildId?: string) {
       name,
       permissions,
       color,
+      is_hoisted,
     }: {
       name: string;
       permissions: string;
       color?: number;
-    }) => rolesApi.createRole(guildId!, name, permissions, color),
+      is_hoisted?: boolean;
+    }) => rolesApi.createRole(guildId!, name, permissions, color, is_hoisted),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: rolesKeys.list(guildId || ""),

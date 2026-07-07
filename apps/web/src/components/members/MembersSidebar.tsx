@@ -10,6 +10,8 @@ import { Crown, VolumeX, Shield, Loader2, X } from "lucide-react";
 import UserProfilePopover from "../../features/profile/components/UserProfilePopover";
 import MemberContextMenu from "./MemberContextMenu";
 import { getMediaUrl } from "../../lib/media";
+import { usePresenceStore } from "../../store/presence-store";
+import { gateway } from "../../features/realtime/gateway";
 
 const getRoleColorHex = (colorNum?: number) => {
   if (!colorNum) return "#94a3b8"; // default gray
@@ -21,7 +23,9 @@ interface MembersSidebarProps {
 }
 
 export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
-  const { activeGuildId } = useGuildStore();
+  const activeGuildId = useGuildStore((s) => s.activeGuildId);
+  const guildHydration = useGuildStore((s) => s.guildHydration);
+  const setGuildHydration = useGuildStore((s) => s.setGuildHydration);
   const { guilds } = useGuilds();
   const {
     infiniteMembers: members,
@@ -33,6 +37,7 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
   } = useMembers(activeGuildId || undefined);
   const { roles } = useRoles(activeGuildId || undefined);
   const { user } = useAuthStore();
+  const statuses = usePresenceStore((s) => s.statuses);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -43,6 +48,15 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
   const currentUserRoles = currentMember?.roles || [];
 
   const observerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!activeGuildId) return;
+    const hydration = guildHydration[activeGuildId];
+    if (hydration === "none" || !hydration) {
+      setGuildHydration(activeGuildId, "pending");
+      gateway.requestGuildPresence(activeGuildId);
+    }
+  }, [activeGuildId, guildHydration, setGuildHydration]);
 
   React.useEffect(() => {
     const observerTarget = observerRef.current;
@@ -67,9 +81,9 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
     return null;
   }
 
-  // 1. Sort roles by position DESC (excluding default @everyone role)
+  // 1. Sort roles by position DESC (excluding default @everyone role) and only HOISTED
   const sortedRoles = [...roles]
-    .filter((r) => !r.is_default)
+    .filter((r) => !r.is_default && r.is_hoisted)
     .sort((a, b) => b.position - a.position);
 
   // 2. Map members to their highest role
@@ -80,7 +94,7 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
     // Find the role with the highest position
     let highestRole = null;
     for (const roleId of userRoleIds) {
-      const r = roles.find((role) => role.id === roleId && !role.is_default);
+      const r = roles.find((role) => role.id === roleId && !role.is_default && role.is_hoisted);
       if (r) {
         if (!highestRole || r.position > highestRole.position) {
           highestRole = r;
@@ -97,7 +111,7 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
 
   // Extendable online status checker (placeholder for websocket connection)
   const isOnline = (userId: string) => {
-    return true; // Assume all are online for now
+    return statuses[userId] === "online";
   };
 
   members.forEach((m) => {
@@ -142,7 +156,11 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
             ) : (
               m.username.substring(0, 2).toUpperCase()
             )}
-            <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-emerald-500 border-[2px] border-bg-primary rounded-full z-10" />
+            {isOnline(m.user_id) ? (
+              <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-emerald-500 border-[2px] border-bg-primary rounded-full z-10" />
+            ) : (
+              <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-gray-500 border-[2px] border-bg-primary rounded-full z-10" />
+            )}
           </div>
 
           <div className="flex flex-col min-w-0">

@@ -26,6 +26,7 @@ export default function RolesTab() {
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [editRoleName, setEditRoleName] = useState("");
   const [editRoleColor, setEditRoleColor] = useState(0);
+  const [editRoleHoisted, setEditRoleHoisted] = useState(false);
   const [editRolePerms, setEditRolePerms] = useState<bigint>(0n);
 
   // Set default role selection
@@ -40,6 +41,7 @@ export default function RolesTab() {
     setSelectedRoleId(role.id);
     setEditRoleName(role.name);
     setEditRoleColor(role.color || 0);
+    setEditRoleHoisted(role.is_hoisted || false);
     setEditRolePerms(BigInt(role.permissions));
   };
 
@@ -50,6 +52,7 @@ export default function RolesTab() {
         name: "New Role",
         permissions: "0",
         color: 0,
+        is_hoisted: false,
       });
       selectRoleForEditing(newRole);
     } catch (err: any) {
@@ -65,6 +68,7 @@ export default function RolesTab() {
         updates: {
           name: editRoleName,
           color: editRoleColor,
+          is_hoisted: editRoleHoisted,
           permissions: editRolePerms.toString(),
         },
       });
@@ -172,6 +176,28 @@ export default function RolesTab() {
                     title={c.label}
                   />
                 ))}
+              </div>
+            </div>
+
+            {/* Role Settings Checkboxes */}
+            <div className="flex flex-col gap-1.5 pt-2">
+              <label className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+                Display Settings
+              </label>
+              <div className="rounded border border-border-custom bg-bg-tertiary overflow-hidden">
+                <div className="flex items-center justify-between p-2.5 gap-4">
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="text-xs font-semibold text-text-primary truncate">
+                      Display role members separately from online members
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={editRoleHoisted}
+                    onChange={(e) => setEditRoleHoisted(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border-custom text-indigo-600 focus:ring-indigo-500 mt-0.5 shrink-0 cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
 
