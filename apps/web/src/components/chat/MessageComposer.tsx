@@ -200,6 +200,13 @@ export default function MessageComposer({
 
   const startUpload = async (uploadState: PendingUploadState) => {
     try {
+      const MB = 1024 * 1024;
+      const MAX_SIZE = 25 * MB;
+
+      if (uploadState.file.size > MAX_SIZE) {
+        throw new Error(`File is too large (max 25MB)`);
+      }
+
       // 1. Generate Upload URL
       const extMatch = uploadState.file.name.match(/(\.[^.]+)$/);
       const extension = extMatch ? extMatch[1] : "";
@@ -236,10 +243,11 @@ export default function MessageComposer({
       setPendingUploads((prev) =>
         prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADED", progress: 100 } : u)),
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload failed for file", uploadState.file.name, error);
+      const errorMessage = error.response?.data?.message || error.message || "Upload failed";
       setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED" } : u)),
+        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED", errorMessage } : u)),
       );
     }
   };

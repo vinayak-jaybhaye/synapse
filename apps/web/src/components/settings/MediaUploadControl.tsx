@@ -43,6 +43,19 @@ export default function MediaUploadControl({
     setIsUploading(true);
     setProgress(0);
 
+    // Validate size before doing anything
+    const MB = 1024 * 1024;
+    let maxSize = 10 * MB; // default 10MB for avatar, guild-icon
+    if (category === "banner" || category === "guild-banner") {
+      maxSize = 20 * MB;
+    }
+
+    if (file.size > maxSize) {
+      setError(`File is too large (max ${maxSize / MB}MB)`);
+      setIsUploading(false);
+      return;
+    }
+
     // Create a local preview immediately
     const localUrl = URL.createObjectURL(file);
     setPreviewUrl(localUrl);
@@ -88,7 +101,8 @@ export default function MediaUploadControl({
       onUploadSuccess(upload_id);
     } catch (err: any) {
       console.error("Upload failed", err);
-      setError(err.message || "Failed to upload file");
+      const errorMessage = err.response?.data?.message || err.message || "Failed to upload file";
+      setError(errorMessage);
       setPreviewUrl(null);
       onPreviewChange?.(null);
       if (localUrl) URL.revokeObjectURL(localUrl);

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_REGION=us-east-1
+
 echo "[localstack-init] starting S3 bootstrap"
 
 if command -v awslocal >/dev/null 2>&1; then

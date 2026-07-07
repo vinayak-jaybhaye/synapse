@@ -32,51 +32,67 @@ func (m *mockMessageRepo) GetByID(ctx context.Context, id int64) (*Message, erro
 	return nil, nil
 }
 
-func (m *mockMessageRepo) ListMessagesCursor(ctx context.Context, channelID, beforeID int64, limit int) ([]MessageResponse, error) {
+func (m *mockMessageRepo) ListMessagesCursor(ctx context.Context, channelID, userID, beforeID int64, limit int) ([]MessageResponse, error) {
 	if m.listMessagesErr != nil {
 		return nil, m.listMessagesErr
 	}
 	return m.listMessages, nil
 }
 
-func (m *mockMessageRepo) CreateMessageWithOutbox(ctx context.Context, msg *Message, event *OutboxEvent) error {
+func (m *mockMessageRepo) CreateMessageWithAttachments(ctx context.Context, msg *Message, uploadIDs []int64) (*MessageResponse, error) {
 	if m.createErr != nil {
-		return m.createErr
+		return nil, m.createErr
 	}
 	m.messages[msg.ID] = msg
+	event := &OutboxEvent{
+		EventType: MessageCreatedEvent,
+	}
 	m.outboxEvents = append(m.outboxEvents, event)
-	return nil
-}
-
-func (m *mockMessageRepo) CreateMessageWithAttachments(ctx context.Context, msg *Message, event *OutboxEvent, uploadIDs []int64) error {
-	return m.CreateMessageWithOutbox(ctx, msg, event)
+	
+	return &MessageResponse{
+		ID:               msg.ID,
+		Content:          msg.Content,
+		ReplyToMessageID: msg.ReplyToMessageID,
+	}, nil
 }
 
 func (m *mockMessageRepo) GetAttachmentWithChannel(ctx context.Context, attachmentID int64) (*Attachment, int64, error) {
 	return nil, 0, nil
 }
 
-func (m *mockMessageRepo) Update(ctx context.Context, msg *Message) error {
+func (m *mockMessageRepo) Update(ctx context.Context, msg *Message, event *OutboxEvent) error {
 	if m.updateErr != nil {
 		return m.updateErr
 	}
 	m.messages[msg.ID] = msg
+	if event != nil {
+		m.outboxEvents = append(m.outboxEvents, event)
+	}
 	return nil
 }
 
-func (m *mockMessageRepo) SoftDelete(ctx context.Context, id int64) error {
+func (m *mockMessageRepo) SoftDelete(ctx context.Context, id int64, event *OutboxEvent) error {
 	if m.softDeleteErr != nil {
 		return m.softDeleteErr
 	}
 	delete(m.messages, id)
+	if event != nil {
+		m.outboxEvents = append(m.outboxEvents, event)
+	}
 	return nil
 }
 
-func (m *mockMessageRepo) AddReaction(ctx context.Context, messageID, userID int64, emoji string) error {
+func (m *mockMessageRepo) AddReaction(ctx context.Context, messageID, userID int64, emoji string, event *OutboxEvent) error {
+	if event != nil {
+		m.outboxEvents = append(m.outboxEvents, event)
+	}
 	return nil
 }
 
-func (m *mockMessageRepo) RemoveReaction(ctx context.Context, messageID, userID int64, emoji string) error {
+func (m *mockMessageRepo) RemoveReaction(ctx context.Context, messageID, userID int64, emoji string, event *OutboxEvent) error {
+	if event != nil {
+		m.outboxEvents = append(m.outboxEvents, event)
+	}
 	return nil
 }
 
@@ -86,6 +102,10 @@ func (m *mockMessageRepo) UpdateReadStatePostgres(ctx context.Context, channelID
 
 func (m *mockMessageRepo) IsDMParticipant(ctx context.Context, channelID int64, userID int64) (bool, error) {
 	return m.isDMParticipant, nil
+}
+
+func (m *mockMessageRepo) GetUserSummary(ctx context.Context, userID int64) (*UserSummary, error) {
+	return &UserSummary{ID: userID, Username: "mockuser"}, nil
 }
 
 // mockChannelRepo implements channels.Repository for testing.
@@ -112,15 +132,15 @@ func (m *mockChannelRepo) ListGuildChannels(ctx context.Context, guildID int64) 
 	return nil, nil
 }
 
-func (m *mockChannelRepo) Create(ctx context.Context, ch *channels.Channel) error {
+func (m *mockChannelRepo) Create(ctx context.Context, ch *channels.Channel, event *channels.OutboxEvent) error {
 	return nil
 }
 
-func (m *mockChannelRepo) Update(ctx context.Context, ch *channels.Channel) error {
+func (m *mockChannelRepo) Update(ctx context.Context, ch *channels.Channel, event *channels.OutboxEvent) error {
 	return nil
 }
 
-func (m *mockChannelRepo) SoftDelete(ctx context.Context, id int64) error {
+func (m *mockChannelRepo) SoftDelete(ctx context.Context, id int64, event *channels.OutboxEvent) error {
 	return nil
 }
 
@@ -132,11 +152,11 @@ func (m *mockChannelRepo) GetRoleOverrides(ctx context.Context, channelID int64)
 	return nil, nil
 }
 
-func (m *mockChannelRepo) PutRoleOverride(ctx context.Context, override *channels.ChannelRolePermissionOverride) error {
+func (m *mockChannelRepo) PutRoleOverride(ctx context.Context, override *channels.ChannelRolePermissionOverride, guildID int64) error {
 	return nil
 }
 
-func (m *mockChannelRepo) DeleteRoleOverride(ctx context.Context, channelID, roleID int64) error {
+func (m *mockChannelRepo) DeleteRoleOverride(ctx context.Context, channelID, roleID int64, guildID int64) error {
 	return nil
 }
 

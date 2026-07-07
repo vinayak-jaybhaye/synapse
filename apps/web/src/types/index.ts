@@ -250,4 +250,5 @@ export interface PendingUploadState {
   uploadId?: string;
   objectKey?: string;
   previewUrl?: string; // object URL for images
+  errorMessage?: string;
 }

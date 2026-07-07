@@ -1,13 +1,48 @@
-.PHONY: web api gateway db-up db-down
+.PHONY: help web api gateway dev db-up db-down db-migrate reset-db
+
+.DEFAULT_GOAL := help
+
+help:
+	@echo "Available commands:"
+	@echo "  help            - Show this help message"
+	@echo "  db-up           - Start infrastructure (postgres, redis, localstack)"
+	@echo "  db-down         - Stop infrastructure"
+	@echo "  db-migrate      - Run database migrations"
+	@echo "  reset-db        - Reset database (WARNING: deletes all data)"
+	@echo "  localstack-init - Initialize localstack"
+	@echo "  dev             - Run API, Gateway, Relay, and Web concurrently"
+	@echo "  api             - Run API server"
+	@echo "  gateway         - Run Gateway server"
+	@echo "  relay           - Run Relay server"
+	@echo "  web             - Run Web client"
+	@echo "  fmt             - Format code"
+	@echo "  lint            - Lint code"
+	@echo "  test            - Run tests"
 
 db-up:
 	docker-compose up -d postgres redis localstack
+	@echo "Waiting for localstack to be ready..."
+	@sleep 5
+	$(MAKE) localstack-init
 
 localstack-init:
 	./localstack-init.sh
 
 db-down:
 	docker-compose down
+
+db-migrate:
+	@for file in apps/api/migrations/*.sql; do \
+		echo "Applying $$file..."; \
+		docker-compose exec -T postgres psql -U postgres -d synapse -f - < "$$file"; \
+	done
+
+reset-db:
+	docker-compose down -v
+	$(MAKE) db-up
+	@echo "Waiting for database to be ready..."
+	@sleep 5
+	$(MAKE) db-migrate
 
 api:
 	cd apps/api && go run cmd/server/main.go
@@ -20,6 +55,9 @@ relay:
 
 web:
 	cd apps/web && pnpm run dev
+
+dev:
+	$(MAKE) -j4 api gateway relay web
 
 # Formatting
 fmt: fmt-go fmt-web

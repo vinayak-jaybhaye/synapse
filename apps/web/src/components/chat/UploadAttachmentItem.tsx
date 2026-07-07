@@ -91,12 +91,17 @@ export default function UploadAttachmentItem({
 
       {/* Failed State Overlay */}
       {upload.state === "FAILED" && (
-        <div className="absolute inset-0 bg-red-950/80 flex flex-col items-center justify-center p-4">
-          <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
-          <span className="text-xs font-semibold text-red-200 text-center mb-3">Upload Failed</span>
+        <div className="absolute inset-0 bg-red-950/90 flex flex-col items-center justify-center p-4">
+          <AlertCircle className="w-8 h-8 text-red-500 mb-2 shrink-0" />
+          <span className="text-xs font-semibold text-red-200 text-center mb-1 line-clamp-1">Upload Failed</span>
+          {upload.errorMessage && (
+            <span className="text-[10px] text-red-300 text-center mb-2 line-clamp-2 leading-tight">
+              {upload.errorMessage}
+            </span>
+          )}
           <button
             onClick={() => onRetry(upload.id)}
-            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md font-medium transition-colors mt-auto"
           >
             <RefreshCw className="w-3 h-3" />
             Retry
