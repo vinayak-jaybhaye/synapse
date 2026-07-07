@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -61,99 +60,7 @@ func Connect(cfg *config.Config) (*DB, error) {
 		Redis: rdb,
 	}
 
-	// 3. Run migrations on startup
-	if err := db.runMigrations(); err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
-	}
-
 	return db, nil
-}
-
-func (db *DB) runMigrations() error {
-	// 1. Initial schema
-	var usersExists bool
-	err := db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'users')").Scan(&usersExists)
-	if err != nil {
-		return fmt.Errorf("failed to check public tables for users: %w", err)
-	}
-
-	if !usersExists {
-		slog.Info("Users table not found, running initial migration...")
-		if err := db.runMigrationFile("001_initial_schema.sql"); err != nil {
-			return err
-		}
-	} else {
-		slog.Info("Users table exists, skipping initial migrations")
-	}
-
-	// 2. Devices and Sessions schema
-	var devicesExists bool
-	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'devices')").Scan(&devicesExists)
-	if err != nil {
-		return fmt.Errorf("failed to check public tables for devices: %w", err)
-	}
-
-	if !devicesExists {
-		slog.Info("Devices table not found, running devices and sessions migration...")
-		if err := db.runMigrationFile("002_devices_and_sessions.sql"); err != nil {
-			return err
-		}
-	} else {
-		slog.Info("Devices table exists, skipping devices and sessions migration")
-	}
-
-	// 3. Outbox and Consistency schemas
-	// We'll use a simple check for the partition_key column to see if 004 was run.
-	var partitionKeyExists bool
-	err = db.PG.QueryRow("SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'outbox_events' AND column_name = 'partition_key')").Scan(&partitionKeyExists)
-	if err != nil {
-		return fmt.Errorf("failed to check for partition_key column: %w", err)
-	}
-
-	if !partitionKeyExists {
-		slog.Info("partition_key not found, running 003 and 004 migrations...")
-		if err := db.runMigrationFile("003_session_user_consistency.sql"); err != nil {
-			slog.Warn("Failed to run 003 migration (might already be applied)", "error", err)
-		}
-		if err := db.runMigrationFile("004_outbox_partitioning.sql"); err != nil {
-			return err
-		}
-	} else {
-		slog.Info("Outbox partitioning exists, skipping 003 and 004 migrations")
-	}
-
-	slog.Info("Database migrations completed successfully")
-	return nil
-}
-
-func (db *DB) runMigrationFile(filename string) error {
-	paths := []string{
-		"migrations/" + filename,
-		"./migrations/" + filename,
-		"apps/api/migrations/" + filename,
-	}
-
-	var content []byte
-	var readErr error
-	for _, p := range paths {
-		content, readErr = os.ReadFile(p)
-		if readErr == nil {
-			slog.Info("Found migration file", "path", p)
-			break
-		}
-	}
-
-	if readErr != nil {
-		return fmt.Errorf("failed to read migration schema file %s: %w", filename, readErr)
-	}
-
-	// Execute migrations
-	_, err := db.PG.Exec(string(content))
-	if err != nil {
-		return fmt.Errorf("failed to execute migration script %s: %w", filename, err)
-	}
-
-	return nil
 }
 
 func (db *DB) Close() {
