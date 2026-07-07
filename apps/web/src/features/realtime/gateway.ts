@@ -1,48 +1,44 @@
 "use client";
 
-import {
-  IGateway,
-  GatewayConnectionState,
-  GatewayEventHandler,
-  GatewayStateHandler,
-} from "./types";
+import { GatewayConnectionState, GatewayEventHandler, GatewayStateHandler } from "./types";
+import { GatewayEvent, GatewayOps } from "./events";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "ws://localhost:8081/ws";
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+if (!GATEWAY_URL) {
+  throw new Error("GATEWAY_URL is not defined");
+}
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
 /**
  * Real WebSocket gateway implementation.
- *
- * Protocol:
- * 1. Connect to ws://gateway/ws
- * 2. Send IDENTIFY { token } — server validates JWT, responds with READY
- * 3. Send SUBSCRIBE_GUILD { guild_id } for each guild the user is in
- * 4. Receive events (VOICE_STATE_UPDATE, MESSAGE_CREATE, etc.)
  */
-export class WebSocketGateway implements IGateway {
+export class WebSocketGateway {
   private ws: WebSocket | null = null;
   private _state: GatewayConnectionState = "disconnected";
   private token: string | null = null;
-  private guildIds: string[] = [];
+
   private eventHandlers: Set<GatewayEventHandler> = new Set();
   private stateHandlers: Set<GatewayStateHandler> = new Set();
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  private heartbeatIntervalMs: number | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
   get state(): GatewayConnectionState {
     return this._state;
   }
 
-  connect(token: string, guildIds?: string[]): void {
+  connect(token: string): void {
     if (this.ws?.readyState === WebSocket.OPEN) return;
     this.token = token;
-    if (guildIds) this.guildIds = guildIds;
     this.reconnectAttempts = 0;
     this.openConnection();
   }
 
   disconnect(): void {
+    this.stopHeartbeat();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -50,7 +46,8 @@ export class WebSocketGateway implements IGateway {
     this.reconnectAttempts = MAX_RECONNECT_ATTEMPTS; // prevent auto-reconnect
     this.ws?.close(1000, "user disconnect");
     this.ws = null;
-    this.setState("disconnected");
+    this._state = "disconnected";
+    this.token = null;
   }
 
   onEvent(handler: GatewayEventHandler): () => void {
@@ -63,73 +60,128 @@ export class WebSocketGateway implements IGateway {
     return () => this.stateHandlers.delete(handler);
   }
 
-  /** Subscribe to a specific guild's events. Can be called after connect. */
-  subscribeGuild(guildId: string): void {
-    if (!this.guildIds.includes(guildId)) {
-      this.guildIds.push(guildId);
-    }
-    this.sendRaw({ type: "SUBSCRIBE_GUILD", data: { guild_id: guildId } });
+  sendTypingStart(channelId: string): void {
+    this.sendRaw({
+      op: "TYPING_START",
+      d: { channel_id: channelId },
+    });
+  }
+
+  requestGuildPresence(guildId: string): void {
+    this.sendRaw({
+      op: "REQUEST_GUILD_PRESENCE",
+      d: { guild_id: guildId },
+    });
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────────
 
   private openConnection() {
     this.setState("connecting");
-    const ws = new WebSocket(GATEWAY_URL);
+    const ws = new WebSocket(GATEWAY_URL!);
     this.ws = ws;
 
     ws.onopen = () => {
+      console.log("[Gateway] WebSocket connected!");
       this.reconnectAttempts = 0;
-      // Send IDENTIFY immediately
-      this.sendRaw({ type: "IDENTIFY", data: { token: this.token } });
+      // We don't send IDENTIFY immediately. We wait for HELLO from server.
     };
 
     ws.onmessage = (ev) => {
       try {
-        const msg = JSON.parse(ev.data);
+        const msg = JSON.parse(ev.data) as GatewayEvent;
         this.handleMessage(msg);
       } catch {
         console.error("[Gateway] Failed to parse message", ev.data);
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      console.log("[Gateway] WebSocket closed", ev.code, ev.reason);
       this.ws = null;
+      this.stopHeartbeat();
       if (this._state !== "disconnected") {
         this.setState("reconnecting");
         this.scheduleReconnect();
       }
     };
 
-    ws.onerror = () => {
+    ws.onerror = (err) => {
+      console.error("[Gateway] WebSocket error", err);
       ws.close();
     };
   }
 
-  private handleMessage(msg: { type: string; data?: unknown }) {
-    switch (msg.type) {
-      case "READY":
-        this.setState("connected");
-        // Subscribe to all guilds after READY
-        this.guildIds.forEach((gid) => {
-          this.sendRaw({ type: "SUBSCRIBE_GUILD", data: { guild_id: gid } });
+  private handleMessage(msg: GatewayEvent) {
+    console.log("[Gateway Event]", msg);
+    switch (msg.op) {
+      case GatewayOps.HELLO: {
+        const data = msg.d as { heartbeat_interval: number };
+        this.heartbeatIntervalMs = data.heartbeat_interval;
+        this.startHeartbeat();
+
+        // Always IDENTIFY
+        this.sendRaw({
+          op: "IDENTIFY",
+          d: { token: this.token },
         });
         break;
+      }
 
-      case "PONG":
-        break;
-
-      default: {
-        // Fan-out all other events to registered handlers
-        const event = msg as any;
+      case GatewayOps.DISPATCH: {
+        // Fan-out to handlers
         this.eventHandlers.forEach((h) => {
           try {
-            h(event);
+            h(msg);
           } catch {
             /* ignore handler errors */
           }
         });
+
+        // If it's a READY event (often sent as a dispatch), mark connected
+        if (msg.t === ("READY" as any)) {
+          this.setState("connected");
+        }
+        break;
       }
+
+      case GatewayOps.HEARTBEAT_ACK:
+        // Could track latency here
+        break;
+
+      case GatewayOps.INVALID_SESSION: {
+        console.warn("[Gateway] Invalid session, clearing state and reconnecting");
+        this.stopHeartbeat();
+        // Must IDENTIFY again
+        this.sendRaw({
+          op: "IDENTIFY",
+          d: { token: this.token },
+        });
+        break;
+      }
+
+      case GatewayOps.RECONNECT:
+        this.ws?.close(); // Let the onclose handler reconnect us
+        break;
+
+      default:
+        console.warn("[Gateway] Unhandled op", msg.op);
+    }
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    if (!this.heartbeatIntervalMs) return;
+
+    this.heartbeatTimer = setInterval(() => {
+      this.sendRaw({ op: GatewayOps.HEARTBEAT, d: null });
+    }, this.heartbeatIntervalMs);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
   }
 
@@ -167,6 +219,4 @@ export class WebSocketGateway implements IGateway {
 /**
  * Singleton gateway instance.
  */
-export const gateway: IGateway & {
-  subscribeGuild?: (guildId: string) => void;
-} = new WebSocketGateway();
+export const gateway = new WebSocketGateway();

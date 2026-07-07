@@ -4,13 +4,19 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../../store/auth-store";
 import { gateway } from "./gateway";
-import { GatewayEvent } from "./types";
+import { GatewayEvent, GatewayOps } from "./events";
 import { messagesKeys } from "../../services/query/useMessages";
+
 import { channelsKeys } from "../../services/query/useChannels";
 import { membersKeys } from "../../services/query/useMembers";
+import { GUILDS_QUERY_KEY } from "../../services/query/useGuilds";
+import { bansKeys } from "../../services/query/useBans";
 import { Message } from "../../types";
 import { useVoiceStore } from "../voice/voiceStore";
 import { useUIStore } from "../../store/ui-store";
+import { useTypingStore } from "../../store/typing-store";
+import { usePresenceStore } from "../../store/presence-store";
+import { useGuildStore } from "../../store/guild-store";
 
 /**
  * Hook that connects the gateway to React Query's cache and voice store.
@@ -22,25 +28,45 @@ import { useUIStore } from "../../store/ui-store";
  */
 export function useGateway() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((s) => s.token);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const handlerRef = useRef<(() => void) | null>(null);
-  const voiceStore = useVoiceStore();
 
   useEffect(() => {
-    if (!token) {
+    if (!isAuthenticated) {
       gateway.disconnect();
       return;
     }
 
-    gateway.connect(token);
+    gateway.connect("");
+
+    // Reset hydration state on connect/reconnect
+    const unsubscribeState = gateway.onStateChange((state) => {
+      if (state === "connected") {
+        useGuildStore.getState().resetHydration();
+      }
+    });
 
     // Subscribe to gateway events and route them to query cache / voice store
     const unsubscribe = gateway.onEvent((event: GatewayEvent) => {
-      switch (event.type) {
+      console.log("[Gateway Hook Received Event]", event);
+      if (event.op !== GatewayOps.DISPATCH) return;
+
+      switch (event.t) {
         case "MESSAGE_CREATE": {
-          const msg = event.data;
-          queryClient.setQueryData(messagesKeys.list(msg.channel_id), (old: any) => {
+          const msg = event.d as any;
+          queryClient.setQueryData(messagesKeys.list(String(msg.channel_id)), (old: any) => {
             if (!old?.pages) return old;
+
+            const exists = old.pages.some((page: any[]) => page.some((m: any) => m.id === msg.id));
+            if (exists) {
+              return {
+                ...old,
+                pages: old.pages.map((page: any[]) =>
+                  page.map((m: any) => (m.id === msg.id ? { ...m, ...msg } : m)),
+                ),
+              };
+            }
+
             const lastPage = old.pages[0] || [];
             return {
               ...old,
@@ -51,13 +77,13 @@ export function useGateway() {
         }
 
         case "MESSAGE_UPDATE": {
-          const msg = event.data;
-          queryClient.setQueryData(messagesKeys.list(msg.channel_id), (old: any) => {
+          const msg = event.d as any;
+          queryClient.setQueryData(messagesKeys.list(String(msg.channel_id)), (old: any) => {
             if (!old?.pages) return old;
             return {
               ...old,
               pages: old.pages.map((page: Message[]) =>
-                page.map((m) => (m.id === msg.id ? msg : m)),
+                page.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
               ),
             };
           });
@@ -65,8 +91,8 @@ export function useGateway() {
         }
 
         case "MESSAGE_DELETE": {
-          const { id, channel_id } = event.data;
-          queryClient.setQueryData(messagesKeys.list(channel_id), (old: any) => {
+          const { id, channel_id } = event.d as any;
+          queryClient.setQueryData(messagesKeys.list(String(channel_id)), (old: any) => {
             if (!old?.pages) return old;
             return {
               ...old,
@@ -78,51 +104,174 @@ export function useGateway() {
           break;
         }
 
-        case "CHANNEL_CREATE":
-        case "CHANNEL_UPDATE":
-        case "CHANNEL_DELETE": {
-          const guildId = "guild_id" in event.data ? event.data.guild_id : undefined;
+        case "MESSAGE_REACTION_ADD": {
+          const { message_id, channel_id, user_id, emoji } = event.d as any;
+          const currentUserId = useAuthStore.getState().user?.id;
+          const isMe = !!(currentUserId && user_id === currentUserId);
+          queryClient.setQueryData(messagesKeys.list(String(channel_id)), (old: any) => {
+            if (!old?.pages) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: Message[]) =>
+                page.map((m) => {
+                  if (m.id === message_id) {
+                    const reactions = m.reactions || [];
+                    const existing = reactions.find((r) => r.emoji === emoji);
+                    return {
+                      ...m,
+                      reactions: existing
+                        ? reactions.map((r) =>
+                            r.emoji === emoji ? { ...r, count: r.count + 1, me: r.me || isMe } : r,
+                          )
+                        : [...reactions, { emoji, count: 1, me: isMe }],
+                    };
+                  }
+                  return m;
+                }),
+              ),
+            };
+          });
+          break;
+        }
+
+        case "MESSAGE_REACTION_REMOVE": {
+          const { message_id, channel_id, user_id, emoji } = event.d as any;
+          const currentUserId = useAuthStore.getState().user?.id;
+          const isMe = !!(currentUserId && user_id === currentUserId);
+          queryClient.setQueryData(messagesKeys.list(String(channel_id)), (old: any) => {
+            if (!old?.pages) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: Message[]) =>
+                page.map((m) => {
+                  if (m.id === message_id) {
+                    const reactions = m.reactions || [];
+                    const existing = reactions.find((r) => r.emoji === emoji);
+                    if (existing) {
+                      const updatedReactions = reactions
+                        .map((r) =>
+                          r.emoji === emoji
+                            ? { ...r, count: r.count - 1, me: isMe ? false : r.me }
+                            : r,
+                        )
+                        .filter((r) => r.count > 0);
+                      return { ...m, reactions: updatedReactions };
+                    }
+                  }
+                  return m;
+                }),
+              ),
+            };
+          });
+          break;
+        }
+
+        case "CHANNEL_CREATE": {
+          const data = event.d as any;
+          const guildId = data.guild_id;
           if (guildId) {
             queryClient.invalidateQueries({
-              queryKey: channelsKeys.list(guildId),
+              queryKey: channelsKeys.list(String(guildId)),
             });
           }
           break;
         }
 
-        case "MEMBER_JOIN":
-        case "MEMBER_LEAVE":
-        case "MEMBER_UPDATE": {
-          const guildId = "guild_id" in event.data ? event.data.guild_id : undefined;
+        case "CHANNEL_UPDATE":
+        case "CHANNEL_DELETE": {
+          const data = event.d as any;
+          const guildId = data.guild_id;
           if (guildId) {
             queryClient.invalidateQueries({
-              queryKey: membersKeys.list(guildId),
+              queryKey: channelsKeys.list(String(guildId)),
+            });
+          }
+          break;
+        }
+
+        case "GUILD_MEMBER_ADD":
+        case "GUILD_MEMBER_REMOVE":
+        case "GUILD_MEMBER_UPDATE": {
+          const data = event.d as any;
+          const guildId = data.guild_id;
+          if (guildId) {
+            queryClient.invalidateQueries({
+              queryKey: membersKeys.list(String(guildId)),
+            });
+          }
+          break;
+        }
+
+        case "GUILD_UPDATE": {
+          queryClient.invalidateQueries({
+            queryKey: GUILDS_QUERY_KEY,
+          });
+          break;
+        }
+
+        case "USER_DM_CREATE": {
+          queryClient.invalidateQueries({
+            queryKey: ["dms"],
+          });
+          break;
+        }
+
+        case "GUILD_BAN_ADD": {
+          const data = event.d as any;
+          const guildId = data.guild_id;
+          if (guildId) {
+            queryClient.invalidateQueries({
+              queryKey: bansKeys.list(String(guildId)),
             });
           }
           break;
         }
 
         case "VOICE_STATE_UPDATE": {
-          const eventData = event.data;
-          // Route to voice store — never sets `speaking` (LiveKit-local only)
-          voiceStore.updateFromGatewayEvent(eventData);
+          const eventData = event.d as any;
+          // Route to voice store statically — never sets `speaking` (LiveKit-local only)
+          useVoiceStore.getState().updateFromGatewayEvent(eventData);
 
           // If the leave event is for the local user, we were kicked/ejected!
           const { state, action } = eventData;
           const localUser = useAuthStore.getState().user;
           if (action === "leave" && localUser && state && state.user_id === localUser.id) {
-            const activeRoom = voiceStore.room;
+            const activeRoom = useVoiceStore.getState().room;
             if (activeRoom) {
               console.warn(
                 "[Gateway] Local user evicted from voice channel; disconnecting local WebRTC room.",
               );
               activeRoom.disconnect();
-              voiceStore.clearActive();
+              useVoiceStore.getState().clearActive();
               useUIStore
                 .getState()
                 .showToast("Ejected from the voice channel by a moderator.", "error");
             }
           }
+          break;
+        }
+
+        case "TYPING_START": {
+          const { channel_id, user_id } = event.d as any;
+          const currentUserId = useAuthStore.getState().user?.id;
+          if (currentUserId && user_id === currentUserId) break;
+          useTypingStore.getState().setTyping(channel_id, user_id);
+          break;
+        }
+
+        case "PRESENCE_UPDATE": {
+          const { user_id, status } = event.d as any;
+          usePresenceStore.getState().setStatus(user_id, status);
+          break;
+        }
+
+        case "GUILD_PRESENCE_BULK": {
+          const { guild_id, presences } = event.d as any;
+          const store = usePresenceStore.getState();
+          presences.forEach((p: any) => {
+            store.setStatus(p.user_id, p.status);
+          });
+          useGuildStore.getState().setGuildHydration(guild_id, "hydrated");
           break;
         }
 
@@ -135,7 +284,8 @@ export function useGateway() {
 
     return () => {
       unsubscribe();
+      unsubscribeState();
       gateway.disconnect();
     };
-  }, [token, queryClient]);
+  }, [isAuthenticated, queryClient]);
 }
