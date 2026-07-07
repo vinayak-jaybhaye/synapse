@@ -8,6 +8,7 @@ import UploadAttachmentItem from "./UploadAttachmentItem";
 import { PendingUploadState } from "../../types";
 import { useChannelPermissions } from "../../hooks/usePermissions";
 import { mediaApi } from "../../services/api/media";
+import { gateway } from "../../features/realtime/gateway";
 
 interface MessageComposerProps {
   channelId: string;
@@ -89,6 +90,8 @@ export default function MessageComposer({
     }
   };
 
+  const lastTypingRef = useRef<number>(0);
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInputText(val);
@@ -96,6 +99,12 @@ export default function MessageComposer({
       setDraft(draftKey, val);
     }
     adjustTextareaHeight();
+
+    const now = Date.now();
+    if (val.length > 0 && now - lastTypingRef.current > 2000) {
+      lastTypingRef.current = now;
+      gateway.sendTypingStart(channelId);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

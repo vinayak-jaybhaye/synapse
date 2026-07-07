@@ -2,91 +2,57 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 )
 
+// Config holds all environmental configuration variables needed by the Gateway.
 type Config struct {
-	Port              string
-	RedisHost         string
-	RedisPort         string
-	JWTSecret         string
-	DBHost            string
-	DBPort            string
-	DBUser            string
-	DBPassword        string
-	DBName            string
-	DBSSLMode         string
-	SessionCookieName string
+	Port              string // Gateway port to listen on (e.g. 8081).
+	RedisHost         string // Redis host address.
+	RedisPort         string // Redis port.
+	DBHost            string // PostgreSQL host address.
+	DBPort            string // PostgreSQL port.
+	DBUser            string // PostgreSQL user.
+	DBPassword        string // PostgreSQL password.
+	DBName            string // PostgreSQL database name.
+	DBSSLMode         string // PostgreSQL SSL mode setting.
+	SessionCookieName string // Cookie key name holding the session token.
 }
 
+// requireEnv fetches the environment variable or calls log.Fatalf to fail fast if missing.
+func requireEnv(key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		log.Fatalf("gateway config error: required environment variable %s is not set", key)
+	}
+	return val
+}
+
+// Load reads config variables from the environment.
+// It fails fast (exits the application) if any required variable is missing.
 func Load() *Config {
-	port := os.Getenv("GATEWAY_PORT")
-	if port == "" {
-		port = "8081"
-	}
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "localhost"
-	}
-	redisPort := os.Getenv("REDIS_PORT")
-	if redisPort == "" {
-		redisPort = "6379"
-	}
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "supersecretjwtkey123"
-	}
-
-	dbHost := os.Getenv("POSTGRES_HOST")
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
-	dbPort := os.Getenv("POSTGRES_PORT")
-	if dbPort == "" {
-		dbPort = "5432"
-	}
-	dbUser := os.Getenv("POSTGRES_USER")
-	if dbUser == "" {
-		dbUser = "postgres"
-	}
-	dbPassword := os.Getenv("POSTGRES_PASSWORD")
-	if dbPassword == "" {
-		dbPassword = "postgres"
-	}
-	dbName := os.Getenv("POSTGRES_DB")
-	if dbName == "" {
-		dbName = "synapse"
-	}
-	dbSSLMode := os.Getenv("POSTGRES_SSLMODE")
-	if dbSSLMode == "" {
-		dbSSLMode = "disable"
-	}
-
-	sessionCookieName := os.Getenv("SESSION_COOKIE_NAME")
-	if sessionCookieName == "" {
-		sessionCookieName = "session_token"
-	}
-
 	return &Config{
-		Port:              port,
-		RedisHost:         redisHost,
-		RedisPort:         redisPort,
-		JWTSecret:         jwtSecret,
-		DBHost:            dbHost,
-		DBPort:            dbPort,
-		DBUser:            dbUser,
-		DBPassword:        dbPassword,
-		DBName:            dbName,
-		DBSSLMode:         dbSSLMode,
-		SessionCookieName: sessionCookieName,
+		Port:              requireEnv("GATEWAY_PORT"),
+		RedisHost:         requireEnv("REDIS_HOST"),
+		RedisPort:         requireEnv("REDIS_PORT"),
+		DBHost:            requireEnv("POSTGRES_HOST"),
+		DBPort:            requireEnv("POSTGRES_PORT"),
+		DBUser:            requireEnv("POSTGRES_USER"),
+		DBPassword:        requireEnv("POSTGRES_PASSWORD"),
+		DBName:            requireEnv("POSTGRES_DB"),
+		DBSSLMode:         requireEnv("POSTGRES_SSLMODE"),
+		SessionCookieName: requireEnv("SESSION_COOKIE_NAME"),
 	}
 }
 
+// PostgresDSN returns the connection string formatted for the PostgreSQL driver.
 func (c *Config) PostgresDSN() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode)
 }
 
+// RedisAddress returns the endpoint string formatted for the Redis client.
 func (c *Config) RedisAddress() string {
 	return fmt.Sprintf("%s:%s", c.RedisHost, c.RedisPort)
 }

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	lkproto "github.com/livekit/protocol/livekit"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/permissions"
-	lkproto "github.com/livekit/protocol/livekit"
 )
 
 // Service is the voice business logic interface.
@@ -96,7 +96,6 @@ func (s *service) LeaveVoiceChannel(ctx context.Context, guildID, channelID, use
 	_ = s.lk.RemoveParticipant(ctx, roomName, identity)
 	return nil
 }
-
 
 func (s *service) GetChannelVoiceStates(ctx context.Context, guildID, channelID int64) ([]VoiceState, error) {
 	return s.repo.ListChannelVoiceStates(ctx, guildID, channelID)

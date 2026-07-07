@@ -131,6 +131,7 @@ export interface Role {
   position: number;
   permissions: string;
   is_default?: boolean;
+  is_hoisted?: boolean;
 }
 
 export interface Invite {
@@ -156,6 +157,7 @@ export interface Attachment {
 export interface ReactionSummary {
   emoji: string;
   count: number;
+  me: boolean;
 }
 
 export interface UserSummary {

@@ -76,6 +76,24 @@ services:
       redis:
         condition: service_healthy
 
+  relay:
+    build:
+      context: ./apps/relay
+      dockerfile: Dockerfile
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-synapse}
+      - REDIS_ADDR=redis:6379
+      - WORKER_COUNT=16
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   web:
     build:
       context: ./apps/web

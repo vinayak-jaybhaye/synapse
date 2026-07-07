@@ -30,7 +30,6 @@ export default function MessageReplyPreview({ replyPreview }: MessageReplyPrevie
 
   return (
     <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1 relative ml-1 select-none">
-      {/* Discord-style curved connector line */}
       <div className="absolute -left-[32px] top-1/2 w-[24px] h-[16px] border-l-2 border-t-2 border-border-custom/80 rounded-tl-lg pointer-events-none -translate-y-full" />
 
       {/* Tiny Avatar initial */}

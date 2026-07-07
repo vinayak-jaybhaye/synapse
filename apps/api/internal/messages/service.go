@@ -90,7 +90,7 @@ func (s *service) GetMessages(ctx context.Context, channelID, userID, beforeID i
 		limit = 50
 	}
 
-	return s.repo.ListMessagesCursor(ctx, channelID, beforeID, limit)
+	return s.repo.ListMessagesCursor(ctx, channelID, userID, beforeID, limit)
 }
 
 func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req *CreateMessageRequest) (*MessageResponse, error) {
@@ -137,27 +137,7 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 		CreatedAt:        time.Now(),
 	}
 
-	// 5. Build Outbox Event
-	payloadMap := map[string]interface{}{
-		"event_type": MessageCreatedEvent,
-		"message_id": strconv.FormatInt(msg.ID, 10),
-		"channel_id": strconv.FormatInt(msg.ChannelID, 10),
-		"author_id":  strconv.FormatInt(msg.AuthorID, 10),
-	}
-	payloadBytes, err := json.Marshal(payloadMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal outbox event payload: %w", err)
-	}
-
-	event := &OutboxEvent{
-		ID:            snowflake.GenerateID(),
-		AggregateType: "channel",
-		AggregateID:   channelID,
-		EventType:     MessageCreatedEvent,
-		Payload:       payloadBytes,
-	}
-
-	// 6. Persist Message, Consume Attachments, and Outbox Event Atomically
+	// 5. Consume Attachments and Persist
 	var uploadIDs []int64
 	for _, idStr := range req.AttachmentUploadIDs {
 		id, err := strconv.ParseInt(idStr, 10, 64)
@@ -167,29 +147,12 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 		uploadIDs = append(uploadIDs, id)
 	}
 
-	if err := s.repo.CreateMessageWithAttachments(ctx, msg, event, uploadIDs); err != nil {
-		// If it's a domain error (like unverified attachments), pass it through, otherwise it will bubble up as 500
+	response, err := s.repo.CreateMessageWithAttachments(ctx, msg, uploadIDs)
+	if err != nil {
 		return nil, err
 	}
 
-	// 7. Reload to get populated ReplyPreview
-	fullMsg, err := s.repo.GetByID(ctx, msg.ID)
-	if err == nil && fullMsg != nil {
-		msg = fullMsg
-	}
-
-	return &MessageResponse{
-		ID:               msg.ID,
-		ChannelID:        msg.ChannelID,
-		AuthorID:         msg.AuthorID,
-		Author:           msg.Author,
-		ReplyToMessageID: msg.ReplyToMessageID,
-		ReplyPreview:     msg.ReplyPreview,
-		MessageType:      msg.MessageType,
-		Content:          msg.Content,
-		CreatedAt:        msg.CreatedAt,
-		Attachments:      msg.Attachments,
-	}, nil
+	return response, nil
 }
 
 func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID int64, req *UpdateMessageRequest) (*MessageResponse, error) {
@@ -225,11 +188,7 @@ func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID 
 	editedAt := time.Now()
 	msg.EditedAt = &editedAt
 
-	if err := s.repo.Update(ctx, msg); err != nil {
-		return nil, err
-	}
-
-	return &MessageResponse{
+	response := &MessageResponse{
 		ID:               msg.ID,
 		ChannelID:        msg.ChannelID,
 		AuthorID:         msg.AuthorID,
@@ -241,7 +200,22 @@ func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID 
 		CreatedAt:        msg.CreatedAt,
 		EditedAt:         msg.EditedAt,
 		Attachments:      msg.Attachments,
-	}, nil
+	}
+
+	payloadBytes, _ := json.Marshal(response)
+	event := &OutboxEvent{
+		AggregateType: "channel",
+		AggregateID:   channelID,
+		EventType:     "MESSAGE_UPDATE",
+		Payload:       payloadBytes,
+		PartitionKey:  int16(channelID % 16),
+	}
+
+	if err := s.repo.Update(ctx, msg, event); err != nil {
+		return nil, err
+	}
+
+	return response, nil
 }
 
 func (s *service) DeleteMessage(ctx context.Context, channelID, messageID, userID int64) error {
@@ -277,7 +251,25 @@ func (s *service) DeleteMessage(ctx context.Context, channelID, messageID, userI
 		}
 	}
 
-	return s.repo.SoftDelete(ctx, messageID)
+	type DeletePayload struct {
+		ID        int64 `json:"id,string"`
+		ChannelID int64 `json:"channel_id,string"`
+	}
+
+	payloadBytes, _ := json.Marshal(DeletePayload{
+		ID:        messageID,
+		ChannelID: channelID,
+	})
+
+	event := &OutboxEvent{
+		AggregateType: "channel",
+		AggregateID:   channelID,
+		EventType:     "MESSAGE_DELETE",
+		Payload:       payloadBytes,
+		PartitionKey:  int16(channelID % 16),
+	}
+
+	return s.repo.SoftDelete(ctx, messageID, event)
 }
 
 func (s *service) SyncReadState(ctx context.Context, channelID, userID, lastReadMessageID int64) error {
@@ -316,7 +308,27 @@ func (s *service) AddMessageReaction(ctx context.Context, channelID, messageID, 
 		return errors.NewNotFound("message not found")
 	}
 
-	return s.repo.AddReaction(ctx, messageID, userID, emoji)
+	type ReactionPayload struct {
+		MessageID int64  `json:"message_id,string"`
+		ChannelID int64  `json:"channel_id,string"`
+		UserID    int64  `json:"user_id,string"`
+		Emoji     string `json:"emoji"`
+	}
+	payloadBytes, _ := json.Marshal(ReactionPayload{
+		MessageID: messageID,
+		ChannelID: channelID,
+		UserID:    userID,
+		Emoji:     emoji,
+	})
+	event := &OutboxEvent{
+		AggregateType: "channel",
+		AggregateID:   channelID,
+		EventType:     "MESSAGE_REACTION_ADD",
+		Payload:       payloadBytes,
+		PartitionKey:  int16(channelID % 16),
+	}
+
+	return s.repo.AddReaction(ctx, messageID, userID, emoji, event)
 }
 
 func (s *service) RemoveMessageReaction(ctx context.Context, channelID, messageID, userID int64, emoji string) error {
@@ -333,7 +345,27 @@ func (s *service) RemoveMessageReaction(ctx context.Context, channelID, messageI
 		return errors.NewNotFound("message not found")
 	}
 
-	return s.repo.RemoveReaction(ctx, messageID, userID, emoji)
+	type ReactionPayload struct {
+		MessageID int64  `json:"message_id,string"`
+		ChannelID int64  `json:"channel_id,string"`
+		UserID    int64  `json:"user_id,string"`
+		Emoji     string `json:"emoji"`
+	}
+	payloadBytes, _ := json.Marshal(ReactionPayload{
+		MessageID: messageID,
+		ChannelID: channelID,
+		UserID:    userID,
+		Emoji:     emoji,
+	})
+	event := &OutboxEvent{
+		AggregateType: "channel",
+		AggregateID:   channelID,
+		EventType:     "MESSAGE_REACTION_REMOVE",
+		Payload:       payloadBytes,
+		PartitionKey:  int16(channelID % 16),
+	}
+
+	return s.repo.RemoveReaction(ctx, messageID, userID, emoji, event)
 }
 
 func (s *service) GenerateAttachmentUploadURL(ctx context.Context, channelID, userID int64, req *media.UploadRequest) (*media.UploadResponse, error) {

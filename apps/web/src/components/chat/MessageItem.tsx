@@ -25,7 +25,7 @@ interface MessageItemProps {
   canAddReactions?: boolean;
 }
 
-export default function MessageItem({
+export default React.memo(function MessageItem({
   msg,
   onReply,
   onEdit,
@@ -145,4 +145,4 @@ export default function MessageItem({
       )}
     </div>
   );
-}
+});

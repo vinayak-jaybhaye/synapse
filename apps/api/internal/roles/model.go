@@ -9,8 +9,8 @@ type Role struct {
 	Permissions int64  `json:"permissions,string"`
 	IsDefault   bool   `json:"is_default"`
 	// IsHoisted determines if members with this role should be visually separated in the member list
-	IsHoisted   bool   `json:"is_hoisted"`
-	Version     int    `json:"version"`
+	IsHoisted bool `json:"is_hoisted"`
+	Version   int  `json:"version"`
 }
 
 type CreateRoleRequest struct {

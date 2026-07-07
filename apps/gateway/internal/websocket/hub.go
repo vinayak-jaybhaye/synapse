@@ -694,14 +694,14 @@ func (h *Hub) HandleGuildMemberRemove(ctx context.Context, guildID, userID int64
 }
 
 // HandleUserDMCreate dynamically subscribes participants to a new DM channel.
-// This is critical for deferred DM creation, as the target user won't be subscribed 
+// This is critical for deferred DM creation, as the target user won't be subscribed
 // to this channel id since it was created after they connected to the gateway.
 func (h *Hub) HandleUserDMCreate(ctx context.Context, channelID, user1ID, user2ID int64) {
 	h.mu.Lock()
 	if h.channelClients[channelID] == nil {
 		h.channelClients[channelID] = make(map[*Client]bool)
 	}
-	
+
 	var targets []*Client
 	for c := range h.clients {
 		if c.userID == user1ID || c.userID == user2ID {

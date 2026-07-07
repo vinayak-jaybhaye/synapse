@@ -551,7 +551,6 @@ func TestSecurityCases(t *testing.T) {
 		}
 	})
 
-
 	t.Run("Token generation uses crypto/rand - raw token is not the hash", func(t *testing.T) {
 		svcInternal := svc.(*sessionService)
 		raw, hash, err := svcInternal.generateTokenPair()

@@ -22,7 +22,8 @@ function getOrCreateDeviceID(): string {
   if (typeof window === "undefined") return "web-ssr";
   let deviceId = localStorage.getItem("synapse_device_id");
   if (!deviceId) {
-    deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    deviceId =
+      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     localStorage.setItem("synapse_device_id", deviceId);
   }
   return deviceId;

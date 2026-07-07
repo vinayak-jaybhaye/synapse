@@ -45,7 +45,6 @@ type UpdateMemberRequest struct {
 	IsMuted  *bool   `json:"is_muted,omitempty"`
 }
 
-
 type UpdateGuildRequest struct {
 	Name           *string `json:"name,omitempty"`
 	Description    *string `json:"description,omitempty"`
@@ -64,4 +63,14 @@ type BanWithUser struct {
 	Reason      *string   `json:"reason,omitempty"`
 	BannedBy    int64     `json:"banned_by,string"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+// OutboxEvent represents a transactional outbox record
+type OutboxEvent struct {
+	ID            int64
+	AggregateType string
+	AggregateID   int64
+	EventType     string
+	Payload       []byte
+	PartitionKey  int16
 }

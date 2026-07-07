@@ -63,6 +63,7 @@ type MessageResponse struct {
 type ReactionSummary struct {
 	Emoji string `json:"emoji"`
 	Count int    `json:"count"`
+	Me    bool   `json:"me"`
 }
 
 type CreateMessageRequest struct {
@@ -93,4 +94,5 @@ type OutboxEvent struct {
 	AggregateID   int64
 	EventType     string
 	Payload       []byte
+	PartitionKey  int16
 }

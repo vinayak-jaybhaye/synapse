@@ -167,10 +167,7 @@ export default function DevicesSessionsTab() {
     setLoading(true);
     setError(null);
     try {
-      const [devs, sessResp] = await Promise.all([
-        authApi.getDevices(),
-        authApi.getSessions(),
-      ]);
+      const [devs, sessResp] = await Promise.all([authApi.getDevices(), authApi.getSessions()]);
       setDevices((devs || []).map(mapDevice));
       const rawSessions = sessResp?.sessions ?? (Array.isArray(sessResp) ? sessResp : []);
       setSessions(rawSessions.map(mapSession));
@@ -182,7 +179,9 @@ export default function DevicesSessionsTab() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleRevokeSession = async (sessionId: string) => {
     setRevoking((p) => ({ ...p, [sessionId]: true }));
@@ -237,12 +236,11 @@ export default function DevicesSessionsTab() {
   }
 
   const activeSessions = sessions.filter((s) => s.status === "ACTIVE").length;
-  const activeDevices  = devices.filter((d) => d.status === "ACTIVE").length;
+  const activeDevices = devices.filter((d) => d.status === "ACTIVE").length;
 
   /* ── Render ── */
   return (
     <div className="space-y-6 pb-4">
-
       {/* Section header — matches ProfileTab pattern */}
       <div className="border-b border-border-custom pb-3">
         <div className="flex items-center justify-between gap-3">
@@ -259,7 +257,8 @@ export default function DevicesSessionsTab() {
           </button>
         </div>
         <p className="text-[11px] text-text-muted mt-0.5">
-          {activeSessions} active session{activeSessions !== 1 ? "s" : ""} across {activeDevices} device{activeDevices !== 1 ? "s" : ""}. Timestamps shown in your local timezone.
+          {activeSessions} active session{activeSessions !== 1 ? "s" : ""} across {activeDevices}{" "}
+          device{activeDevices !== 1 ? "s" : ""}. Timestamps shown in your local timezone.
         </p>
       </div>
 
@@ -274,7 +273,8 @@ export default function DevicesSessionsTab() {
           {devices.map((device, di) => {
             const isRevoked = device.status === "REVOKED";
             const deviceSessions = sessions.filter(
-              (s) => s.device_id === device.id || (s.device && s.device.device_id === device.device_id)
+              (s) =>
+                s.device_id === device.id || (s.device && s.device.device_id === device.device_id),
             );
             const hasCurrentSession = deviceSessions.some((s) => s.id === currentSessionId);
 
@@ -285,8 +285,8 @@ export default function DevicesSessionsTab() {
                   isRevoked
                     ? "border-border-custom opacity-60"
                     : hasCurrentSession
-                    ? "border-indigo-500/40"
-                    : "border-border-custom"
+                      ? "border-indigo-500/40"
+                      : "border-border-custom"
                 }`}
               >
                 {/* ── Device header ── */}
@@ -351,10 +351,11 @@ export default function DevicesSessionsTab() {
                       className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-bg-tertiary border border-border-custom text-red-400 hover:bg-red-500/10 hover:border-red-500/30 disabled:opacity-50 transition-colors cursor-pointer"
                       title="Revoke device and all its sessions"
                     >
-                      {revoking[device.id]
-                        ? <RefreshCw className="h-3 w-3 animate-spin" />
-                        : <Trash2 className="h-3 w-3" />
-                      }
+                      {revoking[device.id] ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
                       <span className="hidden sm:inline">Revoke</span>
                     </button>
                   )}
@@ -372,7 +373,7 @@ export default function DevicesSessionsTab() {
                     <div className="divide-y divide-border-custom/50">
                       {deviceSessions.map((session, si) => {
                         const isCurrent = session.id === currentSessionId;
-                        const isActive  = session.status === "ACTIVE";
+                        const isActive = session.status === "ACTIVE";
 
                         return (
                           <div
@@ -467,10 +468,11 @@ export default function DevicesSessionsTab() {
                                 }`}
                                 title={isCurrent ? "Log out" : "Revoke session"}
                               >
-                                {revoking[session.id]
-                                  ? <RefreshCw className="h-3 w-3 animate-spin" />
-                                  : <LogOut className="h-3 w-3" />
-                                }
+                                {revoking[session.id] ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <LogOut className="h-3 w-3" />
+                                )}
                                 {isCurrent ? "Log out" : "Revoke"}
                               </button>
                             )}

@@ -1,33 +1,17 @@
-import axios from "axios";
+import { api } from "../../lib/api";
 import { JoinVoiceResponse, VoiceState } from "../../features/voice/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
-
-function getAuthHeaders() {
-  if (typeof window === "undefined") return {};
-  const token = localStorage.getItem("synapse_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export async function joinVoiceChannel(channelId: string): Promise<JoinVoiceResponse> {
-  const res = await axios.post<JoinVoiceResponse>(
-    `${API_BASE}/channels/${channelId}/voice/join`,
-    {},
-    { headers: getAuthHeaders() },
-  );
+  const res = await api.post<JoinVoiceResponse>(`/channels/${channelId}/voice/join`, {});
   return res.data;
 }
 
 export async function leaveVoiceChannel(channelId: string): Promise<void> {
-  await axios.delete(`${API_BASE}/channels/${channelId}/voice/leave`, {
-    headers: getAuthHeaders(),
-  });
+  await api.delete(`/channels/${channelId}/voice/leave`);
 }
 
 export async function getChannelVoiceStates(channelId: string): Promise<VoiceState[]> {
-  const res = await axios.get<VoiceState[]>(`${API_BASE}/channels/${channelId}/voice`, {
-    headers: getAuthHeaders(),
-  });
+  const res = await api.get<VoiceState[]>(`/channels/${channelId}/voice`);
   return res.data;
 }
 
@@ -38,11 +22,11 @@ export async function modServerMute(
   targetUserId: string,
   muted: boolean,
 ): Promise<void> {
-  const url = `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/mute`;
+  const url = `/channels/${channelId}/voice/members/${targetUserId}/mute`;
   if (muted) {
-    await axios.post(url, {}, { headers: getAuthHeaders() });
+    await api.post(url, {});
   } else {
-    await axios.delete(url, { headers: getAuthHeaders() });
+    await api.delete(url);
   }
 }
 
@@ -51,20 +35,16 @@ export async function modServerDeafen(
   targetUserId: string,
   deafened: boolean,
 ): Promise<void> {
-  const url = `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/deafen`;
+  const url = `/channels/${channelId}/voice/members/${targetUserId}/deafen`;
   if (deafened) {
-    await axios.post(url, {}, { headers: getAuthHeaders() });
+    await api.post(url, {});
   } else {
-    await axios.delete(url, { headers: getAuthHeaders() });
+    await api.delete(url);
   }
 }
 
 export async function modDisconnect(channelId: string, targetUserId: string): Promise<void> {
-  await axios.post(
-    `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/disconnect`,
-    {},
-    { headers: getAuthHeaders() },
-  );
+  await api.post(`/channels/${channelId}/voice/members/${targetUserId}/disconnect`, {});
 }
 
 export async function modMove(
@@ -72,9 +52,7 @@ export async function modMove(
   targetUserId: string,
   targetChannelId: string,
 ): Promise<void> {
-  await axios.post(
-    `${API_BASE}/channels/${channelId}/voice/members/${targetUserId}/move`,
-    { target_channel_id: targetChannelId },
-    { headers: getAuthHeaders() },
-  );
+  await api.post(`/channels/${channelId}/voice/members/${targetUserId}/move`, {
+    target_channel_id: targetChannelId,
+  });
 }

@@ -1,4 +1,4 @@
-# Discord-Scale Backend Architecture & API Specification
+# Backend Architecture & API Specification
 
 ## 1. Architectural Philosophy
 

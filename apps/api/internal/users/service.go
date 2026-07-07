@@ -152,8 +152,12 @@ func (s *service) GenerateBannerUploadURL(ctx context.Context, userID int64, req
 
 func (s *service) UpdateProfile(ctx context.Context, userID int64, req *UpdateUserRequest) (*User, error) {
 	u, err := s.repo.GetByID(ctx, userID)
-	if err != nil { return nil, err }
-	if u == nil { return nil, errors.NewNotFound("user not found") }
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.NewNotFound("user not found")
+	}
 
 	if req.DisplayName != nil {
 		if *req.DisplayName == "" {
@@ -178,7 +182,9 @@ func (s *service) UpdateProfile(ctx context.Context, userID int64, req *UpdateUs
 			keysToDelete = append(keysToDelete, *u.AvatarKey)
 		}
 		upload, err := s.mediaService.MarkUploadComplete(ctx, *req.AvatarUploadID, userID)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		u.AvatarKey = &upload.ObjectKey
 	}
 
@@ -192,12 +198,16 @@ func (s *service) UpdateProfile(ctx context.Context, userID int64, req *UpdateUs
 			keysToDelete = append(keysToDelete, *u.BannerKey)
 		}
 		upload, err := s.mediaService.MarkUploadComplete(ctx, *req.BannerUploadID, userID)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		u.BannerKey = &upload.ObjectKey
 	}
 
 	err = s.repo.UpdateUser(ctx, u)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	// Clean up pending upload records as they are successfully saved/consumed
 	if req.AvatarUploadID != nil {

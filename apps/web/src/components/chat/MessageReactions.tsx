@@ -22,12 +22,10 @@ export default function MessageReactions({
   if (!reactions || reactions.length === 0) return null;
 
   const handleReactionClick = async (rs: ReactionSummary) => {
-    // Basic toggle mechanism
-    try {
-      await onAddReaction(messageId, rs.emoji);
-    } catch (err) {
-      // Toggle back if error
+    if (rs.me) {
       await onRemoveReaction(messageId, rs.emoji);
+    } else {
+      await onAddReaction(messageId, rs.emoji);
     }
   };
 
@@ -42,7 +40,9 @@ export default function MessageReactions({
           disabled={!canAddReactions}
           className={`inline-flex items-center gap-1.5 border px-2 py-0.5 rounded-md text-xs font-semibold select-none transition-colors ${
             canAddReactions
-              ? "bg-bg-secondary border-border-custom hover:border-indigo-500/50 hover:bg-bg-primary cursor-pointer"
+              ? rs.me
+                ? "bg-indigo-500/20 border-indigo-500 hover:bg-indigo-500/30 text-indigo-400 cursor-pointer"
+                : "bg-bg-secondary border-border-custom hover:border-indigo-500/50 hover:bg-bg-primary cursor-pointer"
               : "bg-bg-secondary border-border-custom opacity-70 cursor-not-allowed"
           }`}
           title={canAddReactions ? undefined : "You do not have permission to react."}

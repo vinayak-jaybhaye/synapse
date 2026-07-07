@@ -7,7 +7,13 @@ export interface AuthResponse {
 }
 
 export const authApi = {
-  login: async (email: string, password: string, deviceId: string, platform: string, deviceName?: string): Promise<AuthResponse> => {
+  login: async (
+    email: string,
+    password: string,
+    deviceId: string,
+    platform: string,
+    deviceName?: string,
+  ): Promise<AuthResponse> => {
     const response = await api.post<AuthResponse>("/auth/login", {
       email,
       password,
@@ -19,7 +25,14 @@ export const authApi = {
     return response.data;
   },
 
-  register: async (username: string, email: string, password: string, deviceId: string, platform: string, deviceName?: string): Promise<AuthResponse> => {
+  register: async (
+    username: string,
+    email: string,
+    password: string,
+    deviceId: string,
+    platform: string,
+    deviceName?: string,
+  ): Promise<AuthResponse> => {
     const response = await api.post<AuthResponse>("/auth/register", {
       username,
       email,
@@ -57,7 +70,9 @@ export const authApi = {
   },
 
   getSessions: async (): Promise<{ sessions: any[]; current_session_id: string }> => {
-    const response = await api.get<{ sessions: any[]; current_session_id: string }>("/users/me/sessions");
+    const response = await api.get<{ sessions: any[]; current_session_id: string }>(
+      "/users/me/sessions",
+    );
     return response.data;
   },
 

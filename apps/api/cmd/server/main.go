@@ -108,7 +108,6 @@ func main() {
 	guildService := guilds.NewService(guildRepo, roleRepo, mediaService)
 	channelService := channels.NewService(channelRepo, roleRepo, mediaService, permissionService)
 
-
 	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, db.Redis)
 	inviteService := invites.NewService(inviteRepo, roleRepo)
 

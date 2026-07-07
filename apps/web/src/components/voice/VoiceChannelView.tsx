@@ -32,6 +32,7 @@ import ParticipantTile from "./ParticipantTile";
 import { useMessages } from "../../services/query/useMessages";
 import MessageItem from "../chat/MessageItem";
 import MessageComposer from "../chat/MessageComposer";
+import TypingIndicator from "../chat/TypingIndicator";
 import { useChannelPermissions } from "../../hooks/usePermissions";
 import { Message } from "../../types";
 import { VoiceParticipant } from "../../features/voice/types";
@@ -844,14 +845,17 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
                       </button>
                     </div>
                   )}
-                  <MessageComposer
-                    channelId={activeChannelId}
-                    placeholder="Message call chat..."
-                    onSend={handleSendChat}
-                    draftKey={`voice-chat-${activeChannelId}`}
-                    permissions={channel?.permissions}
-                    isDM={false}
-                  />
+                  <div className="relative">
+                    <TypingIndicator channelId={activeChannelId} />
+                    <MessageComposer
+                      channelId={activeChannelId}
+                      placeholder="Message call chat..."
+                      onSend={handleSendChat}
+                      draftKey={`voice-chat-${activeChannelId}`}
+                      permissions={channel?.permissions}
+                      isDM={false}
+                    />
+                  </div>
                 </div>
               </div>
             )}

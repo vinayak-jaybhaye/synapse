@@ -109,7 +109,7 @@ func (h *Handler) GetVoiceStates(c *gin.Context) {
 	c.JSON(http.StatusOK, states)
 }
 
-// MODERATOR ACTIONS 
+// MODERATOR ACTIONS
 
 // ModServerMute handles POST/DELETE /channels/:channelID/voice/members/:targetUserID/mute
 // @Summary Moderator Server Mute

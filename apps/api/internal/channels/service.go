@@ -2,11 +2,13 @@ package channels
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/roles"
@@ -58,16 +60,7 @@ func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, p
 }
 
 func (s *service) GetChannels(ctx context.Context, guildID, userID int64) ([]Channel, error) {
-	// Verify user is member and has VIEW_CHANNEL permission
-	allowed, err := s.checkPermissions(ctx, guildID, userID, permissions.VIEW_CHANNEL)
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, errors.NewForbidden("access denied: view channel permission required")
-	}
-
-	// List guild channels
+	// List all guild channels
 	channels, err := s.repo.ListGuildChannels(ctx, guildID)
 	if err != nil {
 		return nil, err
@@ -78,18 +71,37 @@ func (s *service) GetChannels(ctx context.Context, guildID, userID int64) ([]Cha
 		channelIDs = append(channelIDs, ch.ID)
 	}
 
-	// Resolves ChannelIDs -> User Permissions -> enrich channels with user permissions
+	// Resolve per-channel permissions (applies guild-level permissions and channel-level role overrides)
 	if s.permService != nil {
 		permsMap, err := s.permService.ResolveBatchChannelPermissions(ctx, guildID, userID, channelIDs)
-		if err == nil {
-			for i, ch := range channels {
-				if perm, ok := permsMap[ch.ID]; ok {
-					channels[i].Permissions = fmt.Sprintf("%d", perm)
-				}
+		if err != nil {
+			return nil, errors.NewForbidden("access denied: not a member of the guild")
+		}
+
+		// Enrich channels with resolved permission bitmask AND filter out
+		// channels where the user's final VIEW_CHANNEL bit is unset.
+		var visible []Channel
+		for i, ch := range channels {
+			perm, ok := permsMap[ch.ID]
+			if !ok {
+				continue
+			}
+			channels[i].Permissions = fmt.Sprintf("%d", perm)
+			if permissions.HasPermission(perm, permissions.VIEW_CHANNEL) {
+				visible = append(visible, channels[i])
 			}
 		}
+		return visible, nil
 	}
 
+	// Fallback if permService is nil
+	allowed, err := s.checkPermissions(ctx, guildID, userID, permissions.VIEW_CHANNEL)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, errors.NewForbidden("access denied: view channel permission required")
+	}
 	return channels, nil
 }
 
@@ -133,7 +145,22 @@ func (s *service) CreateChannel(ctx context.Context, guildID, userID int64, req 
 		UpdatedAt:       time.Now(),
 	}
 
-	if err := s.repo.Create(ctx, ch); err != nil {
+	payload, _ := json.Marshal(struct {
+		*Channel
+		IsRestricted bool `json:"is_restricted"`
+	}{
+		Channel:      ch,
+		IsRestricted: false,
+	})
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   guildID,
+		EventType:     events.ChannelCreate,
+		Payload:       payload,
+		PartitionKey:  int16(guildID % 16),
+	}
+
+	if err := s.repo.Create(ctx, ch, event); err != nil {
 		return nil, err
 	}
 
@@ -180,14 +207,22 @@ func (s *service) UpdateChannel(ctx context.Context, channelID, userID int64, re
 		ch.Position = *req.Position
 	}
 
+	payload, _ := json.Marshal(ch)
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   *ch.GuildID,
+		EventType:     events.ChannelUpdate,
+		Payload:       payload,
+		PartitionKey:  int16(*ch.GuildID % 16),
+	}
+
 	// Update channel - db increments version
-	if err := s.repo.Update(ctx, ch); err != nil {
+	if err := s.repo.Update(ctx, ch, event); err != nil {
 		return nil, err
 	}
 
 	return ch, nil
 }
-
 func (s *service) DeleteChannel(ctx context.Context, channelID, userID int64) error {
 	ch, err := s.repo.GetByID(ctx, channelID)
 	if err != nil {
@@ -206,8 +241,20 @@ func (s *service) DeleteChannel(ctx context.Context, channelID, userID int64) er
 		return errors.NewForbidden("insufficient permissions to manage channels")
 	}
 
+	payload, _ := json.Marshal(map[string]any{
+		"id":       strconv.FormatInt(channelID, 10),
+		"guild_id": strconv.FormatInt(*ch.GuildID, 10),
+	})
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   *ch.GuildID,
+		EventType:     events.ChannelDelete,
+		Payload:       payload,
+		PartitionKey:  int16(*ch.GuildID % 16),
+	}
+
 	// Soft delete channel
-	return s.repo.SoftDelete(ctx, channelID)
+	return s.repo.SoftDelete(ctx, channelID, event)
 }
 
 func (s *service) GetChannel(ctx context.Context, channelID, userID int64) (*Channel, error) {
@@ -225,20 +272,24 @@ func (s *service) GetChannel(ctx context.Context, channelID, userID int64) (*Cha
 		return ch, nil
 	}
 
-	// Verify user is member and has VIEW_CHANNEL permission
-	allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.VIEW_CHANNEL)
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, errors.NewForbidden("access denied: view channel permission required")
-	}
-
 	// Resolve and enrich channel permissions for the user
 	if s.permService != nil {
 		perm, err := s.permService.ResolveChannelPermissions(ctx, *ch.GuildID, ch.ID, userID)
-		if err == nil {
-			ch.Permissions = fmt.Sprintf("%d", perm)
+		if err != nil {
+			return nil, errors.NewForbidden("access denied: not a member of the guild")
+		}
+		if !permissions.HasPermission(perm, permissions.VIEW_CHANNEL) {
+			return nil, errors.NewForbidden("access denied: view channel permission required")
+		}
+		ch.Permissions = fmt.Sprintf("%d", perm)
+	} else {
+		// Fallback if permService is nil
+		allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.VIEW_CHANNEL)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, errors.NewForbidden("access denied: view channel permission required")
 		}
 	}
 
@@ -292,18 +343,28 @@ func (s *service) PutRoleOverride(ctx context.Context, channelID, userID, roleID
 		return errors.NewNotFound("channel not found")
 	}
 
-	// Verify user has MANAGE_ROLES or MANAGE_CHANNELS permission
-	allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_ROLES)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		allowed, err = s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_CHANNELS)
+	// Verify user has MANAGE_ROLES or MANAGE_CHANNELS permission via ResolveChannelPermissions
+	if s.permService != nil {
+		userPerms, err := s.permService.ResolveChannelPermissions(ctx, *ch.GuildID, channelID, userID)
+		if err != nil {
+			return err
+		}
+		if !permissions.HasAnyPermission(permissions.Permission(userPerms), permissions.MANAGE_ROLES, permissions.MANAGE_CHANNELS) {
+			return errors.NewForbidden("insufficient permissions to manage channel overrides")
+		}
+	} else {
+		allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_ROLES)
 		if err != nil {
 			return err
 		}
 		if !allowed {
-			return errors.NewForbidden("insufficient permissions to manage channel overrides")
+			allowed, err = s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_CHANNELS)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return errors.NewForbidden("insufficient permissions to manage channel overrides")
+			}
 		}
 	}
 
@@ -325,7 +386,7 @@ func (s *service) PutRoleOverride(ctx context.Context, channelID, userID, roleID
 	}
 
 	// Upsert override
-	return s.repo.PutRoleOverride(ctx, override)
+	return s.repo.PutRoleOverride(ctx, override, *ch.GuildID)
 }
 
 func (s *service) DeleteRoleOverride(ctx context.Context, channelID, userID, roleID int64) error {
@@ -337,21 +398,31 @@ func (s *service) DeleteRoleOverride(ctx context.Context, channelID, userID, rol
 		return errors.NewNotFound("channel not found")
 	}
 
-	// Verify user has MANAGE_ROLES or MANAGE_CHANNELS permission
-	allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_ROLES)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		allowed, err = s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_CHANNELS)
+	// Verify user has MANAGE_ROLES or MANAGE_CHANNELS permission via ResolveChannelPermissions
+	if s.permService != nil {
+		userPerms, err := s.permService.ResolveChannelPermissions(ctx, *ch.GuildID, channelID, userID)
+		if err != nil {
+			return err
+		}
+		if !permissions.HasAnyPermission(permissions.Permission(userPerms), permissions.MANAGE_ROLES, permissions.MANAGE_CHANNELS) {
+			return errors.NewForbidden("insufficient permissions to manage channel overrides")
+		}
+	} else {
+		allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_ROLES)
 		if err != nil {
 			return err
 		}
 		if !allowed {
-			return errors.NewForbidden("insufficient permissions to manage channel overrides")
+			allowed, err = s.checkPermissions(ctx, *ch.GuildID, userID, permissions.MANAGE_CHANNELS)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return errors.NewForbidden("insufficient permissions to manage channel overrides")
+			}
 		}
 	}
 
 	// Delete override
-	return s.repo.DeleteRoleOverride(ctx, channelID, roleID)
+	return s.repo.DeleteRoleOverride(ctx, channelID, roleID, *ch.GuildID)
 }

@@ -2,9 +2,12 @@ package guilds
 
 import (
 	"context"
+	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/roles"
@@ -167,7 +170,16 @@ func (s *service) UpdateGuildMember(ctx context.Context, guildID, targetUserID, 
 		m.IsMuted = *req.IsMuted
 	}
 
-	if err := s.repo.UpdateMember(ctx, m); err != nil {
+	payload, _ := json.Marshal(m)
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   guildID,
+		EventType:     events.GuildMemberUpdate,
+		Payload:       payload,
+		PartitionKey:  int16(guildID % 16),
+	}
+
+	if err := s.repo.UpdateMember(ctx, m, event); err != nil {
 		return nil, err
 	}
 
@@ -202,22 +214,30 @@ func (s *service) GenerateBannerUploadURL(ctx context.Context, guildID, userID i
 
 func (s *service) UpdateGuild(ctx context.Context, guildID, userID int64, req *UpdateGuildRequest) (*Guild, error) {
 	rlist, err := s.roleRepo.GetMemberRoles(ctx, guildID, userID)
-	if err != nil { return nil, err }
-	
+	if err != nil {
+		return nil, err
+	}
+
 	var combined permissions.Permission
 	for _, rl := range rlist {
 		combined |= permissions.Permission(rl.Permissions)
 	}
 	ownerID, err := s.roleRepo.GetGuildOwner(ctx, guildID)
-	if err != nil { return nil, err }
-	
+	if err != nil {
+		return nil, err
+	}
+
 	if ownerID != userID && !permissions.HasPermission(combined, permissions.MANAGE_GUILD) {
 		return nil, errors.NewForbidden("insufficient permissions to manage guild")
 	}
 
 	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil { return nil, err }
-	if g == nil { return nil, errors.NewNotFound("guild not found") }
+	if err != nil {
+		return nil, err
+	}
+	if g == nil {
+		return nil, errors.NewNotFound("guild not found")
+	}
 
 	if req.Name != nil {
 		g.Name = *req.Name
@@ -242,7 +262,9 @@ func (s *service) UpdateGuild(ctx context.Context, guildID, userID int64, req *U
 			keysToDelete = append(keysToDelete, *g.IconKey)
 		}
 		upload, err := s.mediaService.MarkUploadComplete(ctx, *req.IconUploadID, userID)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		g.IconKey = &upload.ObjectKey
 	}
 
@@ -256,12 +278,25 @@ func (s *service) UpdateGuild(ctx context.Context, guildID, userID int64, req *U
 			keysToDelete = append(keysToDelete, *g.BannerKey)
 		}
 		upload, err := s.mediaService.MarkUploadComplete(ctx, *req.BannerUploadID, userID)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		g.BannerKey = &upload.ObjectKey
 	}
 
-	err = s.repo.UpdateGuild(ctx, g)
-	if err != nil { return nil, err }
+	payload, _ := json.Marshal(g)
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   guildID,
+		EventType:     events.GuildUpdate,
+		Payload:       payload,
+		PartitionKey:  int16(guildID % 16),
+	}
+
+	err = s.repo.UpdateGuild(ctx, g, event)
+	if err != nil {
+		return nil, err
+	}
 
 	// Clean up pending upload records as they are successfully saved/consumed
 	if req.IconUploadID != nil {
@@ -356,7 +391,19 @@ func (s *service) KickMember(ctx context.Context, guildID, targetUserID, request
 		return errors.NewForbidden("cannot kick someone with equal or higher role hierarchy")
 	}
 
-	return s.repo.RemoveMember(ctx, guildID, targetUserID)
+	payload, _ := json.Marshal(map[string]any{
+		"guild_id": strconv.FormatInt(guildID, 10),
+		"user_id":  strconv.FormatInt(targetUserID, 10),
+	})
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   guildID,
+		EventType:     events.GuildMemberRemove,
+		Payload:       payload,
+		PartitionKey:  int16(guildID % 16),
+	}
+
+	return s.repo.RemoveMember(ctx, guildID, targetUserID, event)
 }
 
 func (s *service) BanMember(ctx context.Context, guildID, targetUserID, requesterUserID int64, reason string) error {
@@ -391,7 +438,19 @@ func (s *service) BanMember(ctx context.Context, guildID, targetUserID, requeste
 		return errors.NewForbidden("cannot ban someone with equal or higher role hierarchy")
 	}
 
-	return s.repo.BanMember(ctx, guildID, targetUserID, requesterUserID, reason)
+	payload, _ := json.Marshal(map[string]any{
+		"guild_id": strconv.FormatInt(guildID, 10),
+		"user_id":  strconv.FormatInt(targetUserID, 10),
+	})
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   guildID,
+		EventType:     events.GuildBanAdd,
+		Payload:       payload,
+		PartitionKey:  int16(guildID % 16),
+	}
+
+	return s.repo.BanMember(ctx, guildID, targetUserID, requesterUserID, reason, event)
 }
 
 func (s *service) GetBans(ctx context.Context, guildID, userID int64) ([]BanWithUser, error) {

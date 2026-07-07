@@ -33,9 +33,24 @@ export function useMessages(channelId?: string) {
       attachmentUploadIds?: string[];
       replyToMessageId?: string;
     }) => messagesApi.sendMessage(channelId!, content, attachmentUploadIds, replyToMessageId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: messagesKeys.list(channelId || ""),
+    onSuccess: (newMsg) => {
+      queryClient.setQueryData(messagesKeys.list(channelId || ""), (old: any) => {
+        if (!old?.pages) return old;
+        const exists = old.pages.some((page: any[]) => page.some((m: any) => m.id === newMsg.id));
+        if (exists) {
+          return {
+            ...old,
+            pages: old.pages.map((page: any[]) =>
+              page.map((m: any) => (m.id === newMsg.id ? { ...m, ...newMsg } : m)),
+            ),
+          };
+        }
+
+        const lastPage = old.pages[0] || [];
+        return {
+          ...old,
+          pages: [[newMsg, ...lastPage], ...old.pages.slice(1)],
+        };
       });
     },
   });
@@ -43,18 +58,30 @@ export function useMessages(channelId?: string) {
   const editMessageMutation = useMutation({
     mutationFn: ({ messageId, content }: { messageId: string; content: string }) =>
       messagesApi.editMessage(channelId!, messageId, content),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: messagesKeys.list(channelId || ""),
+    onSuccess: (updatedMsg) => {
+      queryClient.setQueryData(messagesKeys.list(channelId || ""), (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m)),
+          ),
+        };
       });
     },
   });
 
   const deleteMessageMutation = useMutation({
     mutationFn: (messageId: string) => messagesApi.deleteMessage(channelId!, messageId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: messagesKeys.list(channelId || ""),
+    onSuccess: (_, messageId) => {
+      queryClient.setQueryData(messagesKeys.list(channelId || ""), (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "" } : m)),
+          ),
+        };
       });
     },
   });
@@ -62,21 +89,11 @@ export function useMessages(channelId?: string) {
   const addReactionMutation = useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       messagesApi.addReaction(channelId!, messageId, emoji),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: messagesKeys.list(channelId || ""),
-      });
-    },
   });
 
   const removeReactionMutation = useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       messagesApi.removeReaction(channelId!, messageId, emoji),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: messagesKeys.list(channelId || ""),
-      });
-    },
   });
 
   // Flat list chronologically ordered (oldest first) for UI rendering

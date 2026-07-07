@@ -1,3 +1,4 @@
+// Package auth handles user session validation for WebSocket connections.
 package auth
 
 import (
@@ -9,14 +10,15 @@ import (
 	"time"
 )
 
-// ValidateSession hashes the incoming token, checks the Postgres database,
-// and returns the user_id if valid.
+// ValidateSession validates the client's token when they connect to the gateway.
 func ValidateSession(ctx context.Context, db *sql.DB, token string) (int64, error) {
-	// 1. Hash the token
+	// 1. Hash the incoming token
+	// Session tokens are stored in the database as SHA-256 hashes for security.
+	// We hash the incoming token so we can query the matching database record.
 	hash := sha256.Sum256([]byte(token))
 	tokenHash := hex.EncodeToString(hash[:])
 
-	// 2. Query Postgres
+	// 2. Retrieve session and device status
 	query := `
 		SELECT s.user_id, s.expires_at, s.revoked_at, d.status
 		FROM sessions s
@@ -36,7 +38,7 @@ func ValidateSession(ctx context.Context, db *sql.DB, token string) (int64, erro
 		return 0, err
 	}
 
-	// 3. Verify logic
+	// 3. Validation checks
 	if revokedAt != nil {
 		return 0, errors.New("session revoked")
 	}
@@ -47,8 +49,10 @@ func ValidateSession(ctx context.Context, db *sql.DB, token string) (int64, erro
 		return 0, errors.New("device revoked")
 	}
 
-	// 4. Update last_used_at / last_seen_at with throttling (5 mins)
-	// For simplicity, we directly perform a non-blocking throttled update here.
+	// 4. Update session and device activity timestamps in the database
+	// To prevent writing to the database on every reconnect attempt if a client is
+	// rapidly reconnecting, we only write the update if the stored activity is older
+	// than 5 minutes (enforced by the conditional WHERE clause).
 	_, _ = db.ExecContext(ctx, `
 		UPDATE sessions
 		SET last_used_at = NOW()

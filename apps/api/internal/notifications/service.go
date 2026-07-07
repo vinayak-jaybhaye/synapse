@@ -39,7 +39,7 @@ func (s *service) PutSettings(ctx context.Context, userID int64, guildID, channe
 	// 1. Global (guild_id == nil && channel_id == nil)
 	// 2. Guild (guild_id != nil && channel_id == nil)
 	// 3. Channel (guild_id == nil && channel_id != nil)
-	
+
 	if guildID != nil && channelID != nil {
 		return nil, errors.NewBadRequest("invalid scope: cannot specify both guild_id and channel_id")
 	}

@@ -42,7 +42,7 @@ type Config struct {
 	SessionTTL          time.Duration
 
 	// CORS Configuration
-	AllowedOrigins      map[string]bool
+	AllowedOrigins map[string]bool
 }
 
 func LoadConfig() (*Config, error) {

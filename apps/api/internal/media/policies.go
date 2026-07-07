@@ -7,10 +7,10 @@ type CategoryPolicy struct {
 }
 
 const (
-	CategoryAvatar      = "avatar"
-	CategoryBanner      = "banner"
-	CategoryGuildIcon   = "guild-icon"
-	CategoryAttachment  = "attachment"
+	CategoryAvatar     = "avatar"
+	CategoryBanner     = "banner"
+	CategoryGuildIcon  = "guild-icon"
+	CategoryAttachment = "attachment"
 
 	MB = 1024 * 1024
 )

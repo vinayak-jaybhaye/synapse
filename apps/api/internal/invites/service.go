@@ -3,10 +3,13 @@ package invites
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/roles"
 	"github.com/synapse/api/internal/snowflake"
@@ -158,6 +161,18 @@ func (s *service) JoinGuild(ctx context.Context, code string, userID int64) erro
 		return errors.NewForbidden("access denied: you are banned from this server")
 	}
 
+	payload, _ := json.Marshal(map[string]any{
+		"guild_id": strconv.FormatInt(invite.GuildID, 10),
+		"user_id":  strconv.FormatInt(userID, 10),
+	})
+	event := &OutboxEvent{
+		AggregateType: "guild",
+		AggregateID:   invite.GuildID,
+		EventType:     events.GuildMemberAdd,
+		Payload:       payload,
+		PartitionKey:  int16(invite.GuildID % 16),
+	}
+
 	// 5. Consume invite and join guild
-	return s.repo.JoinGuildTx(ctx, code, invite.GuildID, userID)
+	return s.repo.JoinGuildTx(ctx, code, invite.GuildID, userID, event)
 }

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Synapse API Specification
-  description: Core HTTP REST API for Synapse, a Discord-scale real-time communication platform.
+  description: Core HTTP REST API for Synapse, a scalable real-time communication platform.
   version: 1.0.0
 servers:
   - url: http://localhost:8080/api/v1

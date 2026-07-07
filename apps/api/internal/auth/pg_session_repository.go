@@ -10,8 +10,6 @@ import (
 	"github.com/synapse/api/internal/snowflake"
 )
 
-
-
 type pgSessionRepository struct {
 	db *sql.DB
 }

@@ -44,7 +44,7 @@ func main() {
 	slog.Info("gateway: connected to Postgres")
 
 	// Hub — manages connections + guild-level broadcast
-	hub := websocket.NewHub()
+	hub := websocket.NewHub(db)
 	go hub.Run()
 
 	// Redis pub/sub subscriber — bridges API events to WS clients
@@ -54,7 +54,7 @@ func main() {
 	// HTTP routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		websocket.ServeWS(hub, db, cfg.SessionCookieName, w, r)
+		websocket.ServeWS(hub, db, rdb, cfg.SessionCookieName, w, r)
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
