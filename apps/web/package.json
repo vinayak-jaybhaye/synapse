@@ -28,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "emoji-mart": "^5.6.0",
+    "framer-motion": "^12.42.2",
     "livekit-client": "^2.20.0",
     "lucide-react": "^0.468.0",
     "next": "16.2.9",
@@ -46,8 +47,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "prettier": "^3.0.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "prettier": "^3.0.0"
+    "typescript": "^5"
   }
 }

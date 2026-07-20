@@ -1,23 +1,70 @@
 @import "tailwindcss";
 
-/* 1. Base Variables & Defaults */
+/* ==========================================================================
+   SYNAPSE DESIGN SYSTEM
+   Production-grade token system, animations, and utilities.
+   ========================================================================== */
+
+/* 1. Base Variables & Defaults
+   -------------------------------------------------------------------------- */
 :root {
+  /* Surface colors */
   --bg-primary: #18181b;
   --bg-secondary: #27272a;
   --bg-tertiary: #09090b;
   --border-color: #3f3f46;
+
+  /* Text colors */
   --text-primary: #f4f4f5;
   --text-secondary: #d4d4d8;
   --text-muted: #71717a;
 
+  /* Accent colors */
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-muted: rgba(99, 102, 241, 0.15);
+  --accent-border: rgba(99, 102, 241, 0.3);
+  --destructive: #ef4444;
+  --destructive-muted: rgba(239, 68, 68, 0.12);
+  --success: #10b981;
+  --success-muted: rgba(16, 185, 129, 0.12);
+  --warning: #f59e0b;
+
+  /* Gradients */
+  --gradient-brand: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+  --gradient-surface: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+
+  /* Typography */
   --font-size-base: 14px;
   --font-size-message: 15px;
+  --font-sans-custom: var(--font-geist-sans), sans-serif;
+
+  /* Spacing — message layout */
   --message-padding-y: 6px;
   --message-gap: 12px;
-  --font-sans-custom: var(--font-geist-sans), sans-serif;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
 }
 
-/* 2. Custom Theme Classes */
+/* 2. Theme Variants
+   -------------------------------------------------------------------------- */
 .theme-light {
   --bg-primary: #ffffff;
   --bg-secondary: #f4f4f5;
@@ -26,6 +73,10 @@
   --text-primary: #09090b;
   --text-secondary: #27272a;
   --text-muted: #71717a;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.14);
 }
 
 .theme-dark {
@@ -58,7 +109,8 @@
   --text-muted: #52525b;
 }
 
-/* 3. Typography & Size Classes */
+/* 3. Typography Scale Classes
+   -------------------------------------------------------------------------- */
 .font-size-compact {
   --text-xs: 0.65rem;
   --text-sm: 0.75rem;
@@ -67,6 +119,7 @@
   --text-xl: 1.125rem;
   --text-2xl: 1.25rem;
 }
+
 .font-size-normal {
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -75,6 +128,7 @@
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
 }
+
 .font-size-large {
   --text-xs: 0.875rem;
   --text-sm: 1rem;
@@ -84,28 +138,34 @@
   --text-2xl: 1.875rem;
 }
 
-/* 4. Font Families */
+/* 4. Font Family Classes
+   -------------------------------------------------------------------------- */
 .font-family-inter {
   --font-sans-custom: "Inter", sans-serif;
 }
+
 .font-family-geist {
   --font-sans-custom: var(--font-geist-sans), sans-serif;
 }
+
 .font-family-system-ui {
   --font-sans-custom: system-ui, -apple-system, sans-serif;
 }
 
-/* 5. Densities */
+/* 5. Message Density Classes
+   -------------------------------------------------------------------------- */
 .density-compact {
   --message-padding-y: 2px;
   --message-gap: 2px;
 }
+
 .density-comfortable {
   --message-padding-y: 8px;
   --message-gap: 16px;
 }
 
-/* 6. Tailwind Theme Map */
+/* 6. Tailwind Theme Map
+   -------------------------------------------------------------------------- */
 @theme {
   --color-bg-primary: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
@@ -116,79 +176,351 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
 
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-muted: var(--accent-muted);
+
   --font-sans: var(--font-sans-custom);
 
   --spacing-msg-pad: var(--message-padding-y);
   --spacing-msg-gap: var(--message-gap);
 }
 
-/* 7. Global Element Styles */
+/* 7. Global Element Styles
+   -------------------------------------------------------------------------- */
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans-custom);
   font-size: var(--font-size-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+    background-color var(--transition-base),
+    color var(--transition-base);
 }
 
-/* Custom Scrollbar Styles for premium feel */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Accessible focus ring — visible on keyboard focus only */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
+
+/* 8. Scrollbar
+   -------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
+  background: transparent;
+  border-radius: var(--radius-full);
+  transition: background var(--transition-base);
 }
+
+/* Reveal scrollbar thumb on container hover */
+*:hover > ::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb:hover {
+  background: var(--border-color);
+}
+
+::-webkit-scrollbar-thumb:active {
   background: var(--text-muted);
 }
 
-/* 8. Emoji Picker Theme Overrides */
-em-emoji-picker {
-  /* Dimensions & Spacing */
-  --rgb-background: transparent;
-  --font-family: var(--font-sans-custom);
-  --border-radius: 12px;
-
-  /* Map to Synapse Theme Colors */
-  --color-b: var(--bg-secondary);
-  --rgb-accent: 79, 70, 229; /* indigo-600 */
-  --color-border: var(--border-color);
-
-  --rgb-color: var(--text-primary);
-  --rgb-input: var(--bg-tertiary);
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
-/* Target deep parts of the component if needed via shadow parts */
-em-emoji-picker::part(header) {
-  padding: 12px 16px 8px 16px;
-}
-em-emoji-picker::part(search-container) {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background-color: var(--bg-tertiary);
-}
-em-emoji-picker::part(search) {
-  background: transparent;
-  color: var(--text-primary);
+*:hover {
+  scrollbar-color: var(--border-color) transparent;
 }
 
-/* 9. Message Highlight Animation */
+/* Completely hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 9. Animation Keyframes
+   -------------------------------------------------------------------------- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--accent-muted);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+@keyframes bounce-dots {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 @keyframes message-highlight {
   0% {
-    background-color: var(--bg-tertiary);
+    background-color: var(--accent-muted);
   }
   100% {
     background-color: transparent;
   }
 }
 
+@keyframes nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+/* 10. Animation Utility Classes
+   -------------------------------------------------------------------------- */
+.animate-fade-in {
+  animation: fade-in var(--transition-base) ease-out both;
+}
+
+.animate-slide-up {
+  animation: slide-up var(--transition-slow) ease-out both;
+}
+
+.animate-slide-down {
+  animation: slide-down var(--transition-slow) ease-out both;
+}
+
+.animate-scale-in {
+  animation: scale-in var(--transition-slow) ease-out both;
+}
+
 .animate-message-highlight {
   animation: message-highlight 2s ease-out forwards;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Typing indicator dots */
+.typing-dot {
+  animation: bounce-dots 1.2s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* 11. Component Utilities
+   -------------------------------------------------------------------------- */
+
+/* Glassmorphism surface */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.theme-light .glass {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Interactive surface — subtle lift on hover */
+.surface-interactive {
+  transition:
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.surface-interactive:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.surface-interactive:active {
+  transform: scale(0.98);
+}
+
+/* 12. Emoji Picker Theme Overrides
+   -------------------------------------------------------------------------- */
+em-emoji-picker {
+  --rgb-background: transparent;
+  --font-family: var(--font-sans-custom);
+  --border-radius: 12px;
+  --color-b: var(--bg-secondary);
+  --rgb-accent: 99, 102, 241;
+  --color-border: var(--border-color);
+  --rgb-color: var(--text-primary);
+  --rgb-input: var(--bg-tertiary);
+}
+
+em-emoji-picker::part(header) {
+  padding: 12px 16px 8px 16px;
+}
+
+em-emoji-picker::part(search-container) {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-tertiary);
+}
+
+em-emoji-picker::part(search) {
+  background: transparent;
+  color: var(--text-primary);
 }

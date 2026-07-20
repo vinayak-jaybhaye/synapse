@@ -93,7 +93,9 @@ export default function UploadAttachmentItem({
       {upload.state === "FAILED" && (
         <div className="absolute inset-0 bg-red-950/90 flex flex-col items-center justify-center p-4">
           <AlertCircle className="w-8 h-8 text-red-500 mb-2 shrink-0" />
-          <span className="text-xs font-semibold text-red-200 text-center mb-1 line-clamp-1">Upload Failed</span>
+          <span className="text-xs font-semibold text-red-200 text-center mb-1 line-clamp-1">
+            Upload Failed
+          </span>
           {upload.errorMessage && (
             <span className="text-[10px] text-red-300 text-center mb-2 line-clamp-2 leading-tight">
               {upload.errorMessage}

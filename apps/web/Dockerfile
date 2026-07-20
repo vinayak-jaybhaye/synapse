@@ -10,7 +10,7 @@ RUN pnpm run build
 
 FROM node:22-alpine
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules

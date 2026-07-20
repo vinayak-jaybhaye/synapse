@@ -67,7 +67,7 @@ api.interceptors.response.use(
       if (typeof window !== "undefined") {
         const currentPath = window.location.pathname;
         // Don't redirect if already on auth pages
-        if (currentPath !== "/login" && currentPath !== "/register") {
+        if (currentPath !== "/" && currentPath !== "/login" && currentPath !== "/register") {
           localStorage.removeItem("synapse_token");
           window.location.href = "/login";
         }
