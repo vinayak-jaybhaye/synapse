@@ -7,6 +7,7 @@ help:
 	@echo "  help            - Show this help message"
 	@echo "  db-up           - Start infrastructure (postgres, redis, localstack)"
 	@echo "  db-down         - Stop infrastructure"
+	@echo "  db-down-data    - Stop infrastructure and remove data volumes"
 	@echo "  db-migrate      - Run database migrations"
 	@echo "  reset-db        - Reset database (WARNING: deletes all data)"
 	@echo "  localstack-init - Initialize localstack"
@@ -30,6 +31,9 @@ localstack-init:
 
 db-down:
 	docker-compose down
+
+db-down-data:
+	docker-compose down -v
 
 db-migrate:
 	@for file in apps/api/migrations/*.sql; do \

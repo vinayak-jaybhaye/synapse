@@ -25,6 +25,8 @@ const (
 
 	UserUpdate       = "USER_UPDATE"
 	UserDMCreate     = "USER_DM_CREATE"
+	UserBlockAdd     = "USER_BLOCK_ADD"
+	UserBlockRemove  = "USER_BLOCK_REMOVE"
 	VoiceStateUpdate = "VOICE_STATE_UPDATE"
 )
 

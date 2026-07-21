@@ -22,6 +22,7 @@ type Repository interface {
 	RemoveReaction(ctx context.Context, messageID, userID int64, emoji string, event *OutboxEvent) error
 	UpdateReadStatePostgres(ctx context.Context, channelID, userID, lastReadMessageID int64) error
 	IsDMParticipant(ctx context.Context, channelID int64, userID int64) (bool, error)
+	GetDMOtherParticipant(ctx context.Context, channelID int64, userID int64) (int64, error)
 	GetAttachmentWithChannel(ctx context.Context, attachmentID int64) (*Attachment, int64, error)
 	GetUserSummary(ctx context.Context, userID int64) (*UserSummary, error)
 }
@@ -571,6 +572,26 @@ func (r *pgRepository) IsDMParticipant(ctx context.Context, channelID int64, use
 		return false, fmt.Errorf("failed to check DM participant: %w", err)
 	}
 	return exists, nil
+}
+
+func (r *pgRepository) GetDMOtherParticipant(ctx context.Context, channelID int64, userID int64) (int64, error) {
+	query := `
+		SELECT CASE 
+			WHEN user1_id = $2 THEN user2_id 
+			ELSE user1_id 
+		END
+		FROM direct_conversations
+		WHERE channel_id = $1 AND (user1_id = $2 OR user2_id = $2)
+	`
+	var otherID int64
+	err := r.db.QueryRowContext(ctx, query, channelID, userID).Scan(&otherID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, fmt.Errorf("not a participant or DM not found")
+		}
+		return 0, fmt.Errorf("failed to get other DM participant: %w", err)
+	}
+	return otherID, nil
 }
 
 func (r *pgRepository) GetAttachmentWithChannel(ctx context.Context, attachmentID int64) (*Attachment, int64, error) {

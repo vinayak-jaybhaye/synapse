@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/synapse/api/internal/auth"
+	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/config"
 	"github.com/synapse/api/internal/database"
@@ -103,12 +104,16 @@ func main() {
 	permChannelRepo := permissions.NewPGChannelPermissionRepository(db.PG)
 	permissionService := permissions.NewService(permRoleRepo, permChannelRepo)
 
-	userService := users.NewService(userRepo, mediaService, db.Redis, permissionService)
+	// Blocks Service
+	blocksRepo := blocks.NewPGRepository(db.PG)
+	blocksService := blocks.NewService(blocksRepo)
+
+	userService := users.NewService(userRepo, mediaService, db.Redis, permissionService, blocksService)
 	roleService := roles.NewService(roleRepo)
 	guildService := guilds.NewService(guildRepo, roleRepo, mediaService)
 	channelService := channels.NewService(channelRepo, roleRepo, mediaService, permissionService)
 
-	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, db.Redis)
+	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, blocksService, db.Redis)
 	inviteService := invites.NewService(inviteRepo, roleRepo)
 
 	// Notifications
@@ -136,6 +141,7 @@ func main() {
 	channelHandler := channels.NewHandler(channelService)
 	messageHandler := messages.NewHandler(messageService)
 	inviteHandler := invites.NewHandler(inviteService)
+	blocksHandler := blocks.NewHandler(blocksService)
 
 	// 8. Setup HTTP Engine
 	gin.SetMode(gin.ReleaseMode)
@@ -161,6 +167,7 @@ func main() {
 		mediaHandler,
 		notificationsHandler,
 		voiceHandler,
+		blocksHandler,
 	)
 
 	slog.Info("Synapse Core HTTP API server running", "port", cfg.Port)

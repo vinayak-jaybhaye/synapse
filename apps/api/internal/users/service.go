@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/permissions"
@@ -24,14 +25,15 @@ type Service interface {
 }
 
 type service struct {
-	repo         Repository
-	mediaService media.Service
-	rdb          *redis.Client
-	permService  permissions.Service
+	repo          Repository
+	mediaService  media.Service
+	rdb           *redis.Client
+	permService   permissions.Service
+	blocksService blocks.Service
 }
 
-func NewService(repo Repository, mediaService media.Service, rdb *redis.Client, permService permissions.Service) Service {
-	return &service{repo: repo, mediaService: mediaService, rdb: rdb, permService: permService}
+func NewService(repo Repository, mediaService media.Service, rdb *redis.Client, permService permissions.Service, blocksService blocks.Service) Service {
+	return &service{repo: repo, mediaService: mediaService, rdb: rdb, permService: permService, blocksService: blocksService}
 }
 
 func (s *service) GetUserByID(ctx context.Context, id int64) (*User, error) {
@@ -96,6 +98,14 @@ func (s *service) CreateDM(ctx context.Context, creatorID, recipientID int64) (*
 	}
 	if recipient == nil {
 		return nil, errors.NewNotFound("recipient user not found")
+	}
+
+	canDM, err := s.blocksService.CanDM(ctx, creatorID, recipientID)
+	if err != nil {
+		return nil, err
+	}
+	if !canDM {
+		return nil, errors.NewForbidden("cannot create DM: you cannot create DMs with this user")
 	}
 
 	channelID, err := s.repo.CreateOrGetDM(ctx, creatorID, recipientID)

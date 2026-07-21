@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/synapse/api/internal/auth"
+	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/config"
 	"github.com/synapse/api/internal/guilds"
@@ -30,6 +31,7 @@ func SetupRoutes(
 	mediaHandler *media.Handler,
 	notificationsHandler *notifications.Handler,
 	voiceHandler *voice.Handler,
+	blocksHandler *blocks.Handler,
 ) {
 	// Root Group
 	v1 := r.Group("/api/v1")
@@ -66,6 +68,11 @@ func SetupRoutes(
 		protected.POST("/users/@me/avatars/upload-url", userHandler.GenerateAvatarUploadURL)
 		protected.POST("/users/@me/banners/upload-url", userHandler.GenerateBannerUploadURL)
 		protected.POST("/dms", userHandler.CreateDM)
+
+		// Blocks
+		protected.POST("/users/@me/blocks/:id", blocksHandler.BlockUser)
+		protected.DELETE("/users/@me/blocks/:id", blocksHandler.UnblockUser)
+		protected.GET("/users/@me/blocks", blocksHandler.GetBlockedUsers)
 
 		// Notifications
 		protected.GET("/users/@me/notifications", notificationsHandler.GetUserSettings)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/media"
@@ -33,16 +34,18 @@ type service struct {
 	channelRepo       channels.Repository
 	permissionService permissions.Service
 	mediaService      media.Service
+	blocksService     blocks.Service
 	rdb               *redis.Client
 }
 
 // NewService creates a new messages Service using clean architecture dependencies.
-func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, mediaService media.Service, rdb *redis.Client) Service {
+func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, mediaService media.Service, blocksService blocks.Service, rdb *redis.Client) Service {
 	return &service{
 		repo:              repo,
 		channelRepo:       channelRepo,
 		permissionService: permissionService,
 		mediaService:      mediaService,
+		blocksService:     blocksService,
 		rdb:               rdb,
 	}
 }
@@ -106,9 +109,24 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 	}
 
 	// 2. Channel Authorization Verification
-	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.SEND_MESSAGES)
+	ch, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.SEND_MESSAGES)
 	if err != nil {
 		return nil, err
+	}
+
+	// 2.5. Block Verification for DMs
+	if ch.GuildID == nil {
+		otherID, err := s.repo.GetDMOtherParticipant(ctx, channelID, userID)
+		if err != nil {
+			return nil, err
+		}
+		canDM, err := s.blocksService.CanDM(ctx, userID, otherID)
+		if err != nil {
+			return nil, err
+		}
+		if !canDM {
+			return nil, errors.NewForbidden("you can no longer send messages to this user")
+		}
 	}
 
 	// 3. Optional Reply Parent Validation
@@ -174,9 +192,24 @@ func (s *service) EditMessage(ctx context.Context, channelID, messageID, userID 
 	}
 
 	// 3. Verify Channel Access
-	_, err = s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL)
+	ch, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL)
 	if err != nil {
 		return nil, err
+	}
+
+	// 3.5. Block Verification for DMs
+	if ch.GuildID == nil {
+		otherID, err := s.repo.GetDMOtherParticipant(ctx, channelID, userID)
+		if err != nil {
+			return nil, err
+		}
+		canDM, err := s.blocksService.CanDM(ctx, userID, otherID)
+		if err != nil {
+			return nil, err
+		}
+		if !canDM {
+			return nil, errors.NewForbidden("cannot edit message: you can no longer edit messages in this chat")
+		}
 	}
 
 	// 4. Verify Requester is Message Author
@@ -295,7 +328,7 @@ func (s *service) SyncReadState(ctx context.Context, channelID, userID, lastRead
 }
 
 func (s *service) AddMessageReaction(ctx context.Context, channelID, messageID, userID int64, emoji string) error {
-	_, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL, permissions.ADD_REACTIONS)
+	ch, err := s.verifyChannelAccess(ctx, channelID, userID, permissions.VIEW_CHANNEL, permissions.ADD_REACTIONS)
 	if err != nil {
 		return err
 	}
@@ -306,6 +339,32 @@ func (s *service) AddMessageReaction(ctx context.Context, channelID, messageID, 
 	}
 	if msg == nil || msg.ChannelID != channelID {
 		return errors.NewNotFound("message not found")
+	}
+
+	// 3.5. Block Verification for reactions
+	if ch.GuildID == nil {
+		otherID, err := s.repo.GetDMOtherParticipant(ctx, channelID, userID)
+		if err != nil {
+			return err
+		}
+		canDM, err := s.blocksService.CanDM(ctx, userID, otherID)
+		if err != nil {
+			return err
+		}
+		if !canDM {
+			return errors.NewForbidden("cannot react to message: you can no longer react in this chat")
+		}
+	} else {
+		// In a Guild, you cannot react to a message if you blocked the author or if they blocked you
+		if msg.AuthorID != userID {
+			isBlocked, err := s.blocksService.CheckMutualBlock(ctx, userID, msg.AuthorID)
+			if err != nil {
+				return err
+			}
+			if isBlocked {
+				return errors.NewForbidden("cannot react to message: you can no longer react in this chat")
+			}
+		}
 	}
 
 	type ReactionPayload struct {

@@ -25,6 +25,10 @@ type mockMessageRepo struct {
 	listMessagesErr error
 }
 
+func (m *mockMessageRepo) GetDMOtherParticipant(ctx context.Context, channelID, userID int64) (int64, error) {
+	return 2, nil
+}
+
 func (m *mockMessageRepo) GetByID(ctx context.Context, id int64) (*Message, error) {
 	if msg, ok := m.messages[id]; ok {
 		return msg, nil
@@ -222,6 +226,23 @@ func (m *mockMediaService) GenerateObjectKey(category string, entityID int64, id
 
 func (m *mockMediaService) StartCleanupJob(ctx context.Context, interval time.Duration) {}
 
+type mockBlocksService struct{}
+
+func (m *mockBlocksService) BlockUser(ctx context.Context, blockerID, blockedID int64) error {
+	return nil
+}
+func (m *mockBlocksService) UnblockUser(ctx context.Context, blockerID, blockedID int64) error {
+	return nil
+}
+func (m *mockBlocksService) GetBlockedUsers(ctx context.Context, blockerID int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockBlocksService) CanDM(ctx context.Context, userA, userB int64) (bool, error) {
+	return true, nil
+}
+func (m *mockBlocksService) CheckMutualBlock(ctx context.Context, userA, userB int64) (bool, error) {
+	return false, nil
+}
 func isForbidden(err error) bool {
 	if apiErr, ok := err.(*domainErrors.APIError); ok {
 		return apiErr.Status == 403
@@ -237,7 +258,7 @@ func TestSendMessage(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil)
 
 	// Setup Guild Channel
 	channelID := int64(100)
@@ -334,7 +355,7 @@ func TestDMChannelAuthorization(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil)
 
 	dmChannelID := int64(500)
 	chanRepo.channels[dmChannelID] = &channels.Channel{
@@ -371,7 +392,7 @@ func TestSyncReadState(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{ID: channelID, GuildID: &guildID}
@@ -399,7 +420,7 @@ func TestEditMessage(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{ID: channelID, GuildID: &guildID}
@@ -432,7 +453,7 @@ func TestDeleteMessage(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{ID: channelID, GuildID: &guildID}
@@ -484,7 +505,7 @@ func TestGetMessages(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{
