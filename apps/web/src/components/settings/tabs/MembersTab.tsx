@@ -11,6 +11,8 @@ import { useGuildPermissions } from "../../../hooks/usePermissions";
 import { useBans, bansKeys } from "../../../services/query/useBans";
 import { guildsApi } from "../../../services/api/guilds";
 import { getRoleColorHex } from "../../../lib/utils";
+import { normalizeError } from "../../../lib/api";
+import { useUIStore } from "../../../store/ui-store";
 import { Search, UserMinus, Ban, Volume2, VolumeX, ShieldCheck } from "lucide-react";
 
 export default function MembersTab() {
@@ -63,16 +65,16 @@ export default function MembersTab() {
     try {
       await assignRole({ userId, roleId });
       setActiveMemberDropdown(null);
-    } catch (err: any) {
-      alert(err.message || "Failed to assign role");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 
   const handleUnassignRole = async (userId: string, roleId: string) => {
     try {
       await unassignRole({ userId, roleId });
-    } catch (err: any) {
-      alert(err.message || "Failed to remove role");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 
@@ -83,8 +85,8 @@ export default function MembersTab() {
         queryClient.invalidateQueries({
           queryKey: membersKeys.list(activeGuildId || ""),
         });
-      } catch (err: any) {
-        alert(err.message || "Failed to kick member");
+      } catch (err: unknown) {
+        useUIStore.getState().showToast(normalizeError(err).message, "error");
       }
     }
   };
@@ -100,8 +102,8 @@ export default function MembersTab() {
         queryClient.invalidateQueries({
           queryKey: bansKeys.list(activeGuildId || ""),
         });
-      } catch (err: any) {
-        alert(err.message || "Failed to ban member");
+      } catch (err: unknown) {
+        useUIStore.getState().showToast(normalizeError(err).message, "error");
       }
     }
   };
@@ -113,8 +115,8 @@ export default function MembersTab() {
         queryClient.invalidateQueries({
           queryKey: bansKeys.list(activeGuildId || ""),
         });
-      } catch (err: any) {
-        alert(err.message || "Failed to unban user");
+      } catch (err: unknown) {
+        useUIStore.getState().showToast(normalizeError(err).message, "error");
       }
     }
   };
@@ -128,8 +130,8 @@ export default function MembersTab() {
       queryClient.invalidateQueries({
         queryKey: membersKeys.list(activeGuildId || ""),
       });
-    } catch (err: any) {
-      alert(err.message || "Failed to update mute status");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Message, Attachment } from "../../types";
 import { File, Download, Maximize2 } from "lucide-react";
 import MediaViewerModal from "./MediaViewerModal";
+import CustomVideoPlayer from "./CustomVideoPlayer";
 import { api } from "../../lib/api";
 
 interface MessageContentProps {
@@ -80,10 +81,10 @@ function MediaAttachment({
     return (
       <>
         <div className="group relative rounded-lg overflow-hidden border border-border-custom bg-black max-h-[350px] inline-block">
-          <video src={url} controls className="max-h-[350px] w-auto max-w-full" />
+          <CustomVideoPlayer src={url} maxHeightClass="max-h-[350px]" />
           <button
             onClick={() => setIsViewerOpen(true)}
-            className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+            className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20"
             title="Expand Video"
           >
             <Maximize2 className="w-4 h-4" />

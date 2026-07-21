@@ -27,6 +27,7 @@ import { Message, PermissionFlags, hasPermission, UserSummary } from "../../type
 import VoiceChannelView from "../voice/VoiceChannelView";
 import { useUserProfile } from "../../features/profile/api/use-profile";
 import { messagesApi } from "../../services/api/messages";
+import { normalizeError } from "../../lib/api";
 
 export default function ChatArea() {
   const { activeChannelId } = useChannelStore();
@@ -203,7 +204,7 @@ export default function ChatArea() {
       setReplyTarget(null);
       scrollToBottom("smooth");
     } catch (err) {
-      console.error(err);
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 

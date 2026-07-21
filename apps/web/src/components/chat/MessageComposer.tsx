@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useUIStore } from "../../store/ui-store";
-import { Paperclip, Smile, Send, Sparkles } from "lucide-react";
+import { Paperclip, Smile, Send } from "lucide-react";
 import EmojiPickerPopover from "./EmojiPickerPopover";
 import UploadAttachmentItem from "./UploadAttachmentItem";
 import { PendingUploadState } from "../../types";
 import { useChannelPermissions } from "../../hooks/usePermissions";
 import { mediaApi } from "../../services/api/media";
+import { normalizeError } from "../../lib/api";
 import { gateway } from "../../features/realtime/gateway";
 
 interface MessageComposerProps {
@@ -199,14 +200,20 @@ export default function MessageComposer({
   }, []);
 
   const startUpload = async (uploadState: PendingUploadState) => {
+    const MB = 1024 * 1024;
+    const MAX_SIZE = 25 * MB;
+
+    // Client-side size validation — not an unexpected error, so handle before try/catch
+    if (uploadState.file.size > MAX_SIZE) {
+      const errorMessage = `File is too large (max 25MB)`;
+      setPendingUploads((prev) =>
+        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED", errorMessage } : u)),
+      );
+      useUIStore.getState().showToast(errorMessage, "error");
+      return;
+    }
+
     try {
-      const MB = 1024 * 1024;
-      const MAX_SIZE = 25 * MB;
-
-      if (uploadState.file.size > MAX_SIZE) {
-        throw new Error(`File is too large (max 25MB)`);
-      }
-
       // 1. Generate Upload URL
       const extMatch = uploadState.file.name.match(/(\.[^.]+)$/);
       const extension = extMatch ? extMatch[1] : "";
@@ -243,9 +250,8 @@ export default function MessageComposer({
       setPendingUploads((prev) =>
         prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADED", progress: 100 } : u)),
       );
-    } catch (error: any) {
-      console.error("Upload failed for file", uploadState.file.name, error);
-      const errorMessage = error.response?.data?.message || error.message || "Upload failed";
+    } catch (error: unknown) {
+      const errorMessage = normalizeError(error).message;
       setPendingUploads((prev) =>
         prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED", errorMessage } : u)),
       );
@@ -384,19 +390,10 @@ export default function MessageComposer({
           }
           aria-label={placeholder}
           rows={1}
-          className="flex-1 bg-transparent border-none outline-none text-text-primary text-sm placeholder-text-muted resize-none max-h-[250px] py-1.5 min-h-[36px] no-scrollbar leading-relaxed"
+          className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none text-text-primary text-sm placeholder-text-muted resize-none max-h-[250px] py-1.5 min-h-[36px] no-scrollbar leading-relaxed"
         />
 
         <div className="flex items-center gap-1.5 mb-0.5 relative">
-          <button
-            type="button"
-            className="text-text-secondary hover:text-text-primary p-1.5 rounded cursor-pointer transition-colors hidden sm:block"
-            title="Slash Commands / Mentions"
-            aria-label="Slash Commands and Mentions"
-          >
-            <Sparkles className="h-4.5 w-4.5 text-indigo-400" />
-          </button>
-
           <button
             type="button"
             className="text-text-secondary hover:text-text-primary p-1.5 rounded cursor-pointer transition-colors"

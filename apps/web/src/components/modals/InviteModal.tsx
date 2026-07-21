@@ -7,6 +7,7 @@ import { useUIStore } from "../../store/ui-store";
 import { useGuildStore } from "../../store/guild-store";
 import { useCreateInvite } from "../../services/query/useInvites";
 import { useGuilds } from "../../services/query/useGuilds";
+import { normalizeError } from "../../lib/api";
 
 export default function InviteModal() {
   const { showInviteModal, setShowInviteModal } = useUIStore();
@@ -39,8 +40,8 @@ export default function InviteModal() {
       setError(null);
       const res = await createInvite({ guildId: activeGuildId });
       setInviteCode(res.code);
-    } catch (err: any) {
-      setError(err.message || "Failed to generate invite code");
+    } catch (err: unknown) {
+      setError(normalizeError(err).message);
     }
   };
 

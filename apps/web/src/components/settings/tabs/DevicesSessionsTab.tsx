@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { authApi } from "../../../services/api/auth";
+import { normalizeError } from "../../../lib/api";
+import { useUIStore } from "../../../store/ui-store";
 import {
   Smartphone,
   Laptop,
@@ -172,8 +174,8 @@ export default function DevicesSessionsTab() {
       const rawSessions = sessResp?.sessions ?? (Array.isArray(sessResp) ? sessResp : []);
       setSessions(rawSessions.map(mapSession));
       setCurrentSessionId(String(sessResp?.current_session_id ?? ""));
-    } catch (err: any) {
-      setError(err.message || "Failed to load devices and sessions.");
+    } catch (err: unknown) {
+      setError(normalizeError(err).message);
     } finally {
       setLoading(false);
     }
@@ -188,8 +190,8 @@ export default function DevicesSessionsTab() {
     try {
       await authApi.deleteSession(sessionId);
       await fetchData();
-    } catch (err: any) {
-      alert(err.message || "Failed to revoke session.");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     } finally {
       setRevoking((p) => ({ ...p, [sessionId]: false }));
     }
@@ -200,8 +202,8 @@ export default function DevicesSessionsTab() {
     try {
       await authApi.deleteDevice(deviceId);
       await fetchData();
-    } catch (err: any) {
-      alert(err.message || "Failed to revoke device.");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     } finally {
       setRevoking((p) => ({ ...p, [deviceId]: false }));
     }

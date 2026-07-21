@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { authApi } from "../services/api/auth";
+import { normalizeError } from "../lib/api";
 import { User } from "../types";
 
 interface AuthState {
@@ -48,8 +49,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem("synapse_logged_in", "true");
       localStorage.removeItem("synapse_token");
       set({ token: null, user, isAuthenticated: true, isLoading: false });
-    } catch (err: any) {
-      const message = err.message || "Login failed.";
+    } catch (err: unknown) {
+      const message = normalizeError(err).message;
       set({ error: message, isLoading: false });
       throw err;
     }
@@ -63,8 +64,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem("synapse_logged_in", "true");
       localStorage.removeItem("synapse_token");
       set({ token: null, user, isAuthenticated: true, isLoading: false });
-    } catch (err: any) {
-      const message = err.message || "Registration failed.";
+    } catch (err: unknown) {
+      const message = normalizeError(err).message;
       set({ error: message, isLoading: false });
       throw err;
     }
@@ -81,7 +82,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await authApi.getMe();
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch (err: any) {
+    } catch (err: unknown) {
       localStorage.removeItem("synapse_logged_in");
       localStorage.removeItem("synapse_token");
       set({

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Camera, X, RefreshCw } from "lucide-react";
 import { mediaApi } from "../../services/api/media";
+import { normalizeError } from "../../lib/api";
 import { useAuthStore } from "../../store/auth-store";
 
 export type UploadCategory = "avatar" | "banner" | "guild-icon" | "guild-banner";
@@ -99,10 +100,9 @@ export default function MediaUploadControl({
 
       // Pass the upload ID back
       onUploadSuccess(upload_id);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Upload failed", err);
-      const errorMessage = err.response?.data?.message || err.message || "Failed to upload file";
-      setError(errorMessage);
+      setError(normalizeError(err).message);
       setPreviewUrl(null);
       onPreviewChange?.(null);
       if (localUrl) URL.revokeObjectURL(localUrl);

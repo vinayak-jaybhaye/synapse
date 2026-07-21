@@ -16,6 +16,8 @@ import {
 import { guildsApi } from "../../services/api/guilds";
 import { rolesApi } from "../../services/api/roles";
 import { membersKeys } from "../../services/query/useMembers";
+import { normalizeError } from "../../lib/api";
+import { useUIStore } from "../../store/ui-store";
 import { Member, Role } from "../../types";
 
 interface MemberContextMenuProps {
@@ -150,7 +152,7 @@ export default function MemberContextMenu({
       queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId) });
       onClose();
     } catch (err) {
-      console.error("Failed to mute/unmute member", err);
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 
@@ -168,7 +170,7 @@ export default function MemberContextMenu({
       queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId) });
       onClose();
     } catch (err) {
-      console.error("Failed to update nickname", err);
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 
@@ -179,7 +181,7 @@ export default function MemberContextMenu({
         queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId) });
         onClose();
       } catch (err) {
-        console.error("Failed to kick member", err);
+        useUIStore.getState().showToast(normalizeError(err).message, "error");
       }
     }
   };
@@ -192,7 +194,7 @@ export default function MemberContextMenu({
         queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId) });
         onClose();
       } catch (err) {
-        console.error("Failed to ban member", err);
+        useUIStore.getState().showToast(normalizeError(err).message, "error");
       }
     }
   };
@@ -206,7 +208,7 @@ export default function MemberContextMenu({
       }
       queryClient.invalidateQueries({ queryKey: membersKeys.list(guildId) });
     } catch (err) {
-      console.error("Failed to update roles", err);
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 

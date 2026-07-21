@@ -5,6 +5,8 @@ import { useAuthStore } from "../../store/auth-store";
 import { Message } from "../../types";
 import { formatTimestamp } from "../../lib/utils";
 import { getMediaUrl } from "../../lib/media";
+import { normalizeError } from "../../lib/api";
+import { useUIStore } from "../../store/ui-store";
 import { useMessageRegistry } from "../../store/message-registry";
 
 import MessageContent from "./MessageContent";
@@ -62,7 +64,7 @@ export default React.memo(function MessageItem({
       await onEdit(msg.id, content);
       setIsEditing(false);
     } catch (err) {
-      console.error(err);
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 

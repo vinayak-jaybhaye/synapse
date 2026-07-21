@@ -2,6 +2,11 @@ import React, { useState, useEffect } from "react";
 import { X, Search, Loader2 } from "lucide-react";
 import { useDMs } from "../../services/query/useDMs";
 import { useChannelStore } from "../../store/channel-store";
+import { useGuildStore } from "../../store/guild-store";
+import { normalizeError } from "../../lib/api";
+import { usersApi } from "../../services/api/users";
+import { UserSummary } from "../../types";
+import { getMediaUrl } from "../../lib/media";
 
 interface CreateDMModalProps {
   open: boolean;
@@ -9,45 +14,76 @@ interface CreateDMModalProps {
 }
 
 export default function CreateDMModal({ open, onClose }: CreateDMModalProps) {
-  const [recipientId, setRecipientId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<UserSummary[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
-  const { createDM } = useDMs();
+  const { dms } = useDMs();
   const { selectChannel } = useChannelStore();
+  const { selectGuild } = useGuildStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setRecipientId("");
+      setSearchQuery("");
+      setSearchResults([]);
       setError("");
     }
   }, [open]);
 
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.trim()) {
+        setIsSearching(true);
+        try {
+          const results = await usersApi.search(searchQuery.trim());
+          setSearchResults(results || []);
+        } catch (err: unknown) {
+          console.error("Search failed:", err);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
   if (!open) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!recipientId.trim()) {
-      setError("User ID is required.");
-      return;
-    }
+  const handleCreateDM = async (userId: string) => {
+    if (!userId.trim()) return;
 
     try {
       setIsSubmitting(true);
       setError("");
-      // Call create DM endpoint
-      const newDM = await createDM(recipientId);
-
-      // Auto-select the new DM
-      if (newDM && newDM.channel_id) {
-        selectChannel(newDM.channel_id);
+      const existingDM = dms?.find((d) => d.recipient.id === userId);
+      selectGuild(null);
+      if (existingDM) {
+        selectChannel(existingDM.channel_id);
+      } else {
+        selectChannel(`pending-dm-${userId}`);
       }
 
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to create DM");
+    } catch (err: unknown) {
+      setError(normalizeError(err).message);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+      setError("User ID or username is required.");
+      return;
+    }
+    // If they just hit enter, try to create with the exact query text
+    handleCreateDM(searchQuery.trim());
   };
 
   return (
@@ -66,45 +102,65 @@ export default function CreateDMModal({ open, onClose }: CreateDMModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          <p className="text-sm text-text-secondary">
-            Enter the User ID of the person you want to message.
+        <form onSubmit={handleSubmit} className="p-4 flex flex-col min-h-[300px]">
+          <p className="text-sm text-text-secondary mb-4">
+            Search for a user by username or ID to start a conversation.
           </p>
 
-          <div>
-            <label className="block text-xs font-bold text-text-muted uppercase mb-1.5">
-              User ID
-            </label>
+          <div className="flex-none">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
               <input
                 type="text"
-                value={recipientId}
-                onChange={(e) => setRecipientId(e.target.value)}
-                placeholder="e.g. 1759284759392"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by username or ID..."
                 className="w-full pl-9 pr-3 py-2 bg-bg-secondary border border-border-custom rounded focus:outline-none focus:border-indigo-500 text-text-primary placeholder:text-text-muted"
                 autoFocus
               />
+              {isSearching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted animate-spin" />
+              )}
             </div>
             {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
           </div>
 
-          <div className="pt-2 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium hover:underline text-text-primary"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !recipientId.trim()}
-              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-            >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Start Conversation
-            </button>
+          <div className="flex-1 overflow-y-auto mt-4 space-y-1">
+            {searchResults.length > 0 ? (
+              searchResults.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => handleCreateDM(user.id)}
+                  disabled={isSubmitting}
+                  className="w-full flex items-center gap-3 p-2 rounded hover:bg-bg-secondary transition-colors text-left disabled:opacity-50"
+                >
+                  {user.avatar_key ? (
+                    <img
+                      src={getMediaUrl(user.avatar_key)}
+                      alt={user.username}
+                      className="h-10 w-10 rounded-full object-cover flex-none"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center flex-none">
+                      <span className="text-white text-sm font-bold">
+                        {user.username.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-text-primary font-medium truncate">
+                      {user.display_name || user.username}
+                    </p>
+                    <p className="text-text-secondary text-xs truncate">@{user.username}</p>
+                  </div>
+                </button>
+              ))
+            ) : searchQuery.trim() && !isSearching ? (
+              <div className="text-center text-text-muted text-sm py-8">
+                No users found matching "{searchQuery}"
+              </div>
+            ) : null}
           </div>
         </form>
       </div>

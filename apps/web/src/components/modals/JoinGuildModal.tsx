@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { normalizeError } from "../../lib/api";
 
 interface JoinGuildModalProps {
   open: boolean;
@@ -23,8 +24,8 @@ export default function JoinGuildModal({ open, onClose, onJoin }: JoinGuildModal
       await onJoin(inviteCode.trim());
       setInviteCode("");
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to join guild");
+    } catch (err: unknown) {
+      setError(normalizeError(err).message);
     }
   };
 

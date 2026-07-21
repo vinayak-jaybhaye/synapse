@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
+import { normalizeError } from "../../lib/api";
 import { useUIStore } from "../../store/ui-store";
 import Toast from "./Toast";
 import { useGateway } from "../../features/realtime/useGateway";
@@ -15,10 +16,17 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        mutationCache: new MutationCache({
+          onError: (error) => {
+            const { message } = normalizeError(error);
+            useUIStore.getState().showToast(message, "error");
+          },
+        }),
         defaultOptions: {
           queries: {
             staleTime: 30 * 1000, // 30 seconds
             refetchOnWindowFocus: false,
+            retry: 1,
           },
         },
       }),

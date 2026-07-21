@@ -5,6 +5,8 @@ import { useGuildStore } from "../../../store/guild-store";
 import { useRoles } from "../../../services/query/useRoles";
 import { ALL_PERMISSIONS, togglePermission as togglePermBit } from "../../../lib/permissions";
 import { getRoleColorHex } from "../../../lib/utils";
+import { normalizeError } from "../../../lib/api";
+import { useUIStore } from "../../../store/ui-store";
 import { Plus, Trash2 } from "lucide-react";
 
 const PRESET_COLORS = [
@@ -55,8 +57,8 @@ export default function RolesTab() {
         is_hoisted: false,
       });
       selectRoleForEditing(newRole);
-    } catch (err: any) {
-      alert(err.message || "Failed to create role");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 
@@ -72,9 +74,9 @@ export default function RolesTab() {
           permissions: editRolePerms.toString(),
         },
       });
-      alert("Role saved successfully!");
-    } catch (err: any) {
-      alert(err.message || "Failed to save role");
+      useUIStore.getState().showToast("Role saved successfully!", "success");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 
@@ -86,8 +88,8 @@ export default function RolesTab() {
       if (selectedRoleId === roleId) {
         setSelectedRoleId(null);
       }
-    } catch (err: any) {
-      alert(err.message || "Failed to delete role");
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     }
   };
 

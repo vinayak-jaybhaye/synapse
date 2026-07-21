@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useChannelStore } from "../../store/channel-store";
+import { normalizeError } from "../../lib/api";
 
 interface CreateChannelModalProps {
   open: boolean;
@@ -34,8 +35,8 @@ export default function CreateChannelModal({ open, onClose, onCreate }: CreateCh
       if (channelType === 0 && newChan?.id) {
         selectChannel(newChan.id);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to create channel");
+    } catch (err: unknown) {
+      setError(normalizeError(err).message);
     }
   };
 

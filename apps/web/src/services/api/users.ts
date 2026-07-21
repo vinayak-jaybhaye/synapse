@@ -1,5 +1,5 @@
 import { api } from "../../lib/api";
-import { UserProfile } from "../../types";
+import { UserProfile, UserSummary } from "../../types";
 
 export const usersApi = {
   getProfile: async (userId: string): Promise<UserProfile> => {
@@ -9,6 +9,11 @@ export const usersApi = {
 
   updateProfile: async (payload: any) => {
     const response = await api.patch("/users/@me", payload);
+    return response.data;
+  },
+
+  search: async (query: string): Promise<UserSummary[]> => {
+    const response = await api.get("/users/search", { params: { q: query } });
     return response.data;
   },
 };

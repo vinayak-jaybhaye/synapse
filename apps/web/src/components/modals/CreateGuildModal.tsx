@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { normalizeError } from "../../lib/api";
 
 interface CreateGuildModalProps {
   open: boolean;
@@ -23,8 +24,8 @@ export default function CreateGuildModal({ open, onClose, onCreate }: CreateGuil
       await onCreate({ name: guildName.trim() });
       setGuildName("");
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to create guild");
+    } catch (err: unknown) {
+      setError(normalizeError(err).message);
     }
   };
 

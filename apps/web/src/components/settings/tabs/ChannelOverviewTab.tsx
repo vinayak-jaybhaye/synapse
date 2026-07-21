@@ -6,6 +6,8 @@ import { useGuildStore } from "../../../store/guild-store";
 import { useGuilds } from "../../../services/query/useGuilds";
 import { channelsApi } from "../../../services/api/channels";
 import { useSettingsForm } from "../../../hooks/useSettingsForm";
+import { normalizeError } from "../../../lib/api";
+import { useUIStore } from "../../../store/ui-store";
 import UnsavedChangesBar from "../UnsavedChangesBar";
 import { Channel } from "../../../types";
 
@@ -35,8 +37,8 @@ export default function ChannelOverviewTab({ activeChannel }: ChannelOverviewTab
 
       await channelsApi.updateChannel(activeChannel.id, payload);
       reset();
-    } catch (err) {
-      console.error("Failed to save channel overview", err);
+    } catch (err: unknown) {
+      useUIStore.getState().showToast(normalizeError(err).message, "error");
     } finally {
       setIsSaving(false);
     }

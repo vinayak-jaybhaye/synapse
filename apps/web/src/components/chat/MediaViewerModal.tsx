@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { X, Download, Maximize2 } from "lucide-react";
+import { X } from "lucide-react";
 import { createPortal } from "react-dom";
+import CustomVideoPlayer from "./CustomVideoPlayer";
 
 interface MediaViewerModalProps {
   url: string;
@@ -41,16 +42,6 @@ export default function MediaViewerModal({
       <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between text-white/80 z-10 bg-gradient-to-b from-black/60 to-transparent">
         <div className="truncate font-medium max-w-md">{fileName}</div>
         <div className="flex items-center gap-4">
-          <a
-            href={url}
-            download={fileName}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-white transition-colors cursor-pointer"
-            title="Open Original"
-          >
-            <Maximize2 className="h-5 w-5" />
-          </a>
           <button
             onClick={onClose}
             className="hover:text-white transition-colors cursor-pointer"
@@ -65,19 +56,21 @@ export default function MediaViewerModal({
       <div
         className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {isVideo ? (
-          <video
+          <CustomVideoPlayer
             src={url}
-            controls
             autoPlay
-            className="max-w-full max-h-[90vh] object-contain rounded drop-shadow-2xl"
+            maxHeightClass="max-h-[90vh]"
+            className="rounded drop-shadow-2xl"
           />
         ) : (
           <img
             src={url}
             alt={fileName}
             className="max-w-full max-h-[90vh] object-contain rounded drop-shadow-2xl"
+            onContextMenu={(e) => e.preventDefault()}
           />
         )}
       </div>
