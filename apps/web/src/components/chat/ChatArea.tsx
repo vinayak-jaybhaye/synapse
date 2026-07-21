@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useChannelStore } from "../../store/channel-store";
 import { useGuildStore } from "../../store/guild-store";
+import { useBlockStore } from "../../store/block-store";
 import { useMessages } from "../../services/query/useMessages";
 import { useChannels } from "../../services/query/useChannels";
 import { useGuilds } from "../../services/query/useGuilds";
@@ -70,6 +71,9 @@ export default function ChatArea() {
   );
 
   const isVoiceChannel = activeChannel?.type === 1;
+
+  const isBlocked = useBlockStore((s) => s.isBlocked);
+  const isDMBlocked = activeDM ? isBlocked(activeDM.recipient.id) : false;
 
   useEffect(() => {
     if (!activeGuild && !activeChannel) return;
@@ -458,14 +462,20 @@ export default function ChatArea() {
               activeDM ? activeDM.recipient.display_name || activeDM.recipient.username : undefined
             }
           />
-          <MessageComposer
-            channelId={activeChannelId}
-            placeholder={`Message ${activeDM ? `@${activeDM.recipient.username}` : `#${activeChannel?.name}`}`}
-            onSend={handleSend}
-            draftKey={activeChannelId}
-            permissions={activeDM ? undefined : activeChannel?.permissions}
-            isDM={!!activeDM}
-          />
+          {isDMBlocked ? (
+            <div className="bg-bg-secondary border border-border-custom text-text-muted rounded-lg p-3 text-sm text-center select-none font-medium mt-2">
+              You have blocked this user.
+            </div>
+          ) : (
+            <MessageComposer
+              channelId={activeChannelId}
+              placeholder={`Message ${activeDM ? `@${activeDM.recipient.username}` : `#${activeChannel?.name}`}`}
+              onSend={handleSend}
+              draftKey={activeChannelId}
+              permissions={activeDM ? undefined : activeChannel?.permissions}
+              isDM={!!activeDM}
+            />
+          )}
         </div>
       </div>
     </div>

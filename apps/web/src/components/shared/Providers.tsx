@@ -6,9 +6,19 @@ import { normalizeError } from "../../lib/api";
 import { useUIStore } from "../../store/ui-store";
 import Toast from "./Toast";
 import { useGateway } from "../../features/realtime/useGateway";
+import { useBlockedUsers } from "../../services/query/useBlocks";
+import { useAuthStore } from "../../store/auth-store";
 
 function GatewayListener() {
   useGateway();
+  return null;
+}
+
+function BlockedUsersListener() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { data: _ } = useBlockedUsers();
+
+  if (!isAuthenticated) return null;
   return null;
 }
 
@@ -57,6 +67,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <GatewayListener />
+      <BlockedUsersListener />
       <Toast />
       {children}
     </QueryClientProvider>

@@ -216,6 +216,26 @@ export function useGateway() {
           break;
         }
 
+        case "USER_BLOCK_ADD": {
+          const data = event.d as any;
+          if (data.blocked_id) {
+            import("../../store/block-store").then(({ useBlockStore }) => {
+              useBlockStore.getState().addBlockedUser(data.blocked_id);
+            });
+          }
+          break;
+        }
+
+        case "USER_BLOCK_REMOVE": {
+          const data = event.d as any;
+          if (data.blocked_id) {
+            import("../../store/block-store").then(({ useBlockStore }) => {
+              useBlockStore.getState().removeBlockedUser(data.blocked_id);
+            });
+          }
+          break;
+        }
+
         case "GUILD_BAN_ADD": {
           const data = event.d as any;
           const guildId = data.guild_id;

@@ -2,11 +2,13 @@ import React from "react";
 import { UserProfile } from "../../../types";
 import { getMediaUrl } from "../../../lib/media";
 import { formatTimestamp } from "../../../lib/utils";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, ShieldBan, ShieldCheck } from "lucide-react";
 import { useDMs } from "../../../services/query/useDMs";
 import { useChannelStore } from "../../../store/channel-store";
 import { useGuildStore } from "../../../store/guild-store";
 import { useAuthStore } from "../../../store/auth-store";
+import { useBlockStore } from "../../../store/block-store";
+import { useBlockUser, useUnblockUser } from "../../../services/query/useBlocks";
 
 interface UserProfileCardProps {
   profile: UserProfile;
@@ -19,6 +21,10 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
   const { selectChannel } = useChannelStore();
   const { selectGuild } = useGuildStore();
   const { user: currentUser } = useAuthStore();
+
+  const isBlocked = useBlockStore((s) => s.isBlocked(profile?.id || ""));
+  const { mutate: blockUser, isPending: isBlocking } = useBlockUser();
+  const { mutate: unblockUser, isPending: isUnblocking } = useUnblockUser();
 
   const isMe = currentUser?.id === profile?.id;
 
@@ -141,13 +147,34 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
         )}
 
         {!isMe && (
-          <button
-            onClick={handleMessage}
-            className="w-full flex items-center justify-center gap-2 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-sm font-semibold transition-colors"
-          >
-            <MessageSquare className="h-4 w-4" />
-            Message
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleMessage}
+              className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-sm font-semibold transition-colors"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Message
+            </button>
+            <button
+              onClick={() => (isBlocked ? unblockUser(profile.id) : blockUser(profile.id))}
+              disabled={isBlocking || isUnblocking}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm font-semibold transition-colors ${
+                isBlocked
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-red-500 hover:bg-red-600 text-white"
+              } disabled:opacity-50`}
+            >
+              {isBlocked ? (
+                <>
+                  <ShieldCheck className="h-4 w-4" /> Unblock
+                </>
+              ) : (
+                <>
+                  <ShieldBan className="h-4 w-4" /> Block
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
     </div>

@@ -1,22 +1,64 @@
 "use client";
 
 import React, { useState } from "react";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, ShieldBan } from "lucide-react";
 import { useAuthStore } from "../../../store/auth-store";
 import { usersApi } from "../../../services/api/users";
+import { useBlockedUsers, useUnblockUser } from "../../../services/query/useBlocks";
+import { useUserProfile } from "../../../features/profile/api/use-profile";
 import MediaUploadControl from "../MediaUploadControl";
 import { useSettingsForm } from "../../../hooks/useSettingsForm";
 import UnsavedChangesBar from "../UnsavedChangesBar";
 import { mediaApi } from "../../../services/api/media";
 import { getMediaUrl } from "../../../lib/media";
 
+function BlockedUserItem({ userId }: { userId: string }) {
+  const { data: profile, isLoading } = useUserProfile(userId, true);
+  const { mutate: unblock, isPending } = useUnblockUser();
+
+  if (isLoading) {
+    return <div className="animate-pulse bg-bg-tertiary h-10 rounded"></div>;
+  }
+  if (!profile) return null;
+
+  return (
+    <div className="flex items-center justify-between p-2 rounded bg-bg-tertiary border border-border-custom">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white overflow-hidden">
+          {profile.avatar_key ? (
+            <img
+              src={getMediaUrl(profile.avatar_key)}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            profile.username.charAt(0).toUpperCase()
+          )}
+        </div>
+        <div className="text-xs">
+          <p className="font-bold text-text-primary">{profile.display_name || profile.username}</p>
+          <p className="text-text-muted">@{profile.username}</p>
+        </div>
+      </div>
+      <button
+        onClick={() => unblock(userId)}
+        disabled={isPending}
+        className="px-2 py-1 text-[10px] font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded disabled:opacity-50 transition-colors"
+      >
+        Unblock
+      </button>
+    </div>
+  );
+}
+
 export default function ProfileTab() {
   const { user, setUser, logout } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
 
-  // States to hold S3 preview URLs or local blob URLs for live preview
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+
+  const { data: blockedUsers } = useBlockedUsers();
 
   const { data, isDirty, handleChange, reset } = useSettingsForm({
     displayName: user?.display_name || "",
@@ -234,6 +276,21 @@ export default function ProfileTab() {
                 <LogOut className="h-3.5 w-3.5" />
                 Log Out
               </button>
+            </div>
+          </div>
+
+          {/* Blocked Users */}
+          <div className="bg-bg-secondary rounded p-3 space-y-2">
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+              <ShieldBan className="h-3.5 w-3.5" />
+              Blocked Users
+            </label>
+            <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar pr-1">
+              {blockedUsers && blockedUsers.length > 0 ? (
+                blockedUsers.map((id) => <BlockedUserItem key={id} userId={id} />)
+              ) : (
+                <p className="text-xs text-text-muted py-2">You haven't blocked anyone.</p>
+              )}
             </div>
           </div>
         </div>
