@@ -18,6 +18,7 @@ export const messagesApi = {
     content: string,
     attachmentUploadIds?: string[],
     replyToMessageId?: string,
+    mentions?: string[],
   ): Promise<Message> => {
     const payload: any = { content };
     if (replyToMessageId) {
@@ -25,6 +26,9 @@ export const messagesApi = {
     }
     if (attachmentUploadIds && attachmentUploadIds.length > 0) {
       payload.attachment_upload_ids = attachmentUploadIds;
+    }
+    if (mentions && mentions.length > 0) {
+      payload.mentions = mentions;
     }
     const response = await api.post<Message>(`/channels/${channelId}/messages`, payload);
     return response.data;

@@ -417,10 +417,13 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
 
   const handleSendChat = async (content: string, uploadIds?: string[]) => {
     try {
+      const mentions = Array.from(content.matchAll(/<@(\d+)>/g)).map((match) => match[1]);
+
       await sendMessage({
         content,
         attachmentUploadIds: uploadIds,
         replyToMessageId: replyTarget?.id,
+        mentions,
       });
       setReplyTarget(null);
       scrollToBottom("smooth");
@@ -854,6 +857,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
                       draftKey={`voice-chat-${activeChannelId}`}
                       permissions={channel?.permissions}
                       isDM={false}
+                      guildId={activeGuildId || undefined}
                     />
                   </div>
                 </div>

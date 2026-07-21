@@ -11,6 +11,7 @@ import { channelsKeys } from "../../services/query/useChannels";
 import { membersKeys } from "../../services/query/useMembers";
 import { GUILDS_QUERY_KEY } from "../../services/query/useGuilds";
 import { bansKeys } from "../../services/query/useBans";
+import { notificationsKeys } from "../../services/query/useNotifications";
 import { Message } from "../../types";
 import { useVoiceStore } from "../voice/voiceStore";
 import { useUIStore } from "../../store/ui-store";
@@ -213,6 +214,14 @@ export function useGateway() {
           queryClient.invalidateQueries({
             queryKey: ["dms"],
           });
+          break;
+        }
+
+        case "NOTIFICATION_CREATED":
+        case "NOTIFICATION_UPDATED":
+        case "NOTIFICATION_DELETED": {
+          queryClient.invalidateQueries({ queryKey: notificationsKeys.inbox() });
+          queryClient.invalidateQueries({ queryKey: notificationsKeys.unreadCount() });
           break;
         }
 

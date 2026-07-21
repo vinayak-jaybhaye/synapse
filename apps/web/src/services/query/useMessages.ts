@@ -28,11 +28,14 @@ export function useMessages(channelId?: string) {
       content,
       attachmentUploadIds,
       replyToMessageId,
+      mentions,
     }: {
       content: string;
       attachmentUploadIds?: string[];
       replyToMessageId?: string;
-    }) => messagesApi.sendMessage(channelId!, content, attachmentUploadIds, replyToMessageId),
+      mentions?: string[];
+    }) =>
+      messagesApi.sendMessage(channelId!, content, attachmentUploadIds, replyToMessageId, mentions),
     onSuccess: (newMsg) => {
       queryClient.setQueryData(messagesKeys.list(channelId || ""), (old: any) => {
         if (!old?.pages) return old;

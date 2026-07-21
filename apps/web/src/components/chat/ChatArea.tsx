@@ -18,6 +18,7 @@ import {
   AtSign,
   Menu,
   Users,
+  Bell,
 } from "lucide-react";
 import MessageItem from "./MessageItem";
 import { getMediaUrl } from "../../lib/media";
@@ -29,6 +30,8 @@ import VoiceChannelView from "../voice/VoiceChannelView";
 import { useUserProfile } from "../../features/profile/api/use-profile";
 import { messagesApi } from "../../services/api/messages";
 import { normalizeError } from "../../lib/api";
+import InboxPopover from "./InboxPopover";
+import { useUnreadCount } from "../../services/query/useNotifications";
 
 export default function ChatArea() {
   const { activeChannelId } = useChannelStore();
@@ -37,7 +40,13 @@ export default function ChatArea() {
     setMembersSidebarCollapsed,
     setMobileMembersOpen,
     setMobileChannelsOpen,
+    showInbox,
+    setShowInbox,
   } = useUIStore();
+
+  const inboxButtonRef = useRef<HTMLButtonElement>(null);
+  const { data: unreadData } = useUnreadCount();
+  const unreadCount = unreadData?.count || 0;
 
   const handleToggleMembers = () => {
     if (window.innerWidth < 1024) {
@@ -192,9 +201,17 @@ export default function ChatArea() {
 
   const handleSend = async (content: string, uploadIds?: string[]) => {
     try {
+      const mentions = Array.from(content.matchAll(/<@(\d+)>/g)).map((match) => match[1]);
+
       if (isPendingDM && targetUserId) {
         const newDM = await createDM(targetUserId);
-        await messagesApi.sendMessage(newDM.channel_id, content, uploadIds, replyTarget?.id);
+        await messagesApi.sendMessage(
+          newDM.channel_id,
+          content,
+          uploadIds,
+          replyTarget?.id,
+          mentions,
+        );
         selectChannel(newDM.channel_id);
         setReplyTarget(null);
         return;
@@ -204,6 +221,7 @@ export default function ChatArea() {
         content,
         attachmentUploadIds: uploadIds,
         replyToMessageId: replyTarget?.id,
+        mentions,
       });
       setReplyTarget(null);
       scrollToBottom("smooth");
@@ -313,7 +331,32 @@ export default function ChatArea() {
             </>
           )}
         </div>
-        <div className="flex items-center gap-3 text-text-secondary shrink-0">
+        <div className="flex items-center gap-3 text-text-secondary shrink-0 relative">
+          {/* Inbox Trigger */}
+          <button
+            ref={inboxButtonRef}
+            onClick={() => setShowInbox(!showInbox)}
+            className={`relative p-1.5 rounded cursor-pointer transition-colors ${
+              showInbox
+                ? "bg-bg-tertiary text-text-primary"
+                : "hover:bg-bg-secondary hover:text-text-primary"
+            }`}
+            aria-label="Toggle notifications inbox"
+            title="Inbox"
+          >
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 border-2 border-bg-primary select-none">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
+          <InboxPopover
+            open={showInbox}
+            onClose={() => setShowInbox(false)}
+            anchorRef={inboxButtonRef}
+          />
+
           {/* Toggle Members Sidebar Trigger (Shows on mobile and desktop) */}
           <button
             onClick={handleToggleMembers}
@@ -474,6 +517,7 @@ export default function ChatArea() {
               draftKey={activeChannelId}
               permissions={activeDM ? undefined : activeChannel?.permissions}
               isDM={!!activeDM}
+              guildId={activeGuildId || undefined}
             />
           )}
         </div>

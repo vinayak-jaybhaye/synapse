@@ -6,12 +6,75 @@ import { File, Download, Maximize2 } from "lucide-react";
 import MediaViewerModal from "./MediaViewerModal";
 import CustomVideoPlayer from "./CustomVideoPlayer";
 import { api } from "../../lib/api";
+import { useMembers } from "../../services/query/useMembers";
+import { useGuildStore } from "../../store/guild-store";
 
 interface MessageContentProps {
   msg: Message;
 }
 
+// Parses message content and replaces <@user_id> with styled mention pills
+function renderContentWithMentions(
+  content: string,
+  memberMap: Map<string, { display_name?: string; nickname?: string; username: string }>,
+) {
+  const parts: React.ReactNode[] = [];
+  const mentionRegex = /<@(\d+)>/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+
+    const userId = match[1];
+    const member = memberMap.get(userId);
+    const displayName = member
+      ? member.nickname || member.display_name || member.username
+      : `Unknown User`;
+
+    parts.push(
+      <span
+        key={`mention-${match.index}`}
+        className="inline-flex items-center px-1 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium text-[13px] cursor-pointer hover:bg-indigo-500/30 transition-colors"
+        title={member ? `@${member.username}` : `User ID: ${userId}`}
+      >
+        @{displayName}
+      </span>,
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last mention
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [content];
+}
+
 export default function MessageContent({ msg }: MessageContentProps) {
+  const { activeGuildId } = useGuildStore();
+  const { members } = useMembers(activeGuildId || undefined);
+
+  // Build a lookup map from user_id -> member info
+  const memberMap = React.useMemo(() => {
+    const map = new Map<string, { display_name?: string; nickname?: string; username: string }>();
+    if (members) {
+      for (const m of members) {
+        map.set(m.user_id, {
+          display_name: m.display_name,
+          nickname: m.nickname,
+          username: m.username,
+        });
+      }
+    }
+    return map;
+  }, [members]);
+
   if (msg.deleted) {
     return (
       <p className="text-text-muted text-xs italic mt-1.5 select-none">
@@ -20,11 +83,13 @@ export default function MessageContent({ msg }: MessageContentProps) {
     );
   }
 
+  const hasMentions = msg.content && /<@\d+>/.test(msg.content);
+
   return (
     <div className="flex flex-col gap-2 mt-1">
       {msg.content && (
         <p className="text-text-secondary text-sm select-text whitespace-pre-wrap leading-relaxed break-words">
-          {msg.content}
+          {hasMentions ? renderContentWithMentions(msg.content, memberMap) : msg.content}
         </p>
       )}
 

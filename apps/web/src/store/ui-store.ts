@@ -19,6 +19,8 @@ interface UIState {
   setShowCreateDM: (show: boolean) => void;
   showSettings: boolean;
   setShowSettings: (show: boolean) => void;
+  showInbox: boolean;
+  setShowInbox: (show: boolean) => void;
   settingsTab: string;
   setSettingsTab: (tab: string) => void;
   showGuildSettings: boolean;
@@ -106,6 +108,8 @@ export const useUIStore = create<UIState>((set) => {
     setShowCreateDM: (show) => set({ showCreateDM: show }),
     showSettings: false,
     setShowSettings: (show) => set({ showSettings: show }),
+    showInbox: false,
+    setShowInbox: (show) => set({ showInbox: show }),
     settingsTab: "profile",
     setSettingsTab: (tab) => set({ settingsTab: tab }),
     showGuildSettings: false,

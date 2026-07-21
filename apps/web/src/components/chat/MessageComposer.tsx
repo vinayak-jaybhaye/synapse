@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useUIStore } from "../../store/ui-store";
 import { Paperclip, Smile, Send } from "lucide-react";
 import EmojiPickerPopover from "./EmojiPickerPopover";
+import MentionPickerPopover from "./MentionPickerPopover";
 import UploadAttachmentItem from "./UploadAttachmentItem";
-import { PendingUploadState } from "../../types";
+import { PendingUploadState, Member } from "../../types";
 import { useChannelPermissions } from "../../hooks/usePermissions";
 import { mediaApi } from "../../services/api/media";
 import { normalizeError } from "../../lib/api";
@@ -18,6 +19,7 @@ interface MessageComposerProps {
   draftKey?: string;
   permissions?: string;
   isDM?: boolean;
+  guildId?: string;
 }
 
 export default function MessageComposer({
@@ -27,12 +29,18 @@ export default function MessageComposer({
   draftKey,
   permissions,
   isDM,
+  guildId,
 }: MessageComposerProps) {
   const { drafts, setDraft } = useUIStore();
   const [inputText, setInputText] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUploadState[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const mentionTriggerIndexRef = useRef<number>(-1);
+  // Maps display name → user_id for mentions inserted via the picker
+  const mentionsMapRef = useRef<Map<string, string>>(new Map());
 
   const {
     canSendMessages,
@@ -44,6 +52,7 @@ export default function MessageComposer({
   } = useChannelPermissions(permissions, isDM);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,11 +92,22 @@ export default function MessageComposer({
     };
   }, []);
 
+  const syncHighlightScroll = () => {
+    if (textareaRef.current && highlightRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
+      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  };
+
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       const newHeight = Math.min(textareaRef.current.scrollHeight, 250);
       textareaRef.current.style.height = `${newHeight}px`;
+      // Sync highlight overlay height
+      if (highlightRef.current) {
+        highlightRef.current.style.height = `${newHeight}px`;
+      }
     }
   };
 
@@ -106,9 +126,70 @@ export default function MessageComposer({
       lastTypingRef.current = now;
       gateway.sendTypingStart(channelId);
     }
+
+    // Mention detection: look for @ trigger
+    if (guildId && !isDM) {
+      const cursorPos = e.target.selectionStart;
+      const textUpToCursor = val.slice(0, cursorPos);
+      // Find the last @ that isn't inside an existing <@id> tag
+      const lastAtIndex = textUpToCursor.lastIndexOf("@");
+      if (lastAtIndex >= 0) {
+        // Make sure this @ is either at position 0 or preceded by a space/newline
+        const charBefore = lastAtIndex > 0 ? textUpToCursor[lastAtIndex - 1] : " ";
+        if (charBefore === " " || charBefore === "\n" || lastAtIndex === 0) {
+          const query = textUpToCursor.slice(lastAtIndex + 1);
+          // Only open if query doesn't contain spaces (still typing the name)
+          if (!query.includes(" ") && query.length <= 32) {
+            setMentionOpen(true);
+            setMentionQuery(query);
+            mentionTriggerIndexRef.current = lastAtIndex;
+            return;
+          }
+        }
+      }
+      setMentionOpen(false);
+      setMentionQuery("");
+    }
   };
 
+  const handleMentionSelect = useCallback(
+    (member: Member) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const triggerIndex = mentionTriggerIndexRef.current;
+      const cursorPos = textarea.selectionStart;
+      const before = inputText.slice(0, triggerIndex);
+      const after = inputText.slice(cursorPos);
+      const displayName = member.nickname || member.display_name || member.username;
+      const mentionDisplay = `@${displayName} `;
+      const newText = before + mentionDisplay + after;
+
+      // Track the mapping so we can transform back to <@id> on send
+      mentionsMapRef.current.set(displayName, member.user_id);
+
+      setInputText(newText);
+      if (draftKey) {
+        setDraft(draftKey, newText);
+      }
+      setMentionOpen(false);
+      setMentionQuery("");
+
+      setTimeout(() => {
+        textarea.focus();
+        const newCursorPos = before.length + mentionDisplay.length;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        adjustTextareaHeight();
+      }, 0);
+    },
+    [inputText, draftKey, setDraft],
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Don't handle Enter/Tab/Arrow when mention picker is open — it handles them via capture
+    if (mentionOpen && ["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"].includes(e.key)) {
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
@@ -122,7 +203,17 @@ export default function MessageComposer({
     e.preventDefault();
     if (!canSendMessages || !canSend) return;
 
-    const textToSend = inputText.trim();
+    const rawInputText = inputText;
+    // Transform @displayName back to <@user_id> before sending
+    let textToSend = rawInputText.trim();
+    mentionsMapRef.current.forEach((userId, displayName) => {
+      // Replace all occurrences of @displayName with <@userId>
+      const pattern = `@${displayName}`;
+      while (textToSend.includes(pattern)) {
+        textToSend = textToSend.replace(pattern, `<@${userId}>`);
+      }
+    });
+
     const uploadIds = pendingUploads
       .filter((u) => u.state === "UPLOADED" && u.uploadId)
       .map((u) => u.uploadId!);
@@ -143,15 +234,16 @@ export default function MessageComposer({
 
     try {
       await onSend(textToSend, uploadIds);
+      mentionsMapRef.current.clear();
       // Clean up object URLs
       completedUploads.forEach((u) => {
         if (u.previewUrl) URL.revokeObjectURL(u.previewUrl);
       });
     } catch (err) {
-      // Revert UI state on failure
-      setInputText(textToSend);
+      // Revert UI state on failure, preserving original @displayName text and mention map
+      setInputText(rawInputText);
       if (draftKey) {
-        setDraft(draftKey, textToSend);
+        setDraft(draftKey, rawInputText);
       }
       setPendingUploads(completedUploads);
       setTimeout(adjustTextareaHeight, 0);
@@ -377,21 +469,78 @@ export default function MessageComposer({
           />
         </div>
 
-        <textarea
-          ref={textareaRef}
-          disabled={!canSendMessages}
-          value={inputText}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            canSendMessages
-              ? placeholder
-              : "You do not have permission to send messages in this channel."
-          }
-          aria-label={placeholder}
-          rows={1}
-          className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none text-text-primary text-sm placeholder-text-muted resize-none max-h-[250px] py-1.5 min-h-[36px] no-scrollbar leading-relaxed"
-        />
+        <div className="flex-1 relative">
+          <MentionPickerPopover
+            open={mentionOpen}
+            query={mentionQuery}
+            guildId={guildId}
+            onSelect={handleMentionSelect}
+            onClose={() => {
+              setMentionOpen(false);
+              setMentionQuery("");
+            }}
+            anchorRef={textareaRef}
+          />
+          {/* Highlight overlay — mirrors textarea content with styled mentions */}
+          {mentionsMapRef.current.size > 0 && (
+            <div
+              ref={highlightRef}
+              aria-hidden="true"
+              className="absolute inset-0 pointer-events-none text-sm py-1.5 min-h-[36px] whitespace-pre-wrap break-words leading-relaxed overflow-hidden no-scrollbar text-transparent"
+            >
+              {(() => {
+                if (mentionsMapRef.current.size === 0) return inputText;
+                const mentionNames = Array.from(mentionsMapRef.current.keys());
+                // Build a regex that matches any @displayName
+                const escaped = mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+                const regex = new RegExp(`(@(?:${escaped.join("|")}))(\\s|$)`, "g");
+                const parts: React.ReactNode[] = [];
+                let lastIdx = 0;
+                let match: RegExpExecArray | null;
+                const text = inputText;
+                while ((match = regex.exec(text)) !== null) {
+                  if (match.index > lastIdx) {
+                    parts.push(text.slice(lastIdx, match.index));
+                  }
+                  parts.push(
+                    <span
+                      key={match.index}
+                      className="bg-indigo-500/20 text-indigo-400 rounded px-0.5"
+                    >
+                      {match[1]}
+                    </span>,
+                  );
+                  parts.push(match[2]); // trailing space
+                  lastIdx = match.index + match[0].length;
+                }
+                if (lastIdx < text.length) {
+                  parts.push(text.slice(lastIdx));
+                }
+                return parts;
+              })()}
+            </div>
+          )}
+          <textarea
+            ref={textareaRef}
+            disabled={!canSendMessages}
+            value={inputText}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            onScroll={syncHighlightScroll}
+            placeholder={
+              canSendMessages
+                ? placeholder
+                : "You do not have permission to send messages in this channel."
+            }
+            aria-label={placeholder}
+            rows={1}
+            className={`w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none text-sm placeholder-text-muted resize-none max-h-[250px] py-1.5 min-h-[36px] no-scrollbar leading-relaxed relative z-[1] ${
+              mentionsMapRef.current.size > 0
+                ? "text-text-primary caret-text-primary"
+                : "text-text-primary"
+            }`}
+          />
+        </div>
 
         <div className="flex items-center gap-1.5 mb-0.5 relative">
           <button
