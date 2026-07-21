@@ -5,11 +5,13 @@ import { useUIStore } from "../../store/ui-store";
 import { useGuildStore } from "../../store/guild-store";
 import { useGuilds } from "../../services/query/useGuilds";
 import { useGuildPermissions } from "../../hooks/usePermissions";
-import { Shield, Users, Settings, X } from "lucide-react";
+import { Shield, Users, Settings, FileText, Link2, X } from "lucide-react";
 
 import RolesTab from "./tabs/RolesTab";
 import MembersTab from "./tabs/MembersTab";
 import OverviewTab from "./tabs/OverviewTab";
+import AuditLogTab from "./tabs/AuditLogTab";
+import InvitesTab from "./tabs/InvitesTab";
 
 export default function GuildSettingsModal() {
   const { showGuildSettings, setShowGuildSettings, guildSettingsTab, setGuildSettingsTab } =
@@ -18,9 +20,14 @@ export default function GuildSettingsModal() {
   const { guilds } = useGuilds();
 
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
-  const { canManageGuild, canManageRoles, canKickMembers, canBanMembers } = useGuildPermissions(
-    activeGuild?.permissions,
-  );
+  const {
+    canManageGuild,
+    canManageRoles,
+    canKickMembers,
+    canBanMembers,
+    canCreateInstantInvite,
+    canViewAuditLog,
+  } = useGuildPermissions(activeGuild?.permissions);
 
   if (!showGuildSettings || !activeGuild) return null;
 
@@ -90,6 +97,34 @@ export default function GuildSettingsModal() {
                 <span>Members</span>
               </button>
             )}
+
+            {(canManageGuild || canCreateInstantInvite) && (
+              <button
+                onClick={() => setGuildSettingsTab("invites")}
+                className={`shrink-0 md:w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-medium text-left transition-colors cursor-pointer border ${
+                  guildSettingsTab === "invites"
+                    ? "bg-bg-secondary border-border-custom text-text-primary"
+                    : "border-transparent text-text-secondary hover:bg-bg-secondary/40 hover:text-text-primary"
+                }`}
+              >
+                <Link2 className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Invites</span>
+              </button>
+            )}
+
+            {canViewAuditLog && (
+              <button
+                onClick={() => setGuildSettingsTab("audit_logs")}
+                className={`shrink-0 md:w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-medium text-left transition-colors cursor-pointer border ${
+                  guildSettingsTab === "audit_logs"
+                    ? "bg-bg-secondary border-border-custom text-text-primary"
+                    : "border-transparent text-text-secondary hover:bg-bg-secondary/40 hover:text-text-primary"
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Audit Log</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -107,6 +142,8 @@ export default function GuildSettingsModal() {
           {guildSettingsTab === "overview" && <OverviewTab activeGuild={activeGuild} />}
           {guildSettingsTab === "roles" && <RolesTab />}
           {guildSettingsTab === "members" && <MembersTab />}
+          {guildSettingsTab === "invites" && <InvitesTab />}
+          {guildSettingsTab === "audit_logs" && <AuditLogTab />}
         </div>
       </div>
     </div>

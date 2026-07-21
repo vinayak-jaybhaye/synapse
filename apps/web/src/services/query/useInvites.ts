@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invitesApi } from "../api/invites";
 
 export const invitesKeys = {
@@ -38,4 +38,30 @@ export function useInviteDetails(code: string | undefined) {
     queryFn: () => invitesApi.getInvite(code!),
     enabled: !!code,
   });
+}
+
+export function useGuildInvites(guildId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["guild", guildId, "invites"],
+    queryFn: () => invitesApi.getGuildInvites(guildId!),
+    enabled: Boolean(guildId),
+  });
+
+  const deleteInviteMutation = useMutation({
+    mutationFn: (code: string) => invitesApi.deleteInvite(code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["guild", guildId, "invites"] });
+    },
+  });
+
+  return {
+    invites: query.data || [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
+    deleteInvite: deleteInviteMutation.mutateAsync,
+    isDeleting: deleteInviteMutation.isPending,
+  };
 }

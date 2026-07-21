@@ -1,5 +1,5 @@
 import { api } from "../../lib/api";
-import { InviteDetails } from "../../types";
+import { Invite, InviteDetails } from "../../types";
 
 export const invitesApi = {
   createInvite: async (
@@ -22,5 +22,14 @@ export const invitesApi = {
   joinGuild: async (code: string): Promise<{ guild_id: string }> => {
     const response = await api.post<{ guild_id: string }>(`/invites/${code}/join`);
     return response.data;
+  },
+
+  getGuildInvites: async (guildId: string): Promise<Invite[]> => {
+    const response = await api.get<Invite[]>(`/guilds/${guildId}/invites`);
+    return response.data;
+  },
+
+  deleteInvite: async (code: string): Promise<void> => {
+    await api.delete(`/invites/${code}`);
   },
 };
