@@ -48,7 +48,7 @@ func (m *mockMessageRepo) CreateMessageWithAttachments(ctx context.Context, msg 
 		EventType: MessageCreatedEvent,
 	}
 	m.outboxEvents = append(m.outboxEvents, event)
-	
+
 	return &MessageResponse{
 		ID:               msg.ID,
 		Content:          msg.Content,

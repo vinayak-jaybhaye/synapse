@@ -272,3 +272,24 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	}
 	c.JSON(200, u)
 }
+
+// @Description Search users by username or ID
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param q query string true "Search query"
+// @Success 200 {array} UserSummary
+// @Failure 401 {object} errors.APIError
+// @Failure 500 {object} errors.APIError
+// @Router /users/search [get]
+func (h *Handler) SearchUsers(c *gin.Context) {
+	query := c.Query("q")
+
+	users, err := h.svc.SearchUsers(c.Request.Context(), query)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}

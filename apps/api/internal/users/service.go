@@ -20,6 +20,7 @@ type Service interface {
 	GenerateAvatarUploadURL(ctx context.Context, userID int64, req *media.UploadRequest) (*media.UploadResponse, error)
 	GenerateBannerUploadURL(ctx context.Context, userID int64, req *media.UploadRequest) (*media.UploadResponse, error)
 	UpdateProfile(ctx context.Context, userID int64, req *UpdateUserRequest) (*User, error)
+	SearchUsers(ctx context.Context, query string) ([]UserSummary, error)
 }
 
 type service struct {
@@ -223,4 +224,13 @@ func (s *service) UpdateProfile(ctx context.Context, userID int64, req *UpdateUs
 	}
 
 	return u, nil
+}
+
+func (s *service) SearchUsers(ctx context.Context, query string) ([]UserSummary, error) {
+	if query == "" {
+		return []UserSummary{}, nil
+	}
+
+	// Limit to 20 results maximum
+	return s.repo.SearchUsers(ctx, query, 20)
 }

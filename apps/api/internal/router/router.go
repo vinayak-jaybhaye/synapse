@@ -61,6 +61,7 @@ func SetupRoutes(
 		protected.PATCH("/users/@me", userHandler.UpdateProfile)
 		protected.GET("/users/@me/guilds", userHandler.GetMeGuilds)
 		protected.GET("/users/@me/dms", userHandler.GetDMs)
+		protected.GET("/users/search", userHandler.SearchUsers)
 		protected.GET("/users/:userId/profile", userHandler.GetProfile)
 		protected.POST("/users/@me/avatars/upload-url", userHandler.GenerateAvatarUploadURL)
 		protected.POST("/users/@me/banners/upload-url", userHandler.GenerateBannerUploadURL)

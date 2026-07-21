@@ -19,6 +19,7 @@ type Repository interface {
 	ListDMs(ctx context.Context, userID int64) ([]DMChannelResponse, error)
 	CreateOrGetDM(ctx context.Context, creatorID, recipientID int64) (int64, error)
 	GetUserProfile(ctx context.Context, requesterID, targetID int64) (*UserProfile, error)
+	SearchUsers(ctx context.Context, query string, limit int) ([]UserSummary, error)
 }
 
 type pgRepository struct {
@@ -91,6 +92,11 @@ func (r *pgRepository) ListGuilds(ctx context.Context, userID int64) ([]UserGuil
 		}
 		guilds = append(guilds, g)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over user guilds: %w", err)
+	}
+
 	return guilds, nil
 }
 
@@ -254,4 +260,52 @@ func (r *pgRepository) UpdateUser(ctx context.Context, u *User) error {
 	query := `UPDATE users SET display_name = $1, bio = $2, avatar_key = $3, banner_key = $4, updated_at = NOW() WHERE id = $5`
 	_, err := r.db.ExecContext(ctx, query, u.DisplayName, u.Bio, u.AvatarKey, u.BannerKey, u.ID)
 	return err
+}
+
+func (r *pgRepository) SearchUsers(ctx context.Context, query string, limit int) ([]UserSummary, error) {
+	sqlQuery := `
+		SELECT id, username, display_name, avatar_key, banner_key, bio
+		FROM users
+		WHERE username ILIKE $1 OR id::text = $2
+		LIMIT $3
+	`
+
+	// Add % wildcards for partial matching on username
+	likeQuery := "%" + query + "%"
+
+	rows, err := r.db.QueryContext(ctx, sqlQuery, likeQuery, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []UserSummary
+	for rows.Next() {
+		var u UserSummary
+		var displayName, avatarKey, bannerKey, bio sql.NullString
+
+		if err := rows.Scan(
+			&u.ID,
+			&u.Username,
+			&displayName,
+			&avatarKey,
+			&bannerKey,
+			&bio,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+
+		u.DisplayName = displayName.String
+		u.AvatarKey = avatarKey.String
+		u.BannerKey = bannerKey.String
+		u.Bio = bio.String
+
+		users = append(users, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return users, nil
 }
