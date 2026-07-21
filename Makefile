@@ -1,4 +1,4 @@
-.PHONY: help web api gateway dev db-up db-down db-migrate reset-db
+.PHONY: help web api gateway dev db-up db-down db-migrate reset-db fmt fmt-go fmt-web lint lint-go lint-web test test-go install-hooks pre-commit
 
 .DEFAULT_GOAL := help
 
@@ -19,6 +19,8 @@ help:
 	@echo "  fmt             - Format code"
 	@echo "  lint            - Lint code"
 	@echo "  test            - Run tests"
+	@echo "  pre-commit      - Run all pre-commit checks"
+	@echo "  install-hooks   - Install git pre-commit hooks"
 
 db-up:
 	docker-compose up -d postgres redis localstack
@@ -90,3 +92,15 @@ test-go:
 	cd apps/api && go test ./...
 	cd apps/gateway && go test ./...
 	cd apps/relay && go test ./...
+
+# Git Hooks & Pre-commit
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit scripts/pre-commit.sh
+	cp .githooks/pre-commit .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
+	@echo "✓ Git pre-commit hooks installed successfully!"
+
+pre-commit:
+	./scripts/pre-commit.sh
+

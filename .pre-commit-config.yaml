@@ -1,0 +1,43 @@
+# Pre-commit configuration for Synapse
+# See https://pre-commit.com for more information
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: fmt
+        name: Format Code (Go & Web)
+        entry: make fmt
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: lint
+        name: Lint Code (go vet & eslint)
+        entry: make lint
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: typecheck
+        name: TypeScript Check (tsc)
+        entry: bash -c "cd apps/web && pnpm exec tsc --noEmit"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: test
+        name: Run Unit Tests (Go)
+        entry: make test
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
