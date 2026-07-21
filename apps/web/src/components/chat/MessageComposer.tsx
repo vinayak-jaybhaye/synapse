@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useUIStore } from "../../store/ui-store";
 import { Paperclip, Smile, Send } from "lucide-react";
 import EmojiPickerPopover from "./EmojiPickerPopover";
@@ -38,18 +38,12 @@ export default function MessageComposer({
   const [isDragging, setIsDragging] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionNames, setMentionNames] = useState<string[]>([]);
   const mentionTriggerIndexRef = useRef<number>(-1);
   // Maps display name → user_id for mentions inserted via the picker
   const mentionsMapRef = useRef<Map<string, string>>(new Map());
 
-  const {
-    canSendMessages,
-    canAttachFiles,
-    canEmbedLinks,
-    canMentionEveryone,
-    canUseExternalEmojis,
-    canUseExternalStickers,
-  } = useChannelPermissions(permissions, isDM);
+  const { canSendMessages } = useChannelPermissions(permissions, isDM);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
@@ -62,21 +56,34 @@ export default function MessageComposer({
     pendingUploadsRef.current = pendingUploads;
   }, [pendingUploads]);
 
-  // Sync draft text on channel change
-  useEffect(() => {
-    if (draftKey) {
-      setInputText(drafts[draftKey] || "");
-    } else {
-      setInputText("");
+  const adjustTextareaHeight = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 250);
+      textareaRef.current.style.height = `${newHeight}px`;
+      // Sync highlight overlay height
+      if (highlightRef.current) {
+        highlightRef.current.style.height = `${newHeight}px`;
+      }
     }
-    // Auto focus the input field on channel load
+  }, []);
+
+  const [prevDraftKey, setPrevDraftKey] = useState(draftKey);
+  if (prevDraftKey !== draftKey) {
+    setPrevDraftKey(draftKey);
+    setInputText(draftKey ? drafts[draftKey] || "" : "");
+    setMentionNames([]);
+  }
+
+  // Auto focus the input field on channel load
+  useEffect(() => {
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
         adjustTextareaHeight();
       }
     }, 50);
-  }, [draftKey]);
+  }, [draftKey, adjustTextareaHeight]);
 
   // Cleanup abandoned uploads on unmount
   useEffect(() => {
@@ -96,18 +103,6 @@ export default function MessageComposer({
     if (textareaRef.current && highlightRef.current) {
       highlightRef.current.scrollTop = textareaRef.current.scrollTop;
       highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
-    }
-  };
-
-  const adjustTextareaHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      const newHeight = Math.min(textareaRef.current.scrollHeight, 250);
-      textareaRef.current.style.height = `${newHeight}px`;
-      // Sync highlight overlay height
-      if (highlightRef.current) {
-        highlightRef.current.style.height = `${newHeight}px`;
-      }
     }
   };
 
@@ -167,6 +162,7 @@ export default function MessageComposer({
 
       // Track the mapping so we can transform back to <@id> on send
       mentionsMapRef.current.set(displayName, member.user_id);
+      setMentionNames((prev) => Array.from(new Set([...prev, displayName])));
 
       setInputText(newText);
       if (draftKey) {
@@ -182,7 +178,7 @@ export default function MessageComposer({
         adjustTextareaHeight();
       }, 0);
     },
-    [inputText, draftKey, setDraft],
+    [inputText, draftKey, setDraft, adjustTextareaHeight],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -206,12 +202,14 @@ export default function MessageComposer({
     const rawInputText = inputText;
     // Transform @displayName back to <@user_id> before sending
     let textToSend = rawInputText.trim();
-    mentionsMapRef.current.forEach((userId, displayName) => {
-      // Replace all occurrences of @displayName with <@userId>
-      const pattern = `@${displayName}`;
-      while (textToSend.includes(pattern)) {
-        textToSend = textToSend.replace(pattern, `<@${userId}>`);
-      }
+    const sortedEntries = Array.from(mentionsMapRef.current.entries()).sort(
+      ([nameA], [nameB]) => nameB.length - nameA.length,
+    );
+
+    sortedEntries.forEach(([displayName, userId]) => {
+      const escaped = displayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`@${escaped}(?![a-zA-Z0-9_-]|\\.[a-zA-Z0-9])`, "g");
+      textToSend = textToSend.replace(regex, `<@${userId}>`);
     });
 
     const uploadIds = pendingUploads
@@ -235,11 +233,12 @@ export default function MessageComposer({
     try {
       await onSend(textToSend, uploadIds);
       mentionsMapRef.current.clear();
+      setMentionNames([]);
       // Clean up object URLs
       completedUploads.forEach((u) => {
         if (u.previewUrl) URL.revokeObjectURL(u.previewUrl);
       });
-    } catch (err) {
+    } catch {
       // Revert UI state on failure, preserving original @displayName text and mention map
       setInputText(rawInputText);
       if (draftKey) {
@@ -274,81 +273,89 @@ export default function MessageComposer({
 
   // ─── Drag & Drop & Upload Logic ──────────────────────────────────────────
 
-  const processFiles = useCallback((files: FileList | File[]) => {
-    const newUploads: PendingUploadState[] = Array.from(files).map((file) => {
-      const isImage = file.type.startsWith("image/");
-      const isVideo = file.type.startsWith("video/");
-      return {
-        id: crypto.randomUUID(),
-        file,
-        state: "QUEUED",
-        progress: 0,
-        previewUrl: isImage || isVideo ? URL.createObjectURL(file) : undefined,
-      };
-    });
+  const startUpload = useCallback(
+    async (uploadState: PendingUploadState) => {
+      const MB = 1024 * 1024;
+      const MAX_SIZE = 25 * MB;
 
-    setPendingUploads((prev) => [...prev, ...newUploads]);
-    newUploads.forEach(startUpload);
-  }, []);
+      // Client-side size validation — not an unexpected error, so handle before try/catch
+      if (uploadState.file.size > MAX_SIZE) {
+        const errorMessage = `File is too large (max 25MB)`;
+        setPendingUploads((prev) =>
+          prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED", errorMessage } : u)),
+        );
+        useUIStore.getState().showToast(errorMessage, "error");
+        return;
+      }
 
-  const startUpload = async (uploadState: PendingUploadState) => {
-    const MB = 1024 * 1024;
-    const MAX_SIZE = 25 * MB;
+      try {
+        // 1. Generate Upload URL
+        const extMatch = uploadState.file.name.match(/(\.[^.]+)$/);
+        const extension = extMatch ? extMatch[1] : "";
 
-    // Client-side size validation — not an unexpected error, so handle before try/catch
-    if (uploadState.file.size > MAX_SIZE) {
-      const errorMessage = `File is too large (max 25MB)`;
-      setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED", errorMessage } : u)),
-      );
-      useUIStore.getState().showToast(errorMessage, "error");
-      return;
-    }
+        setPendingUploads((prev) =>
+          prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADING" } : u)),
+        );
 
-    try {
-      // 1. Generate Upload URL
-      const extMatch = uploadState.file.name.match(/(\.[^.]+)$/);
-      const extension = extMatch ? extMatch[1] : "";
+        const { upload_url, upload_id } = await mediaApi.generateAttachmentUploadUrl(channelId, {
+          category: "attachment",
+          extension,
+          file_name: uploadState.file.name,
+          size: uploadState.file.size,
+          content_type: uploadState.file.type || "application/octet-stream",
+        });
 
-      setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADING" } : u)),
-      );
+        setPendingUploads((prev) =>
+          prev.map((u) => (u.id === uploadState.id ? { ...u, uploadId: upload_id } : u)),
+        );
 
-      const { upload_url, upload_id } = await mediaApi.generateAttachmentUploadUrl(channelId, {
-        category: "attachment",
-        extension,
-        file_name: uploadState.file.name,
-        size: uploadState.file.size,
-        content_type: uploadState.file.type || "application/octet-stream",
+        // 2. Put file to S3
+        await mediaApi.uploadFileToS3(upload_url, uploadState.file, (progressEvent) => {
+          if (progressEvent.total) {
+            const progress = (progressEvent.loaded * 100) / progressEvent.total;
+            setPendingUploads((prev) =>
+              prev.map((u) => (u.id === uploadState.id ? { ...u, progress } : u)),
+            );
+          }
+        });
+
+        // 3. Mark Complete
+        await mediaApi.markUploadComplete(upload_id);
+
+        setPendingUploads((prev) =>
+          prev.map((u) =>
+            u.id === uploadState.id ? { ...u, state: "UPLOADED", progress: 100 } : u,
+          ),
+        );
+      } catch (error: unknown) {
+        const errorMessage = normalizeError(error).message;
+        setPendingUploads((prev) =>
+          prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED", errorMessage } : u)),
+        );
+      }
+    },
+    [channelId],
+  );
+
+  const processFiles = useCallback(
+    (files: FileList | File[]) => {
+      const newUploads: PendingUploadState[] = Array.from(files).map((file) => {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+        return {
+          id: crypto.randomUUID(),
+          file,
+          state: "QUEUED",
+          progress: 0,
+          previewUrl: isImage || isVideo ? URL.createObjectURL(file) : undefined,
+        };
       });
 
-      setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, uploadId: upload_id } : u)),
-      );
-
-      // 2. Put file to S3
-      await mediaApi.uploadFileToS3(upload_url, uploadState.file, (progressEvent) => {
-        if (progressEvent.total) {
-          const progress = (progressEvent.loaded * 100) / progressEvent.total;
-          setPendingUploads((prev) =>
-            prev.map((u) => (u.id === uploadState.id ? { ...u, progress } : u)),
-          );
-        }
-      });
-
-      // 3. Mark Complete
-      await mediaApi.markUploadComplete(upload_id);
-
-      setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "UPLOADED", progress: 100 } : u)),
-      );
-    } catch (error: unknown) {
-      const errorMessage = normalizeError(error).message;
-      setPendingUploads((prev) =>
-        prev.map((u) => (u.id === uploadState.id ? { ...u, state: "FAILED", errorMessage } : u)),
-      );
-    }
-  };
+      setPendingUploads((prev) => [...prev, ...newUploads]);
+      newUploads.forEach(startUpload);
+    },
+    [startUpload],
+  );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -482,18 +489,21 @@ export default function MessageComposer({
             anchorRef={textareaRef}
           />
           {/* Highlight overlay — mirrors textarea content with styled mentions */}
-          {mentionsMapRef.current.size > 0 && (
+          {mentionNames.length > 0 && (
             <div
               ref={highlightRef}
               aria-hidden="true"
               className="absolute inset-0 pointer-events-none text-sm py-1.5 min-h-[36px] whitespace-pre-wrap break-words leading-relaxed overflow-hidden no-scrollbar text-transparent"
             >
               {(() => {
-                if (mentionsMapRef.current.size === 0) return inputText;
-                const mentionNames = Array.from(mentionsMapRef.current.keys());
-                // Build a regex that matches any @displayName
-                const escaped = mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-                const regex = new RegExp(`(@(?:${escaped.join("|")}))(\\s|$)`, "g");
+                if (mentionNames.length === 0) return inputText;
+                // Build a regex that matches any @displayName sorted by length descending
+                const sortedNames = [...mentionNames].sort((a, b) => b.length - a.length);
+                const escaped = sortedNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+                const regex = new RegExp(
+                  `(@(?:${escaped.join("|")}))(?![a-zA-Z0-9_-]|\\.[a-zA-Z0-9])`,
+                  "g",
+                );
                 const parts: React.ReactNode[] = [];
                 let lastIdx = 0;
                 let match: RegExpExecArray | null;
@@ -510,7 +520,6 @@ export default function MessageComposer({
                       {match[1]}
                     </span>,
                   );
-                  parts.push(match[2]); // trailing space
                   lastIdx = match.index + match[0].length;
                 }
                 if (lastIdx < text.length) {
@@ -535,9 +544,7 @@ export default function MessageComposer({
             aria-label={placeholder}
             rows={1}
             className={`w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none text-sm placeholder-text-muted resize-none max-h-[250px] py-1.5 min-h-[36px] no-scrollbar leading-relaxed relative z-[1] ${
-              mentionsMapRef.current.size > 0
-                ? "text-text-primary caret-text-primary"
-                : "text-text-primary"
+              mentionNames.length > 0 ? "text-text-primary caret-text-primary" : "text-text-primary"
             }`}
           />
         </div>

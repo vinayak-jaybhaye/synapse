@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useEffect, useRef, useState, useMemo } from "react";
@@ -41,6 +42,7 @@ export default function MentionPickerPopover({
 
   // Reset active index when filtered list changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveIndex(0);
   }, [filtered.length, query]);
 
