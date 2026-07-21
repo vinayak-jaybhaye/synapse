@@ -11,6 +11,7 @@ import (
 	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/errors"
+	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/media"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/snowflake"
@@ -36,10 +37,11 @@ type service struct {
 	mediaService      media.Service
 	blocksService     blocks.Service
 	rdb               *redis.Client
+	eventBus          events.EventBus
 }
 
 // NewService creates a new messages Service using clean architecture dependencies.
-func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, mediaService media.Service, blocksService blocks.Service, rdb *redis.Client) Service {
+func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, mediaService media.Service, blocksService blocks.Service, rdb *redis.Client, bus events.EventBus) Service {
 	return &service{
 		repo:              repo,
 		channelRepo:       channelRepo,
@@ -47,6 +49,7 @@ func NewService(repo Repository, channelRepo channels.Repository, permissionServ
 		mediaService:      mediaService,
 		blocksService:     blocksService,
 		rdb:               rdb,
+		eventBus:          bus,
 	}
 }
 
@@ -168,6 +171,29 @@ func (s *service) SendMessage(ctx context.Context, channelID, userID int64, req 
 	response, err := s.repo.CreateMessageWithAttachments(ctx, msg, uploadIDs)
 	if err != nil {
 		return nil, err
+	}
+
+	// 6. Extract mentions and persist to message_mentions
+	var mentionedUserIDs []int64
+	for _, idStr := range req.Mentions {
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			mentionedUserIDs = append(mentionedUserIDs, id)
+			s.repo.InsertMention(ctx, response.ID, channelID, id)
+		}
+	}
+
+	// 7. Publish Event
+	if s.eventBus != nil {
+		s.eventBus.Publish(events.DomainEventMessageCreated{
+			Ctx:              context.Background(), // fire and forget
+			MessageID:        response.ID,
+			ChannelID:        channelID,
+			AuthorID:         userID,
+			GuildID:          ch.GuildID,
+			Content:          req.Content,
+			ReplyToID:        req.ReplyToMessageID,
+			MentionedUserIDs: mentionedUserIDs,
+		})
 	}
 
 	return response, nil
@@ -387,7 +413,19 @@ func (s *service) AddMessageReaction(ctx context.Context, channelID, messageID, 
 		PartitionKey:  int16(channelID % 16),
 	}
 
-	return s.repo.AddReaction(ctx, messageID, userID, emoji, event)
+	err = s.repo.AddReaction(ctx, messageID, userID, emoji, event)
+	if err == nil && s.eventBus != nil {
+		s.eventBus.Publish(events.DomainEventReactionAdded{
+			Ctx:       context.Background(),
+			MessageID: messageID,
+			ChannelID: channelID,
+			AuthorID:  msg.AuthorID,
+			UserID:    userID,
+			GuildID:   ch.GuildID,
+			Emoji:     emoji,
+		})
+	}
+	return err
 }
 
 func (s *service) RemoveMessageReaction(ctx context.Context, channelID, messageID, userID int64, emoji string) error {

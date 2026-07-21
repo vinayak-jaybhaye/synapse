@@ -80,6 +80,13 @@ func SetupRoutes(
 		protected.PUT("/users/@me/notifications/guilds/:guildID", notificationsHandler.PutGuildSettings)
 		protected.PUT("/users/@me/notifications/channels/:channelID", notificationsHandler.PutChannelSettings)
 
+		// Notification Inbox
+		protected.GET("/users/@me/notifications/inbox", notificationsHandler.GetInbox)
+		protected.GET("/users/@me/notifications/unread-count", notificationsHandler.GetUnreadCount)
+		protected.PATCH("/users/@me/notifications/:id/read", notificationsHandler.MarkRead)
+		protected.PATCH("/users/@me/notifications/read-all", notificationsHandler.MarkAllRead)
+		protected.DELETE("/users/@me/notifications/:id", notificationsHandler.DeleteNotification)
+
 		// Guilds
 		protected.POST("/guilds", guildHandler.CreateGuild)
 		protected.GET("/guilds/:guildID", guildHandler.GetGuild)

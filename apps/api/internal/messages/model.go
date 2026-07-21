@@ -70,6 +70,7 @@ type CreateMessageRequest struct {
 	Content             string   `json:"content"`
 	ReplyToMessageID    *int64   `json:"reply_to_message_id,string,omitempty"`
 	AttachmentUploadIDs []string `json:"attachment_upload_ids,omitempty"`
+	Mentions            []string `json:"mentions,omitempty"`
 }
 
 type UpdateMessageRequest struct {

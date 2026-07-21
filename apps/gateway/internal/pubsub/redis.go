@@ -26,9 +26,9 @@ type Subscriber struct {
 // created channels (e.g. DMs, voice channels) are received without requiring
 // dynamic subscribe/unsubscribe calls on the Redis connection.
 func New(rdb *redis.Client, hub *websocket.Hub) *Subscriber {
-	// Use PSubscribe with glob patterns so we receive ALL channel:*, guild:*, and user:*
+	// Use PSubscribe with glob patterns so we receive ALL channel:*, guild:*, user:*, and notification:*
 	// messages globally. The Hub's internal maps handle per-client filtering.
-	ps := rdb.PSubscribe(context.Background(), "channel:*", "guild:*", "user:*")
+	ps := rdb.PSubscribe(context.Background(), "channel:*", "guild:*", "user:*", "notification:*")
 
 	s := &Subscriber{
 		rdb:    rdb,
@@ -178,6 +178,9 @@ func (s *Subscriber) handleMessage(msg *redis.Message) {
 			slog.Error("gateway: failed to unmarshal user event envelope", "err", err, "payload", string(payload))
 		}
 		// Fan out to specific user subscribers.
+		s.hub.BroadcastToUser(aggregateID, payload)
+	} else if parts[0] == "notification" {
+		// Fan out notification events directly to the recipient user.
 		s.hub.BroadcastToUser(aggregateID, payload)
 	}
 }

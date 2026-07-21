@@ -14,6 +14,7 @@ import (
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/config"
 	"github.com/synapse/api/internal/database"
+	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/guilds"
 	"github.com/synapse/api/internal/invites"
 	"github.com/synapse/api/internal/media"
@@ -113,12 +114,14 @@ func main() {
 	guildService := guilds.NewService(guildRepo, roleRepo, mediaService)
 	channelService := channels.NewService(channelRepo, roleRepo, mediaService, permissionService)
 
-	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, blocksService, db.Redis)
+	eventBus := events.NewEventBus()
+
+	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, blocksService, db.Redis, eventBus)
 	inviteService := invites.NewService(inviteRepo, roleRepo)
 
 	// Notifications
 	notificationsRepo := notifications.NewPGRepository(db.PG)
-	notificationsService := notifications.NewService(notificationsRepo, guildRepo, channelRepo, permissionService)
+	notificationsService := notifications.NewService(notificationsRepo, guildRepo, channelRepo, permissionService, db.Redis, eventBus)
 	notificationsHandler := notifications.NewHandler(notificationsService)
 
 	// Voice

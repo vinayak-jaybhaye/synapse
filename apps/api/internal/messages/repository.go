@@ -25,6 +25,7 @@ type Repository interface {
 	GetDMOtherParticipant(ctx context.Context, channelID int64, userID int64) (int64, error)
 	GetAttachmentWithChannel(ctx context.Context, attachmentID int64) (*Attachment, int64, error)
 	GetUserSummary(ctx context.Context, userID int64) (*UserSummary, error)
+	InsertMention(ctx context.Context, messageID, channelID, userID int64) error
 }
 
 type pgRepository struct {
@@ -127,6 +128,16 @@ func (r *pgRepository) GetByID(ctx context.Context, id int64) (*Message, error) 
 	}
 
 	return &msg, nil
+}
+
+func (r *pgRepository) InsertMention(ctx context.Context, messageID, channelID, userID int64) error {
+	query := `
+		INSERT INTO message_mentions (message_id, channel_id, mentioned_user_id)
+		VALUES ($1, $2, $3)
+		ON CONFLICT DO NOTHING
+	`
+	_, err := r.db.ExecContext(ctx, query, messageID, channelID, userID)
+	return err
 }
 
 func (r *pgRepository) ListMessagesCursor(ctx context.Context, channelID, userID, beforeID int64, limit int) ([]MessageResponse, error) {

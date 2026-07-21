@@ -28,6 +28,10 @@ const (
 	UserBlockAdd     = "USER_BLOCK_ADD"
 	UserBlockRemove  = "USER_BLOCK_REMOVE"
 	VoiceStateUpdate = "VOICE_STATE_UPDATE"
+
+	NotificationCreated = "NOTIFICATION_CREATED"
+	NotificationUpdated = "NOTIFICATION_UPDATED"
+	NotificationDeleted = "NOTIFICATION_DELETED"
 )
 
 // Ephemeral Events (direct publish to Redis Streams, no DB write)

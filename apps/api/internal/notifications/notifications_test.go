@@ -27,6 +27,38 @@ func (m *mockRepository) GetUserSettings(ctx context.Context, userID int64) ([]N
 	return res, nil
 }
 
+func (m *mockRepository) CreateOrUpdate(ctx context.Context, notif *Notification) error {
+	return nil
+}
+
+func (m *mockRepository) MarkRead(ctx context.Context, recipientID, notificationID int64) error {
+	return nil
+}
+
+func (m *mockRepository) MarkAllRead(ctx context.Context, recipientID int64) error {
+	return nil
+}
+
+func (m *mockRepository) Delete(ctx context.Context, recipientID, notificationID int64) (bool, error) {
+	return false, nil
+}
+
+func (m *mockRepository) GetInbox(ctx context.Context, recipientID int64, beforeID *int64, limit int) ([]Notification, error) {
+	return nil, nil
+}
+
+func (m *mockRepository) GetUnreadCount(ctx context.Context, recipientID int64) (int, error) {
+	return 0, nil
+}
+
+func (m *mockRepository) GetMessageAuthor(ctx context.Context, messageID int64) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockRepository) InsertOutboxEvent(ctx context.Context, eventType string, aggregateID int64, payload []byte) error {
+	return nil
+}
+
 func (m *mockRepository) PutSettings(ctx context.Context, s *NotificationSettings) error {
 	var gidStr, cidStr string
 	if s.GuildID != nil {
@@ -92,7 +124,7 @@ func TestNotificationsService(t *testing.T) {
 		channelPerms: make(map[string]bool),
 	}
 
-	svc := NewService(repo, guildRepo, channelRepo, permService)
+	svc := NewService(repo, guildRepo, channelRepo, permService, nil, nil)
 
 	userID := int64(123)
 	guildID := int64(456)
