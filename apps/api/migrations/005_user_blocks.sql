@@ -1,3 +1,4 @@
+-- +goose Up
 -- Create user_blocks table
 CREATE TABLE IF NOT EXISTS user_blocks (
     blocker_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -8,3 +9,6 @@ CREATE TABLE IF NOT EXISTS user_blocks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked_id ON user_blocks(blocked_id);
+
+-- +goose Down
+DROP TABLE IF EXISTS user_blocks;

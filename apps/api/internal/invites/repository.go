@@ -13,6 +13,8 @@ type Repository interface {
 	Create(ctx context.Context, invite *Invite) error
 	GetByCode(ctx context.Context, code string) (*Invite, error)
 	GetInviteMetadata(ctx context.Context, code string) (*InviteMetadata, error)
+	ListGuildInvites(ctx context.Context, guildID int64) ([]Invite, error)
+	Delete(ctx context.Context, code string) error
 	JoinGuildTx(ctx context.Context, code string, guildID, userID int64, event *OutboxEvent) error
 	IsMember(ctx context.Context, guildID, userID int64) (bool, error)
 	IsBanned(ctx context.Context, guildID, userID int64) (bool, error)
@@ -57,6 +59,41 @@ func (r *pgRepository) GetByCode(ctx context.Context, code string) (*Invite, err
 		return nil, fmt.Errorf("failed to get invite by code: %w", err)
 	}
 	return &invite, nil
+}
+
+func (r *pgRepository) ListGuildInvites(ctx context.Context, guildID int64) ([]Invite, error) {
+	query := `
+		SELECT id, guild_id, created_by, code, expires_at, max_uses, uses, created_at
+		FROM invites
+		WHERE guild_id = $1
+		ORDER BY created_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query, guildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list guild invites: %w", err)
+	}
+	defer rows.Close()
+
+	var list []Invite
+	for rows.Next() {
+		var inv Invite
+		if err := rows.Scan(
+			&inv.ID, &inv.GuildID, &inv.CreatedBy, &inv.Code, &inv.ExpiresAt, &inv.MaxUses, &inv.Uses, &inv.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan invite row: %w", err)
+		}
+		list = append(list, inv)
+	}
+	return list, nil
+}
+
+func (r *pgRepository) Delete(ctx context.Context, code string) error {
+	query := `DELETE FROM invites WHERE code = $1`
+	_, err := r.db.ExecContext(ctx, query, code)
+	if err != nil {
+		return fmt.Errorf("failed to delete invite: %w", err)
+	}
+	return nil
 }
 
 func (r *pgRepository) GetInviteMetadata(ctx context.Context, code string) (*InviteMetadata, error) {

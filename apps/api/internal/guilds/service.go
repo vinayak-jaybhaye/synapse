@@ -3,9 +3,11 @@ package guilds
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/media"
@@ -32,10 +34,11 @@ type service struct {
 	repo         Repository
 	roleRepo     roles.Repository
 	mediaService media.Service
+	auditService audit.Service
 }
 
-func NewService(repo Repository, roleRepo roles.Repository, mediaService media.Service) Service {
-	return &service{repo: repo, roleRepo: roleRepo, mediaService: mediaService}
+func NewService(repo Repository, roleRepo roles.Repository, mediaService media.Service, auditService audit.Service) Service {
+	return &service{repo: repo, roleRepo: roleRepo, mediaService: mediaService, auditService: auditService}
 }
 
 func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm permissions.Permission) (bool, error) {
@@ -127,6 +130,8 @@ func (s *service) UpdateGuildMember(ctx context.Context, guildID, targetUserID, 
 		return nil, errors.NewNotFound("member not found")
 	}
 
+	oldNick := m.Nickname
+
 	// 1. Nickname modification permission check
 	if req.Nickname != nil {
 		if requesterUserID == targetUserID {
@@ -181,6 +186,19 @@ func (s *service) UpdateGuildMember(ctx context.Context, guildID, targetUserID, 
 
 	if err := s.repo.UpdateMember(ctx, m, event); err != nil {
 		return nil, err
+	}
+
+	if s.auditService != nil && req.Nickname != nil {
+		changes := audit.NewChanges().AddPtr("nickname", oldNick, m.Nickname).Build()
+		if changes != nil {
+			_ = s.auditService.NewEntry().
+				Guild(guildID).
+				ActorID(ctx, requesterUserID).
+				Action(audit.ActionMemberNickUpdate).
+				TargetResource(audit.TargetMember, &targetUserID, fmt.Sprintf("User %d", targetUserID)).
+				Changes(changes).
+				Log(ctx)
+		}
 	}
 
 	return m, nil
@@ -239,6 +257,11 @@ func (s *service) UpdateGuild(ctx context.Context, guildID, userID int64, req *U
 		return nil, errors.NewNotFound("guild not found")
 	}
 
+	oldName := g.Name
+	oldDesc := g.Description
+	oldIcon := g.IconKey
+	oldBanner := g.BannerKey
+
 	if req.Name != nil {
 		g.Name = *req.Name
 	}
@@ -296,6 +319,24 @@ func (s *service) UpdateGuild(ctx context.Context, guildID, userID int64, req *U
 	err = s.repo.UpdateGuild(ctx, g, event)
 	if err != nil {
 		return nil, err
+	}
+
+	if s.auditService != nil {
+		changes := audit.NewChanges().
+			Add("name", oldName, g.Name).
+			AddPtr("description", oldDesc, g.Description).
+			AddPtr("icon_key", oldIcon, g.IconKey).
+			AddPtr("banner_key", oldBanner, g.BannerKey).
+			Build()
+		if changes != nil {
+			_ = s.auditService.NewEntry().
+				Guild(guildID).
+				ActorID(ctx, userID).
+				Action(audit.ActionGuildUpdate).
+				TargetResource(audit.TargetGuild, &guildID, g.Name).
+				Changes(changes).
+				Log(ctx)
+		}
 	}
 
 	// Clean up pending upload records as they are successfully saved/consumed
@@ -403,7 +444,16 @@ func (s *service) KickMember(ctx context.Context, guildID, targetUserID, request
 		PartitionKey:  int16(guildID % 16),
 	}
 
-	return s.repo.RemoveMember(ctx, guildID, targetUserID, event)
+	err = s.repo.RemoveMember(ctx, guildID, targetUserID, event)
+	if err == nil && s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, requesterUserID).
+			Action(audit.ActionMemberKick).
+			TargetResource(audit.TargetUser, &targetUserID, fmt.Sprintf("User %d", targetUserID)).
+			Log(ctx)
+	}
+	return err
 }
 
 func (s *service) BanMember(ctx context.Context, guildID, targetUserID, requesterUserID int64, reason string) error {
@@ -450,7 +500,17 @@ func (s *service) BanMember(ctx context.Context, guildID, targetUserID, requeste
 		PartitionKey:  int16(guildID % 16),
 	}
 
-	return s.repo.BanMember(ctx, guildID, targetUserID, requesterUserID, reason, event)
+	err = s.repo.BanMember(ctx, guildID, targetUserID, requesterUserID, reason, event)
+	if err == nil && s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, requesterUserID).
+			Action(audit.ActionMemberBan).
+			TargetResource(audit.TargetUser, &targetUserID, fmt.Sprintf("User %d", targetUserID)).
+			Reason(reason).
+			Log(ctx)
+	}
+	return err
 }
 
 func (s *service) GetBans(ctx context.Context, guildID, userID int64) ([]BanWithUser, error) {
@@ -476,5 +536,14 @@ func (s *service) UnbanMember(ctx context.Context, guildID, targetUserID, reques
 		return errors.NewForbidden("insufficient permissions to unban members")
 	}
 
-	return s.repo.RemoveBan(ctx, guildID, targetUserID)
+	err = s.repo.RemoveBan(ctx, guildID, targetUserID)
+	if err == nil && s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, requesterUserID).
+			Action(audit.ActionMemberUnban).
+			TargetResource(audit.TargetUser, &targetUserID, fmt.Sprintf("User %d", targetUserID)).
+			Log(ctx)
+	}
+	return err
 }

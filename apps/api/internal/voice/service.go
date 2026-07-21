@@ -9,6 +9,7 @@ import (
 	"time"
 
 	lkproto "github.com/livekit/protocol/livekit"
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/permissions"
 )
@@ -30,11 +31,12 @@ type Service interface {
 }
 
 type service struct {
-	repo        Repository
-	lk          *LiveKitClient
-	permService permissions.Service
-	stateTTL    time.Duration
-	lkWSURL     string
+	repo         Repository
+	lk           *LiveKitClient
+	permService  permissions.Service
+	stateTTL     time.Duration
+	lkWSURL      string
+	auditService audit.Service
 }
 
 // NewService constructs the voice service.
@@ -44,13 +46,15 @@ func NewService(
 	permService permissions.Service,
 	stateTTL time.Duration,
 	lkWSURL string,
+	auditService audit.Service,
 ) Service {
 	return &service{
-		repo:        repo,
-		lk:          lk,
-		permService: permService,
-		stateTTL:    stateTTL,
-		lkWSURL:     lkWSURL,
+		repo:         repo,
+		lk:           lk,
+		permService:  permService,
+		stateTTL:     stateTTL,
+		lkWSURL:      lkWSURL,
+		auditService: auditService,
 	}
 }
 
@@ -255,6 +259,16 @@ func (s *service) DisconnectMember(ctx context.Context, guildID, channelID, acto
 	// Delete voice state in Redis (triggers leave event propagation)
 	_ = s.repo.DeleteVoiceState(ctx, guildID, targetID, channelID)
 
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, actorID).
+			Action(audit.ActionVoiceDisconnect).
+			TargetResource(audit.TargetUser, &targetID, fmt.Sprintf("User %d", targetID)).
+			Metadata("channel_id", fmt.Sprintf("%d", channelID)).
+			Log(ctx)
+	}
+
 	return nil
 }
 
@@ -283,7 +297,20 @@ func (s *service) MoveMember(ctx context.Context, guildID, srcChannelID, dstChan
 	_ = s.lk.RemoveParticipant(ctx, srcRoom, identity)
 
 	// Update state to new channel atomically in repository
-	_ = s.repo.MoveVoiceState(ctx, guildID, targetID, srcChannelID, dstChannelID)
+	if err := s.repo.MoveVoiceState(ctx, guildID, targetID, srcChannelID, dstChannelID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, actorID).
+			Action(audit.ActionVoiceMove).
+			TargetResource(audit.TargetUser, &targetID, fmt.Sprintf("User %d", targetID)).
+			Metadata("from_channel_id", fmt.Sprintf("%d", srcChannelID)).
+			Metadata("to_channel_id", fmt.Sprintf("%d", dstChannelID)).
+			Log(ctx)
+	}
 
 	return nil
 }

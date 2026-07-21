@@ -1,6 +1,7 @@
+-- +goose Up
 -- Phase 1 Migration: Devices and Sessions Tables
 
-CREATE TABLE devices (
+CREATE TABLE IF NOT EXISTS devices (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_id VARCHAR(128) NOT NULL,      -- client-generated, stable across reinstalls if possible
@@ -15,10 +16,10 @@ CREATE TABLE devices (
     UNIQUE (user_id, device_id)
 );
 
-CREATE INDEX idx_devices_user_id ON devices(user_id);
-CREATE INDEX idx_devices_user_status ON devices(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_devices_user_status ON devices(user_id, status);
 
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_id BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
@@ -30,6 +31,10 @@ CREATE TABLE sessions (
     revoked_at TIMESTAMP
 );
 
-CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX idx_sessions_device_id ON sessions(device_id);
-CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_device_id ON sessions(device_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+
+-- +goose Down
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS devices CASCADE;

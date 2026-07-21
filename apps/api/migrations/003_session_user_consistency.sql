@@ -1,9 +1,7 @@
+-- +goose Up
 -- Migration 003: Enforce sessions.user_id consistency with devices.user_id
--- Postgres does not support correlated subqueries in CHECK constraints,
--- so we use a BEFORE INSERT/UPDATE trigger instead.
--- This is a belt-and-suspenders guard; the application already derives
--- session.user_id from the device row at insert time (not from a caller parameter).
 
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION check_session_user_matches_device()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -15,7 +13,14 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
+
+DROP TRIGGER IF EXISTS trg_session_user_consistency ON sessions;
 
 CREATE TRIGGER trg_session_user_consistency
 BEFORE INSERT OR UPDATE ON sessions
 FOR EACH ROW EXECUTE FUNCTION check_session_user_matches_device();
+
+-- +goose Down
+DROP TRIGGER IF EXISTS trg_session_user_consistency ON sessions;
+DROP FUNCTION IF EXISTS check_session_user_matches_device();

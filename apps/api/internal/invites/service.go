@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"strconv"
 	"time"
 
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/permissions"
@@ -18,16 +20,19 @@ import (
 type Service interface {
 	CreateInvite(ctx context.Context, guildID, userID int64, req *CreateInviteRequest) (*Invite, error)
 	GetInvite(ctx context.Context, code string) (*InviteMetadata, error)
+	GetGuildInvites(ctx context.Context, guildID, userID int64) ([]Invite, error)
+	DeleteInvite(ctx context.Context, code string, userID int64) error
 	JoinGuild(ctx context.Context, code string, userID int64) error
 }
 
 type service struct {
-	repo     Repository
-	roleRepo roles.Repository
+	repo         Repository
+	roleRepo     roles.Repository
+	auditService audit.Service
 }
 
-func NewService(repo Repository, roleRepo roles.Repository) Service {
-	return &service{repo: repo, roleRepo: roleRepo}
+func NewService(repo Repository, roleRepo roles.Repository, auditService audit.Service) Service {
+	return &service{repo: repo, roleRepo: roleRepo, auditService: auditService}
 }
 
 func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm permissions.Permission) (bool, error) {
@@ -95,7 +100,75 @@ func (s *service) CreateInvite(ctx context.Context, guildID, userID int64, req *
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionInviteCreate).
+			TargetResource(audit.TargetInvite, &invite.ID, fmt.Sprintf("Invite %s", code)).
+			Metadata("code", code).
+			Metadata("max_uses", req.MaxUses).
+			Metadata("duration", req.Duration).
+			Log(ctx)
+	}
+
 	return invite, nil
+}
+
+func (s *service) GetGuildInvites(ctx context.Context, guildID, userID int64) ([]Invite, error) {
+	// Verify permission (MANAGE_GUILD or CREATE_INSTANT_INVITE)
+	allowed, err := s.checkPermissions(ctx, guildID, userID, permissions.MANAGE_GUILD)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		allowed, err = s.checkPermissions(ctx, guildID, userID, permissions.CREATE_INSTANT_INVITE)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, errors.NewForbidden("insufficient permissions to view invites")
+		}
+	}
+
+	return s.repo.ListGuildInvites(ctx, guildID)
+}
+
+func (s *service) DeleteInvite(ctx context.Context, code string, userID int64) error {
+	invite, err := s.repo.GetByCode(ctx, code)
+	if err != nil {
+		return err
+	}
+	if invite == nil {
+		return errors.NewNotFound("invite code not found")
+	}
+
+	// Requester must be invite creator or have MANAGE_GUILD permission
+	if invite.CreatedBy != userID {
+		allowed, err := s.checkPermissions(ctx, invite.GuildID, userID, permissions.MANAGE_GUILD)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return errors.NewForbidden("insufficient permissions to delete invite")
+		}
+	}
+
+	if err := s.repo.Delete(ctx, code); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(invite.GuildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionInviteDelete).
+			TargetResource(audit.TargetInvite, &invite.ID, fmt.Sprintf("Invite %s", code)).
+			Metadata("code", code).
+			Log(ctx)
+	}
+
+	return nil
 }
 
 func (s *service) GetInvite(ctx context.Context, code string) (*InviteMetadata, error) {
@@ -174,5 +247,19 @@ func (s *service) JoinGuild(ctx context.Context, code string, userID int64) erro
 	}
 
 	// 5. Consume invite and join guild
-	return s.repo.JoinGuildTx(ctx, code, invite.GuildID, userID, event)
+	if err := s.repo.JoinGuildTx(ctx, code, invite.GuildID, userID, event); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(invite.GuildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionMemberAdd).
+			TargetResource(audit.TargetUser, &userID, fmt.Sprintf("User %d", userID)).
+			Metadata("code", code).
+			Log(ctx)
+	}
+
+	return nil
 }

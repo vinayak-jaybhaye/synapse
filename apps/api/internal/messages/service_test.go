@@ -262,7 +262,7 @@ func TestSendMessage(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil, nil)
 
 	// Setup Guild Channel
 	channelID := int64(100)
@@ -359,7 +359,7 @@ func TestDMChannelAuthorization(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil, nil)
 
 	dmChannelID := int64(500)
 	chanRepo.channels[dmChannelID] = &channels.Channel{
@@ -396,7 +396,7 @@ func TestSyncReadState(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{ID: channelID, GuildID: &guildID}
@@ -424,7 +424,7 @@ func TestEditMessage(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{ID: channelID, GuildID: &guildID}
@@ -457,7 +457,7 @@ func TestDeleteMessage(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{ID: channelID, GuildID: &guildID}
@@ -509,7 +509,7 @@ func TestGetMessages(t *testing.T) {
 	chanRepo := &mockChannelRepo{channels: make(map[int64]*channels.Channel)}
 	permSvc := &mockPermissionsService{channelPerms: make(map[int64]permissions.Permission)}
 
-	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil)
+	svc := NewService(msgRepo, chanRepo, permSvc, &mockMediaService{}, &mockBlocksService{}, nil, nil, nil)
 
 	channelID := int64(100)
 	chanRepo.channels[channelID] = &channels.Channel{

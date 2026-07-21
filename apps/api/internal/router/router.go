@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/auth"
 	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/channels"
@@ -32,6 +33,7 @@ func SetupRoutes(
 	notificationsHandler *notifications.Handler,
 	voiceHandler *voice.Handler,
 	blocksHandler *blocks.Handler,
+	auditHandler *audit.Handler,
 ) {
 	// Root Group
 	v1 := r.Group("/api/v1")
@@ -99,6 +101,7 @@ func SetupRoutes(
 		protected.DELETE("/guilds/:guildID/bans/:userID", guildHandler.UnbanMember)
 		protected.POST("/guilds/:guildID/icons/upload-url", guildHandler.GenerateIconUploadURL)
 		protected.POST("/guilds/:guildID/banners/upload-url", guildHandler.GenerateBannerUploadURL)
+		protected.GET("/guilds/:guildID/audit-logs", auditHandler.GetGuildAuditLogs)
 
 		// Roles
 		protected.GET("/guilds/:guildID/roles", roleHandler.GetRoles)
@@ -134,8 +137,11 @@ func SetupRoutes(
 
 		// Invites
 		protected.POST("/guilds/:guildID/invites", inviteHandler.CreateInvite)
+		protected.GET("/guilds/:guildID/invites", inviteHandler.GetGuildInvites)
+		protected.DELETE("/guilds/:guildID/invites/:code", inviteHandler.DeleteInvite)
 		protected.GET("/invites/:code", inviteHandler.GetInvite)
 		protected.POST("/invites/:code/join", inviteHandler.JoinGuild)
+		protected.DELETE("/invites/:code", inviteHandler.DeleteInvite)
 
 		// Media
 		protected.POST("/media/uploads/:uploadID/complete", mediaHandler.MarkUploadComplete)

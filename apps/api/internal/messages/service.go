@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/channels"
 	"github.com/synapse/api/internal/errors"
@@ -38,10 +39,11 @@ type service struct {
 	blocksService     blocks.Service
 	rdb               *redis.Client
 	eventBus          events.EventBus
+	auditService      audit.Service
 }
 
 // NewService creates a new messages Service using clean architecture dependencies.
-func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, mediaService media.Service, blocksService blocks.Service, rdb *redis.Client, bus events.EventBus) Service {
+func NewService(repo Repository, channelRepo channels.Repository, permissionService permissions.Service, mediaService media.Service, blocksService blocks.Service, rdb *redis.Client, bus events.EventBus, auditService audit.Service) Service {
 	return &service{
 		repo:              repo,
 		channelRepo:       channelRepo,
@@ -50,6 +52,7 @@ func NewService(repo Repository, channelRepo channels.Repository, permissionServ
 		blocksService:     blocksService,
 		rdb:               rdb,
 		eventBus:          bus,
+		auditService:      auditService,
 	}
 }
 
@@ -328,7 +331,25 @@ func (s *service) DeleteMessage(ctx context.Context, channelID, messageID, userI
 		PartitionKey:  int16(channelID % 16),
 	}
 
-	return s.repo.SoftDelete(ctx, messageID, event)
+	isModDelete := msg.AuthorID != userID && ch.GuildID != nil
+
+	err = s.repo.SoftDelete(ctx, messageID, event)
+	if err == nil && isModDelete && s.auditService != nil {
+		authorUsername := msg.Author.Username
+		_ = s.auditService.NewEntry().
+			Guild(*ch.GuildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionMessageDelete).
+			TargetResource(audit.TargetMessage, &messageID, fmt.Sprintf("Message %d", messageID)).
+			Metadata("channel_id", strconv.FormatInt(channelID, 10)).
+			Metadata("channel_name", ch.Name).
+			Metadata("author_id", strconv.FormatInt(msg.AuthorID, 10)).
+			Metadata("author_username", authorUsername).
+			Metadata("message_id", strconv.FormatInt(messageID, 10)).
+			Log(ctx)
+	}
+
+	return err
 }
 
 func (s *service) SyncReadState(ctx context.Context, channelID, userID, lastReadMessageID int64) error {

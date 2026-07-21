@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/events"
 	"github.com/synapse/api/internal/media"
@@ -31,10 +32,11 @@ type service struct {
 	roleRepo     roles.Repository
 	mediaService media.Service
 	permService  permissions.Service
+	auditService audit.Service
 }
 
-func NewService(repo Repository, roleRepo roles.Repository, mediaService media.Service, permService permissions.Service) Service {
-	return &service{repo: repo, roleRepo: roleRepo, mediaService: mediaService, permService: permService}
+func NewService(repo Repository, roleRepo roles.Repository, mediaService media.Service, permService permissions.Service, auditService audit.Service) Service {
+	return &service{repo: repo, roleRepo: roleRepo, mediaService: mediaService, permService: permService, auditService: auditService}
 }
 
 func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm permissions.Permission) (bool, error) {
@@ -164,6 +166,15 @@ func (s *service) CreateChannel(ctx context.Context, guildID, userID int64, req 
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionChannelCreate).
+			TargetResource(audit.TargetChannel, &ch.ID, fmt.Sprintf("#%s", ch.Name)).
+			Log(ctx)
+	}
+
 	return ch, nil
 }
 
@@ -184,6 +195,10 @@ func (s *service) UpdateChannel(ctx context.Context, channelID, userID int64, re
 	if !allowed {
 		return nil, errors.NewForbidden("insufficient permissions to manage channels")
 	}
+
+	oldName := ch.Name
+	oldTopic := ch.Topic
+	oldPos := ch.Position
 
 	// If parent channel is provided, verify it exists and is a category type
 	if req.ParentChannelID != nil {
@@ -221,6 +236,27 @@ func (s *service) UpdateChannel(ctx context.Context, channelID, userID int64, re
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		changes := audit.NewChanges().
+			Add("name", oldName, ch.Name).
+			AddPtr("topic", oldTopic, ch.Topic).
+			Add("position", oldPos, ch.Position).
+			Build()
+		if changes != nil {
+			action := audit.ActionChannelUpdate
+			if oldPos != ch.Position {
+				action = audit.ActionChannelMove
+			}
+			_ = s.auditService.NewEntry().
+				Guild(*ch.GuildID).
+				ActorID(ctx, userID).
+				Action(action).
+				TargetResource(audit.TargetChannel, &ch.ID, fmt.Sprintf("#%s", ch.Name)).
+				Changes(changes).
+				Log(ctx)
+		}
+	}
+
 	return ch, nil
 }
 func (s *service) DeleteChannel(ctx context.Context, channelID, userID int64) error {
@@ -254,7 +290,20 @@ func (s *service) DeleteChannel(ctx context.Context, channelID, userID int64) er
 	}
 
 	// Soft delete channel
-	return s.repo.SoftDelete(ctx, channelID, event)
+	if err := s.repo.SoftDelete(ctx, channelID, event); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(*ch.GuildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionChannelDelete).
+			TargetResource(audit.TargetChannel, &channelID, fmt.Sprintf("#%s", ch.Name)).
+			Log(ctx)
+	}
+
+	return nil
 }
 
 func (s *service) GetChannel(ctx context.Context, channelID, userID int64) (*Channel, error) {
@@ -268,7 +317,6 @@ func (s *service) GetChannel(ctx context.Context, channelID, userID int64) (*Cha
 
 	// For DMs (GuildID is nil), verify user belongs to the conversation
 	if ch.GuildID == nil {
-		// DM check
 		return ch, nil
 	}
 
@@ -283,7 +331,6 @@ func (s *service) GetChannel(ctx context.Context, channelID, userID int64) (*Cha
 		}
 		ch.Permissions = fmt.Sprintf("%d", perm)
 	} else {
-		// Fallback if permService is nil
 		allowed, err := s.checkPermissions(ctx, *ch.GuildID, userID, permissions.VIEW_CHANNEL)
 		if err != nil {
 			return nil, err
@@ -386,7 +433,23 @@ func (s *service) PutRoleOverride(ctx context.Context, channelID, userID, roleID
 	}
 
 	// Upsert override
-	return s.repo.PutRoleOverride(ctx, override, *ch.GuildID)
+	if err := s.repo.PutRoleOverride(ctx, override, *ch.GuildID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(*ch.GuildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionChannelPermissionUpdate).
+			TargetResource(audit.TargetChannel, &channelID, fmt.Sprintf("#%s", ch.Name)).
+			Metadata("role_id", strconv.FormatInt(roleID, 10)).
+			Metadata("allow_permissions", req.AllowPermissions).
+			Metadata("deny_permissions", req.DenyPermissions).
+			Log(ctx)
+	}
+
+	return nil
 }
 
 func (s *service) DeleteRoleOverride(ctx context.Context, channelID, userID, roleID int64) error {
@@ -424,5 +487,19 @@ func (s *service) DeleteRoleOverride(ctx context.Context, channelID, userID, rol
 	}
 
 	// Delete override
-	return s.repo.DeleteRoleOverride(ctx, channelID, roleID, *ch.GuildID)
+	if err := s.repo.DeleteRoleOverride(ctx, channelID, roleID, *ch.GuildID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(*ch.GuildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionChannelPermissionDelete).
+			TargetResource(audit.TargetChannel, &channelID, fmt.Sprintf("#%s", ch.Name)).
+			Metadata("role_id", strconv.FormatInt(roleID, 10)).
+			Log(ctx)
+	}
+
+	return nil
 }

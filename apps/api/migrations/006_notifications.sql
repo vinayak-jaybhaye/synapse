@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id BIGINT PRIMARY KEY,
     recipient_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     actor_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
@@ -13,8 +13,9 @@ CREATE TABLE notifications (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_recipient_unread ON notifications(recipient_id) WHERE is_read = false;
-CREATE INDEX idx_notifications_recipient_created ON notifications(recipient_id, created_at DESC);
-CREATE UNIQUE INDEX idx_notifications_dedup ON notifications(recipient_id, deduplication_key) WHERE deduplication_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_unread ON notifications(recipient_id) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_created ON notifications(recipient_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedup ON notifications(recipient_id, deduplication_key) WHERE deduplication_key IS NOT NULL;
+
 -- +goose Down
 DROP TABLE IF EXISTS notifications;

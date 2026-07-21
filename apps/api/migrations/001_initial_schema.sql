@@ -1,5 +1,6 @@
+-- +goose Up
 -- 1. Core Entities
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   users (
     id BIGINT PRIMARY KEY,
     username VARCHAR(32) UNIQUE NOT NULL,
@@ -13,7 +14,7 @@ CREATE TABLE
     updated_at TIMESTAMPTZ DEFAULT NOW ()
   );
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   guilds (
     id BIGINT PRIMARY KEY,
     owner_id BIGINT NOT NULL REFERENCES users (id),
@@ -27,9 +28,9 @@ CREATE TABLE
     deleted_at TIMESTAMPTZ
   );
 
-CREATE INDEX idx_guilds_owner ON guilds (owner_id);
+CREATE INDEX IF NOT EXISTS idx_guilds_owner ON guilds (owner_id);
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   channels (
     id BIGINT PRIMARY KEY,
     guild_id BIGINT REFERENCES guilds (id),
@@ -55,7 +56,7 @@ CREATE TABLE
   );
 
 -- COALESCE handles top-level categories where parent_channel_id is NULL
-CREATE UNIQUE INDEX idx_channel_position ON channels (
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_position ON channels (
   guild_id,
   COALESCE(parent_channel_id, 0),
   position
@@ -64,7 +65,7 @@ WHERE
   deleted_at IS NULL;
 
 -- 2. O(1) Direct Message Discovery
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   direct_conversations (
     id BIGINT PRIMARY KEY,
     channel_id BIGINT NOT NULL REFERENCES channels (id),
@@ -75,10 +76,10 @@ CREATE TABLE
     CHECK (user1_id < user2_id)
   );
 
-CREATE UNIQUE INDEX idx_dm_channel ON direct_conversations (channel_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dm_channel ON direct_conversations (channel_id);
 
 -- 3. Membership, Moderation & Invites
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   guild_members (
     guild_id BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
     user_id BIGINT REFERENCES users (id),
@@ -88,11 +89,11 @@ CREATE TABLE
     PRIMARY KEY (guild_id, user_id)
   );
 
-CREATE INDEX idx_guild_members_user_id ON guild_members (user_id, guild_id);
+CREATE INDEX IF NOT EXISTS idx_guild_members_user_id ON guild_members (user_id, guild_id);
 
-CREATE INDEX idx_guild_members_joined ON guild_members (guild_id, joined_at);
+CREATE INDEX IF NOT EXISTS idx_guild_members_joined ON guild_members (guild_id, joined_at);
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   guild_bans (
     guild_id BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
     user_id BIGINT REFERENCES users (id),
@@ -102,7 +103,7 @@ CREATE TABLE
     PRIMARY KEY (guild_id, user_id)
   );
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   invites (
     id BIGINT PRIMARY KEY,
     guild_id BIGINT NOT NULL REFERENCES guilds (id) ON DELETE CASCADE,
@@ -115,7 +116,7 @@ CREATE TABLE
   );
 
 -- 4. The Bitwise Permission Engine
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   roles (
     id BIGINT PRIMARY KEY,
     guild_id BIGINT NOT NULL REFERENCES guilds (id) ON DELETE CASCADE,
@@ -128,14 +129,14 @@ CREATE TABLE
     created_at TIMESTAMPTZ DEFAULT NOW ()
   );
 
-CREATE INDEX idx_roles_guild_position ON roles (guild_id, position);
+CREATE INDEX IF NOT EXISTS idx_roles_guild_position ON roles (guild_id, position);
 
 -- Dropped UNIQUE for UI drag-and-drop
-CREATE UNIQUE INDEX idx_default_role ON roles (guild_id)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_default_role ON roles (guild_id)
 WHERE
   is_default = TRUE;
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   member_roles (
     guild_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
@@ -144,7 +145,7 @@ CREATE TABLE
     FOREIGN KEY (guild_id, user_id) REFERENCES guild_members (guild_id, user_id) ON DELETE CASCADE
   );
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   channel_role_permissions (
     channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
     role_id BIGINT NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
@@ -154,7 +155,7 @@ CREATE TABLE
   );
 
 -- 5. The Message Firehose, Mentions & Attachments
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   messages (
     id BIGINT PRIMARY KEY,
     channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
@@ -169,17 +170,17 @@ CREATE TABLE
     deleted_at TIMESTAMPTZ
   );
 
-CREATE INDEX idx_active_messages_by_channel ON messages (channel_id, id DESC)
+CREATE INDEX IF NOT EXISTS idx_active_messages_by_channel ON messages (channel_id, id DESC)
 WHERE
   deleted_at IS NULL;
-CREATE INDEX idx_messages_by_channel ON messages (channel_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_by_channel ON messages (channel_id, id DESC);
 
-CREATE INDEX idx_messages_author ON messages (author_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_author ON messages (author_id, id DESC);
 
-CREATE INDEX idx_messages_reply ON messages (reply_to_message_id);
+CREATE INDEX IF NOT EXISTS idx_messages_reply ON messages (reply_to_message_id);
 
 -- Optimizes thread lookups
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   message_attachments (
     id BIGINT PRIMARY KEY,
     message_id BIGINT NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
@@ -189,9 +190,9 @@ CREATE TABLE
     mime_type TEXT
   );
 
-CREATE INDEX idx_attachments_message ON message_attachments (message_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_message ON message_attachments (message_id);
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   message_reactions (
     message_id BIGINT NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -200,7 +201,7 @@ CREATE TABLE
     PRIMARY KEY (message_id, user_id, emoji)
   );
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   message_mentions (
     message_id BIGINT NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
     channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
@@ -208,10 +209,10 @@ CREATE TABLE
     PRIMARY KEY (message_id, mentioned_user_id)
   );
 
-CREATE INDEX idx_mentions_channel_user ON message_mentions (channel_id, mentioned_user_id);
+CREATE INDEX IF NOT EXISTS idx_mentions_channel_user ON message_mentions (channel_id, mentioned_user_id);
 
 -- 6. State, Settings & Voice Data
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   channel_reads (
     channel_id BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES users (id),
@@ -220,7 +221,7 @@ CREATE TABLE
     PRIMARY KEY (channel_id, user_id)
   );
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   notification_settings (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -233,7 +234,7 @@ CREATE TABLE
     CHECK (guild_id IS NULL OR channel_id IS NULL)
   );
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   voice_sessions (
     id BIGINT PRIMARY KEY,
     channel_id BIGINT NOT NULL REFERENCES channels (id),
@@ -242,10 +243,10 @@ CREATE TABLE
     ended_at TIMESTAMPTZ
   );
 
-CREATE INDEX idx_voice_sessions_channel ON voice_sessions (channel_id);
+CREATE INDEX IF NOT EXISTS idx_voice_sessions_channel ON voice_sessions (channel_id);
 
 -- 7. Event-Driven Architecture & Immutability
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   outbox_events (
     id BIGINT PRIMARY KEY,
     aggregate_type VARCHAR(64) NOT NULL,
@@ -258,11 +259,11 @@ CREATE TABLE
     processed_at TIMESTAMPTZ
   );
 
-CREATE INDEX idx_outbox_pending ON outbox_events (created_at)
+CREATE INDEX IF NOT EXISTS idx_outbox_pending ON outbox_events (created_at)
 WHERE
   status = 0;
 
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
   audit_logs (
     id BIGINT PRIMARY KEY,
     guild_id BIGINT NOT NULL,
@@ -274,7 +275,7 @@ CREATE TABLE
   );
 
 -- 8. Media Pipeline Lifecycle
-CREATE TABLE pending_uploads (
+CREATE TABLE IF NOT EXISTS pending_uploads (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     object_key TEXT NOT NULL,
@@ -287,4 +288,19 @@ CREATE TABLE pending_uploads (
     expires_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_pending_uploads_expired ON pending_uploads(expires_at) WHERE status != 'CONSUMED';
+CREATE INDEX IF NOT EXISTS idx_pending_uploads_expired ON pending_uploads(expires_at) WHERE status != 'CONSUMED';
+
+-- +goose Down
+DROP TABLE IF EXISTS pending_uploads CASCADE;
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS outbox_events CASCADE;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS channel_role_permissions CASCADE;
+DROP TABLE IF EXISTS channel_user_permissions CASCADE;
+DROP TABLE IF EXISTS channels CASCADE;
+DROP TABLE IF EXISTS invites CASCADE;
+DROP TABLE IF EXISTS guild_bans CASCADE;
+DROP TABLE IF EXISTS guild_members CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS guilds CASCADE;
+DROP TABLE IF EXISTS users CASCADE;

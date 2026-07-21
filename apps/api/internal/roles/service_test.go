@@ -131,7 +131,7 @@ func TestAssignRole(t *testing.T) {
 	targetRole := &Role{ID: 102, GuildID: 1, Name: "Moderator", Position: 5, Permissions: 0x10000000} // MANAGE_ROLES
 	mock.roles[targetRole.ID] = targetRole
 
-	svc := NewService(mock)
+	svc := NewService(mock, nil)
 
 	// Case 1: Owner assigns Moderator role (should succeed)
 	err := svc.AssignRole(ctx, 1, 888, 102, 999)
@@ -182,7 +182,7 @@ func TestUnassignRole(t *testing.T) {
 	targetRole := &Role{ID: 102, GuildID: 1, Name: "Moderator", Position: 5, Permissions: 0x10000000} // MANAGE_ROLES
 	mock.roles[targetRole.ID] = targetRole
 
-	svc := NewService(mock)
+	svc := NewService(mock, nil)
 
 	// Bind target user (888) to Moderator role
 	mock.memberRoles[fmtKey(1, 888)] = []int64{102}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/auth"
 	"github.com/synapse/api/internal/blocks"
 	"github.com/synapse/api/internal/channels"
@@ -105,19 +106,24 @@ func main() {
 	permChannelRepo := permissions.NewPGChannelPermissionRepository(db.PG)
 	permissionService := permissions.NewService(permRoleRepo, permChannelRepo)
 
+	// Audit Service
+	auditRepo := audit.NewPGRepository(db.PG)
+	auditService := audit.NewService(auditRepo, userRepo, permissionService)
+	auditHandler := audit.NewHandler(auditService)
+
 	// Blocks Service
 	blocksRepo := blocks.NewPGRepository(db.PG)
 	blocksService := blocks.NewService(blocksRepo)
 
 	userService := users.NewService(userRepo, mediaService, db.Redis, permissionService, blocksService)
-	roleService := roles.NewService(roleRepo)
-	guildService := guilds.NewService(guildRepo, roleRepo, mediaService)
-	channelService := channels.NewService(channelRepo, roleRepo, mediaService, permissionService)
+	roleService := roles.NewService(roleRepo, auditService)
+	guildService := guilds.NewService(guildRepo, roleRepo, mediaService, auditService)
+	channelService := channels.NewService(channelRepo, roleRepo, mediaService, permissionService, auditService)
 
 	eventBus := events.NewEventBus()
 
-	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, blocksService, db.Redis, eventBus)
-	inviteService := invites.NewService(inviteRepo, roleRepo)
+	messageService := messages.NewService(messageRepo, channelRepo, permissionService, mediaService, blocksService, db.Redis, eventBus, auditService)
+	inviteService := invites.NewService(inviteRepo, roleRepo, auditService)
 
 	// Notifications
 	notificationsRepo := notifications.NewPGRepository(db.PG)
@@ -133,6 +139,7 @@ func main() {
 		permissionService,
 		time.Duration(cfg.VoiceStateTTL)*time.Second,
 		cfg.LiveKitURL,
+		auditService,
 	)
 	voiceHandler := voice.NewHandler(voiceService, channelRepo)
 
@@ -171,6 +178,7 @@ func main() {
 		notificationsHandler,
 		voiceHandler,
 		blocksHandler,
+		auditHandler,
 	)
 
 	slog.Info("Synapse Core HTTP API server running", "port", cfg.Port)

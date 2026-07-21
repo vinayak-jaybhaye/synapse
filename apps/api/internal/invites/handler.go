@@ -101,3 +101,36 @@ func (h *Handler) JoinGuild(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "successfully joined guild"})
 }
+
+// GetGuildInvites handles the HTTP request to list all invites for a guild.
+func (h *Handler) GetGuildInvites(c *gin.Context) {
+	guildID, err := strconv.ParseInt(c.Param("guildID"), 10, 64)
+	if err != nil {
+		errors.HandleError(c, errors.NewBadRequest("invalid guild ID"))
+		return
+	}
+
+	userID := c.GetInt64("user_id")
+
+	invites, err := h.svc.GetGuildInvites(c.Request.Context(), guildID, userID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, invites)
+}
+
+// DeleteInvite handles the HTTP request to delete / revoke an invite code.
+func (h *Handler) DeleteInvite(c *gin.Context) {
+	code := c.Param("code")
+	userID := c.GetInt64("user_id")
+
+	err := h.svc.DeleteInvite(c.Request.Context(), code, userID)
+	if err != nil {
+		errors.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "invite successfully deleted"})
+}

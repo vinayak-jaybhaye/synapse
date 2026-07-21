@@ -2,8 +2,11 @@ package roles
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strconv"
 
+	"github.com/synapse/api/internal/audit"
 	"github.com/synapse/api/internal/errors"
 	"github.com/synapse/api/internal/permissions"
 	"github.com/synapse/api/internal/snowflake"
@@ -19,11 +22,12 @@ type Service interface {
 }
 
 type service struct {
-	repo Repository
+	repo         Repository
+	auditService audit.Service
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, auditService audit.Service) Service {
+	return &service{repo: repo, auditService: auditService}
 }
 
 func (s *service) checkPermissions(ctx context.Context, guildID, userID int64, perm permissions.Permission) (bool, error) {
@@ -98,6 +102,15 @@ func (s *service) CreateRole(ctx context.Context, guildID, userID int64, req *Cr
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionRoleCreate).
+			TargetResource(audit.TargetRole, &rl.ID, fmt.Sprintf("Role %s", rl.Name)).
+			Log(ctx)
+	}
+
 	return rl, nil
 }
 
@@ -122,6 +135,12 @@ func (s *service) UpdateRole(ctx context.Context, guildID, roleID, userID int64,
 		return nil, errors.NewBadRequest("cannot change position of default @everyone role")
 	}
 
+	oldName := rl.Name
+	oldColor := rl.Color
+	oldPos := rl.Position
+	oldPerms := rl.Permissions
+	oldHoisted := rl.IsHoisted
+
 	if req.Name != nil {
 		rl.Name = *req.Name
 	}
@@ -140,6 +159,25 @@ func (s *service) UpdateRole(ctx context.Context, guildID, roleID, userID int64,
 
 	if err := s.repo.Update(ctx, rl); err != nil {
 		return nil, err
+	}
+
+	if s.auditService != nil {
+		changes := audit.NewChanges().
+			Add("name", oldName, rl.Name).
+			Add("color", oldColor, rl.Color).
+			Add("position", oldPos, rl.Position).
+			Add("permissions", oldPerms, rl.Permissions).
+			Add("is_hoisted", oldHoisted, rl.IsHoisted).
+			Build()
+		if changes != nil {
+			_ = s.auditService.NewEntry().
+				Guild(guildID).
+				ActorID(ctx, userID).
+				Action(audit.ActionRoleUpdate).
+				TargetResource(audit.TargetRole, &rl.ID, fmt.Sprintf("Role %s", rl.Name)).
+				Changes(changes).
+				Log(ctx)
+		}
 	}
 
 	return rl, nil
@@ -166,7 +204,20 @@ func (s *service) DeleteRole(ctx context.Context, guildID, roleID, userID int64)
 		return errors.NewBadRequest("cannot delete default @everyone role")
 	}
 
-	return s.repo.Delete(ctx, roleID)
+	if err := s.repo.Delete(ctx, roleID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, userID).
+			Action(audit.ActionRoleDelete).
+			TargetResource(audit.TargetRole, &roleID, fmt.Sprintf("Role %s", rl.Name)).
+			Log(ctx)
+	}
+
+	return nil
 }
 
 func (s *service) AssignRole(ctx context.Context, guildID, targetUserID, roleID, requesterUserID int64) error {
@@ -209,7 +260,22 @@ func (s *service) AssignRole(ctx context.Context, guildID, targetUserID, roleID,
 		}
 	}
 
-	return s.repo.AddMemberRole(ctx, guildID, targetUserID, roleID)
+	if err := s.repo.AddMemberRole(ctx, guildID, targetUserID, roleID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, requesterUserID).
+			Action(audit.ActionMemberRoleAdd).
+			TargetResource(audit.TargetMember, &targetUserID, fmt.Sprintf("User %d", targetUserID)).
+			Metadata("role_id", strconv.FormatInt(roleID, 10)).
+			Metadata("role_name", rl.Name).
+			Log(ctx)
+	}
+
+	return nil
 }
 
 func (s *service) UnassignRole(ctx context.Context, guildID, targetUserID, roleID, requesterUserID int64) error {
@@ -254,5 +320,20 @@ func (s *service) UnassignRole(ctx context.Context, guildID, targetUserID, roleI
 		}
 	}
 
-	return s.repo.RemoveMemberRole(ctx, guildID, targetUserID, roleID)
+	if err := s.repo.RemoveMemberRole(ctx, guildID, targetUserID, roleID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.NewEntry().
+			Guild(guildID).
+			ActorID(ctx, requesterUserID).
+			Action(audit.ActionMemberRoleRemove).
+			TargetResource(audit.TargetMember, &targetUserID, fmt.Sprintf("User %d", targetUserID)).
+			Metadata("role_id", strconv.FormatInt(roleID, 10)).
+			Metadata("role_name", rl.Name).
+			Log(ctx)
+	}
+
+	return nil
 }
