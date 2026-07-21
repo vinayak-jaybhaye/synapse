@@ -7,7 +7,7 @@ export const usersApi = {
     return response.data;
   },
 
-  updateProfile: async (payload: any) => {
+  updateProfile: async (payload: Record<string, unknown>) => {
     const response = await api.patch("/users/@me", payload);
     return response.data;
   },

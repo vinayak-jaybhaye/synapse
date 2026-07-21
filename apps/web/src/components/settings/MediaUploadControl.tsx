@@ -1,8 +1,9 @@
+/* eslint-disable @next/next/no-img-element */
+"use client";
 import React, { useState, useRef } from "react";
 import { Camera, X, RefreshCw } from "lucide-react";
 import { mediaApi } from "../../services/api/media";
 import { normalizeError } from "../../lib/api";
-import { useAuthStore } from "../../store/auth-store";
 
 export type UploadCategory = "avatar" | "banner" | "guild-icon" | "guild-banner";
 

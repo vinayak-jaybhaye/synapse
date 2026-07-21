@@ -24,7 +24,7 @@ interface VoiceConnectionProps {
 }
 
 interface RemoteAudioPlayerProps {
-  track: any;
+  track: { attach: (el: HTMLAudioElement) => void; detach: (el: HTMLAudioElement) => void } | null;
   muted: boolean;
 }
 
@@ -41,9 +41,11 @@ function RemoteAudioPlayer({ track, muted }: RemoteAudioPlayerProps) {
   }, [track]);
 
   useEffect(() => {
-    if (!track || typeof track.setVolume !== "function") return;
+    if (!track) return;
+    const audioTrack = track as unknown as { setVolume?: (v: number) => void };
+    if (typeof audioTrack.setVolume !== "function") return;
     try {
-      track.setVolume(muted ? 0.0 : 1.0);
+      audioTrack.setVolume(muted ? 0.0 : 1.0);
     } catch (err) {
       console.warn("[Voice] Failed to adjust track volume:", err);
     }

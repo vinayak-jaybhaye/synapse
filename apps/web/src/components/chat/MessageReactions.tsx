@@ -2,7 +2,6 @@
 
 import React from "react";
 import { ReactionSummary } from "../../types";
-import { useChannelPermissions } from "../../hooks/usePermissions";
 
 interface MessageReactionsProps {
   messageId: string;

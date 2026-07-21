@@ -1,8 +1,11 @@
 import { create } from "zustand";
 
+export type UserPresenceStatus = "online" | "offline" | "idle" | "dnd";
+
 interface PresenceState {
-  statuses: Record<string, "online" | "offline">;
-  setStatus: (userId: string | number, status: "online" | "offline") => void;
+  statuses: Record<string, UserPresenceStatus>;
+  setStatus: (userId: string | number, status: UserPresenceStatus) => void;
+  clear: () => void;
 }
 
 export const usePresenceStore = create<PresenceState>((set) => ({
@@ -14,4 +17,5 @@ export const usePresenceStore = create<PresenceState>((set) => ({
         [String(userId)]: status,
       },
     })),
+  clear: () => set({ statuses: {} }),
 }));

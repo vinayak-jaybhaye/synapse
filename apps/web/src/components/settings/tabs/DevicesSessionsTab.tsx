@@ -48,7 +48,7 @@ interface Session {
 }
 
 /* ─── Normalizers ─── */
-function mapDevice(d: any): Device {
+function mapDevice(d: Record<string, unknown>): Device {
   return {
     id: String(d.id || d.ID || ""),
     device_id: String(d.device_id || d.DeviceID || ""),
@@ -61,16 +61,16 @@ function mapDevice(d: any): Device {
   };
 }
 
-function mapSession(s: any): Session {
-  const rawDev = s.device || s.Device;
+function mapSession(s: Record<string, unknown>): Session {
+  const rawDev = (s.device || s.Device) as Record<string, unknown> | undefined;
   return {
     id: String(s.id || s.ID || ""),
     device_id: String(s.device_id || s.DeviceID || ""),
-    ip_address: s.ip_address || s.IPAddress,
+    ip_address: s.ip_address ? String(s.ip_address) : s.IPAddress ? String(s.IPAddress) : undefined,
     created_at: String(s.created_at || s.CreatedAt || ""),
     last_used_at: String(s.last_used_at || s.LastUsedAt || ""),
     expires_at: String(s.expires_at || s.ExpiresAt || ""),
-    revoked_at: s.revoked_at || s.RevokedAt,
+    revoked_at: s.revoked_at ? String(s.revoked_at) : s.RevokedAt ? String(s.RevokedAt) : undefined,
     status: String(s.status || s.Status || "ACTIVE"),
     device: rawDev
       ? {
@@ -170,9 +170,9 @@ export default function DevicesSessionsTab() {
     setError(null);
     try {
       const [devs, sessResp] = await Promise.all([authApi.getDevices(), authApi.getSessions()]);
-      setDevices((devs || []).map(mapDevice));
+      setDevices((devs || []).map((d) => mapDevice(d as Record<string, unknown>)));
       const rawSessions = sessResp?.sessions ?? (Array.isArray(sessResp) ? sessResp : []);
-      setSessions(rawSessions.map(mapSession));
+      setSessions(rawSessions.map((s) => mapSession(s as Record<string, unknown>)));
       setCurrentSessionId(String(sessResp?.current_session_id ?? ""));
     } catch (err: unknown) {
       setError(normalizeError(err).message);
@@ -182,6 +182,7 @@ export default function DevicesSessionsTab() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 

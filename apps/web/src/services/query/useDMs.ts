@@ -15,10 +15,10 @@ export const useDMs = () => {
   const { mutateAsync: mutateCreateDM } = useMutation({
     mutationFn: createDM,
     onSuccess: (newDM) => {
-      queryClient.setQueryData(["dms"], (old: any) => {
+      queryClient.setQueryData(["dms"], (old: Array<{ channel_id: string }> | undefined) => {
         if (!old) return [newDM];
         // Don't add duplicate
-        if (old.some((dm: any) => dm.channel_id === newDM.channel_id)) {
+        if (old.some((dm) => dm.channel_id === newDM.channel_id)) {
           return old;
         }
         return [newDM, ...old];

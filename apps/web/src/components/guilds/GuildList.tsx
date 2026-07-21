@@ -1,11 +1,12 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useGuilds } from "../../services/query/useGuilds";
 import { useGuildStore } from "../../store/guild-store";
 import { useUIStore } from "../../store/ui-store";
 import { useAuthStore } from "../../store/auth-store";
-import { Plus, Compass, ShieldAlert } from "lucide-react";
+import { Plus, Compass } from "lucide-react";
 import { getMediaUrl } from "../../lib/media";
 
 export default function GuildList() {

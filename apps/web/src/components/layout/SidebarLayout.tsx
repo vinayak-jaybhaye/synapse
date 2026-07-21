@@ -11,7 +11,6 @@ import VoiceFloatingOverlay from "../voice/VoiceFloatingOverlay";
 export default function SidebarLayout() {
   const {
     channelSidebarCollapsed,
-    setChannelSidebarCollapsed,
     membersSidebarCollapsed,
     setMembersSidebarCollapsed,
     channelSidebarWidth,

@@ -64,13 +64,13 @@ export const authApi = {
     return response.data;
   },
 
-  getDevices: async (): Promise<any[]> => {
-    const response = await api.get<any[]>("/users/me/devices");
+  getDevices: async (): Promise<unknown[]> => {
+    const response = await api.get<unknown[]>("/users/me/devices");
     return response.data;
   },
 
-  getSessions: async (): Promise<{ sessions: any[]; current_session_id: string }> => {
-    const response = await api.get<{ sessions: any[]; current_session_id: string }>(
+  getSessions: async (): Promise<{ sessions: unknown[]; current_session_id: string }> => {
+    const response = await api.get<{ sessions: unknown[]; current_session_id: string }>(
       "/users/me/sessions",
     );
     return response.data;

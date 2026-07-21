@@ -82,7 +82,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await authApi.getMe();
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch (err: unknown) {
+    } catch {
       localStorage.removeItem("synapse_logged_in");
       localStorage.removeItem("synapse_token");
       set({
@@ -104,7 +104,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       await get().fetchMe();
-    } catch (err) {
+    } catch {
       // handled inside fetchMe
     } finally {
       set({ isLoading: false });

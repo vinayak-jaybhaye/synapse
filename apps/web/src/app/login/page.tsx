@@ -33,6 +33,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     clearError();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalError(null);
   }, [clearError]);
   useEffect(() => {

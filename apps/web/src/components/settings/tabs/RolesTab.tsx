@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useGuildStore } from "../../../store/guild-store";
 import { useRoles } from "../../../services/query/useRoles";
 import { ALL_PERMISSIONS, togglePermission as togglePermBit } from "../../../lib/permissions";
-import { getRoleColorHex } from "../../../lib/utils";
 import { normalizeError } from "../../../lib/api";
 import { useUIStore } from "../../../store/ui-store";
+import { Role } from "../../../types";
 import { Plus, Trash2 } from "lucide-react";
 
 const PRESET_COLORS = [
@@ -31,21 +31,22 @@ export default function RolesTab() {
   const [editRoleHoisted, setEditRoleHoisted] = useState(false);
   const [editRolePerms, setEditRolePerms] = useState<bigint>(0n);
 
-  // Set default role selection
-  useEffect(() => {
-    if (roles.length > 0 && !selectedRoleId) {
-      const defaultRole = roles.find((r) => r.is_default);
-      if (defaultRole) selectRoleForEditing(defaultRole);
-    }
-  }, [roles, selectedRoleId]);
-
-  const selectRoleForEditing = (role: any) => {
+  const selectRoleForEditing = useCallback((role: Role) => {
     setSelectedRoleId(role.id);
     setEditRoleName(role.name);
     setEditRoleColor(role.color || 0);
     setEditRoleHoisted(role.is_hoisted || false);
     setEditRolePerms(BigInt(role.permissions));
-  };
+  }, []);
+
+  // Set default role selection
+  useEffect(() => {
+    if (roles.length > 0 && !selectedRoleId) {
+      const defaultRole = roles.find((r) => r.is_default);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (defaultRole) selectRoleForEditing(defaultRole);
+    }
+  }, [roles, selectedRoleId, selectRoleForEditing]);
 
   const handleCreateRole = async () => {
     if (!activeGuildId) return;

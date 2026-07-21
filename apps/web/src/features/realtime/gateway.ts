@@ -139,7 +139,7 @@ export class WebSocketGateway {
         });
 
         // If it's a READY event (often sent as a dispatch), mark connected
-        if (msg.t === ("READY" as any)) {
+        if ((msg.t as string) === "READY") {
           this.setState("connected");
         }
         break;

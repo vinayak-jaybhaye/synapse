@@ -7,6 +7,11 @@ export const messagesKeys = {
   list: (channelId: string) => [...messagesKeys.all, channelId] as const,
 };
 
+interface InfiniteMessagesData {
+  pages: Message[][];
+  pageParams: unknown[];
+}
+
 export function useMessages(channelId?: string) {
   const queryClient = useQueryClient();
 
@@ -37,24 +42,27 @@ export function useMessages(channelId?: string) {
     }) =>
       messagesApi.sendMessage(channelId!, content, attachmentUploadIds, replyToMessageId, mentions),
     onSuccess: (newMsg) => {
-      queryClient.setQueryData(messagesKeys.list(channelId || ""), (old: any) => {
-        if (!old?.pages) return old;
-        const exists = old.pages.some((page: any[]) => page.some((m: any) => m.id === newMsg.id));
-        if (exists) {
+      queryClient.setQueryData(
+        messagesKeys.list(channelId || ""),
+        (old: InfiniteMessagesData | undefined) => {
+          if (!old?.pages) return old;
+          const exists = old.pages.some((page) => page.some((m) => m.id === newMsg.id));
+          if (exists) {
+            return {
+              ...old,
+              pages: old.pages.map((page) =>
+                page.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m)),
+              ),
+            };
+          }
+
+          const lastPage = old.pages[0] || [];
           return {
             ...old,
-            pages: old.pages.map((page: any[]) =>
-              page.map((m: any) => (m.id === newMsg.id ? { ...m, ...newMsg } : m)),
-            ),
+            pages: [[newMsg, ...lastPage], ...old.pages.slice(1)],
           };
-        }
-
-        const lastPage = old.pages[0] || [];
-        return {
-          ...old,
-          pages: [[newMsg, ...lastPage], ...old.pages.slice(1)],
-        };
-      });
+        },
+      );
     },
   });
 
@@ -62,30 +70,36 @@ export function useMessages(channelId?: string) {
     mutationFn: ({ messageId, content }: { messageId: string; content: string }) =>
       messagesApi.editMessage(channelId!, messageId, content),
     onSuccess: (updatedMsg) => {
-      queryClient.setQueryData(messagesKeys.list(channelId || ""), (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m)),
-          ),
-        };
-      });
+      queryClient.setQueryData(
+        messagesKeys.list(channelId || ""),
+        (old: InfiniteMessagesData | undefined) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m)),
+            ),
+          };
+        },
+      );
     },
   });
 
   const deleteMessageMutation = useMutation({
     mutationFn: (messageId: string) => messagesApi.deleteMessage(channelId!, messageId),
     onSuccess: (_, messageId) => {
-      queryClient.setQueryData(messagesKeys.list(channelId || ""), (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "" } : m)),
-          ),
-        };
-      });
+      queryClient.setQueryData(
+        messagesKeys.list(channelId || ""),
+        (old: InfiniteMessagesData | undefined) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "" } : m)),
+            ),
+          };
+        },
+      );
     },
   });
 

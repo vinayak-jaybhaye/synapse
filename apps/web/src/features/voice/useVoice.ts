@@ -12,19 +12,18 @@ import {
   Participant,
   Track,
   RemoteTrack,
-  LocalTrack,
   RemoteAudioTrack,
   RemoteVideoTrack,
   LocalAudioTrack,
   LocalVideoTrack,
+  RemoteTrackPublication,
+  LocalTrackPublication,
+  TrackPublication,
 } from "livekit-client";
 import { useChannelStore } from "../../store/channel-store";
-import { useVoiceStore } from "./voiceStore";
+import { useVoiceStore, VoiceParticipant } from "./voiceStore";
 import { useUIStore } from "../../store/ui-store";
 import { joinVoiceChannel, leaveVoiceChannel } from "../../services/api/voice";
-
-const HEARTBEAT_INTERVAL_MS = 30_000; // 30s
-const TOKEN_REFRESH_BUFFER_S = 120; // refresh 2 min before expiry
 
 // ─── Room Options ──────────────────────────────────────────────────────────────
 const roomOptions: RoomOptions = {
@@ -68,17 +67,17 @@ export function useVoice() {
       }
 
       // Extract tracks dynamically to ensure they are synchronized under all race conditions
-      let videoTrack: any = undefined;
-      let screenShareTrack: any = undefined;
-      let audioTrack: any = undefined;
-      let screenShareAudioTrack: any = undefined;
+      let videoTrack: RemoteVideoTrack | LocalVideoTrack | undefined = undefined;
+      let screenShareTrack: RemoteVideoTrack | LocalVideoTrack | undefined = undefined;
+      let audioTrack: RemoteAudioTrack | LocalAudioTrack | undefined = undefined;
+      let screenShareAudioTrack: RemoteAudioTrack | LocalAudioTrack | undefined = undefined;
 
       participant.videoTrackPublications.forEach((pub) => {
         if (pub.track) {
           if (pub.source === Track.Source.ScreenShare) {
-            screenShareTrack = pub.track;
+            screenShareTrack = pub.track as RemoteVideoTrack | LocalVideoTrack;
           } else {
-            videoTrack = pub.track;
+            videoTrack = pub.track as RemoteVideoTrack | LocalVideoTrack;
           }
         }
       });
@@ -86,9 +85,9 @@ export function useVoice() {
       participant.audioTrackPublications.forEach((pub) => {
         if (pub.track) {
           if (pub.source === Track.Source.ScreenShareAudio) {
-            screenShareAudioTrack = pub.track;
+            screenShareAudioTrack = pub.track as RemoteAudioTrack | LocalAudioTrack;
           } else {
-            audioTrack = pub.track;
+            audioTrack = pub.track as RemoteAudioTrack | LocalAudioTrack;
           }
         }
       });
@@ -124,6 +123,177 @@ export function useVoice() {
     [store],
   );
 
+  // ── Leave ───────────────────────────────────────────────────────────────────
+  const leaveVoice = useCallback(async () => {
+    const channelId = activeChannelIdRef.current;
+    const room = store.room;
+
+    activeChannelIdRef.current = null;
+    room?.disconnect();
+    store.clearActive();
+
+    // Reset viewed channel if we were looking at the voice channel we're leaving
+    const viewedChannelId = useChannelStore.getState().activeChannelId;
+    if (viewedChannelId === channelId) {
+      useChannelStore.getState().selectChannel(null);
+    }
+
+    if (channelId) {
+      await leaveVoiceChannel(channelId).catch(() => {});
+    }
+  }, [store]);
+
+  // ── Attach LiveKit Listeners ─────────────────────────────────────────────────
+  const attachRoomListeners = useCallback(
+    (room: Room, channelId: string, guildId: string) => {
+      room
+        .on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
+          store.setConnectionState(state);
+        })
+        .on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+          const userId = participant.identity;
+          store.setParticipant(userId, {
+            user_id: userId,
+            channel_id: channelId,
+            guild_id: guildId,
+            username: participant.name ?? userId,
+            speaking: false,
+          });
+          syncParticipantState(participant);
+        })
+        .on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+          store.removeParticipant(participant.identity);
+        })
+        .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+          const speakingIds = new Set(speakers.map((s) => s.identity));
+          store.participants.forEach((_, userId) => {
+            store.setSpeaking(userId, speakingIds.has(userId));
+          });
+          const localId = room.localParticipant.identity;
+          store.setSpeaking(localId, speakingIds.has(localId));
+        })
+        .on(
+          RoomEvent.TrackSubscribed,
+          (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
+            const userId = participant.identity;
+            if (track.kind === Track.Kind.Audio) {
+              const latestState = useVoiceStore.getState();
+              const isDeafened =
+                latestState.selfState?.self_deaf || latestState.selfState?.server_deaf;
+              if (
+                isDeafened &&
+                typeof (track as unknown as { setVolume: (v: number) => void }).setVolume ===
+                  "function"
+              ) {
+                (track as unknown as { setVolume: (v: number) => void }).setVolume(0.0);
+              }
+
+              if (track.source === Track.Source.ScreenShareAudio) {
+                store.setParticipant(userId, {
+                  screenShareAudioTrack: track as RemoteAudioTrack,
+                });
+              } else {
+                store.setParticipant(userId, {
+                  audioTrack: track as RemoteAudioTrack,
+                });
+              }
+            } else if (track.kind === Track.Kind.Video) {
+              if (track.source === Track.Source.ScreenShare) {
+                store.setParticipant(userId, {
+                  screenShareTrack: track as RemoteVideoTrack,
+                });
+              } else {
+                store.setParticipant(userId, {
+                  videoTrack: track as RemoteVideoTrack,
+                });
+              }
+            }
+            syncParticipantState(participant);
+          },
+        )
+        .on(
+          RoomEvent.TrackUnsubscribed,
+          (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
+            const userId = participant.identity;
+            if (track.kind === Track.Kind.Audio) {
+              if (track.source === Track.Source.ScreenShareAudio) {
+                store.setParticipant(userId, { screenShareAudioTrack: undefined });
+              } else {
+                store.setParticipant(userId, { audioTrack: undefined });
+              }
+            } else if (track.kind === Track.Kind.Video) {
+              if (track.source === Track.Source.ScreenShare) {
+                store.setParticipant(userId, { screenShareTrack: undefined });
+              } else {
+                store.setParticipant(userId, { videoTrack: undefined });
+              }
+            }
+            syncParticipantState(participant);
+          },
+        )
+        .on(RoomEvent.LocalTrackPublished, (pub: LocalTrackPublication) => {
+          const local = room.localParticipant;
+          const track = pub.track;
+          if (!track) return;
+          const update: Partial<VoiceParticipant> = {
+            user_id: local.identity,
+            username: local.name ?? local.identity,
+            video: local.isCameraEnabled,
+            screen_share: local.isScreenShareEnabled,
+          };
+          if (track.kind === Track.Kind.Audio) {
+            update.audioTrack = track as LocalAudioTrack;
+          } else if (track.kind === Track.Kind.Video) {
+            if (track.source === Track.Source.ScreenShare) {
+              update.screenShareTrack = track as LocalVideoTrack;
+            } else {
+              update.videoTrack = track as LocalVideoTrack;
+            }
+          }
+          store.setParticipant(local.identity, update);
+          syncParticipantState(local);
+        })
+        .on(RoomEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
+          const local = room.localParticipant;
+          const update: Partial<VoiceParticipant> = {};
+          if (pub.kind === Track.Kind.Audio) {
+            update.audioTrack = undefined;
+          } else if (pub.kind === Track.Kind.Video) {
+            if (pub.source === Track.Source.ScreenShare) {
+              update.screenShareTrack = undefined;
+            } else {
+              update.videoTrack = undefined;
+            }
+          }
+          store.setParticipant(local.identity, update);
+          syncParticipantState(local);
+        })
+        .on(RoomEvent.TrackMuted, (_pub: TrackPublication, participant: Participant) => {
+          syncParticipantState(participant);
+        })
+        .on(RoomEvent.TrackUnmuted, (_pub: TrackPublication, participant: Participant) => {
+          syncParticipantState(participant);
+        })
+        .on(
+          RoomEvent.ParticipantMetadataChanged,
+          (_prev: string | undefined, participant: Participant) => {
+            syncParticipantState(participant);
+          },
+        )
+        .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+          store.setConnectionState(ConnectionState.Disconnected);
+          if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
+            console.warn("[Voice] Ejected from the voice channel by a moderator.");
+            useUIStore
+              .getState()
+              .showToast("Ejected from the voice channel by a moderator.", "error");
+          }
+          leaveVoice();
+        });
+    },
+    [store, syncParticipantState, leaveVoice],
+  );
+
   // ── Join ────────────────────────────────────────────────────────────────────
   const joinVoice = useCallback(
     async (guildId: string, channelId: string) => {
@@ -149,28 +319,8 @@ export function useVoice() {
       // 5. Initial local participant sync
       syncParticipantState(room.localParticipant);
     },
-    [store, syncParticipantState],
+    [store, syncParticipantState, leaveVoice, attachRoomListeners],
   );
-
-  // ── Leave ───────────────────────────────────────────────────────────────────
-  const leaveVoice = useCallback(async () => {
-    const channelId = activeChannelIdRef.current;
-    const room = store.room;
-
-    activeChannelIdRef.current = null;
-    room?.disconnect();
-    store.clearActive();
-
-    // Reset viewed channel if we were looking at the voice channel we're leaving
-    const viewedChannelId = useChannelStore.getState().activeChannelId;
-    if (viewedChannelId === channelId) {
-      useChannelStore.getState().selectChannel(null);
-    }
-
-    if (channelId) {
-      await leaveVoiceChannel(channelId).catch(() => {});
-    }
-  }, [store]);
 
   // ── Toggle Mic ──────────────────────────────────────────────────────────────
   const toggleMute = useCallback(async () => {
@@ -253,152 +403,6 @@ export function useVoice() {
     }
   }, [store, syncParticipantState]);
 
-  // ── Attach LiveKit Listeners ─────────────────────────────────────────────────
-  function attachRoomListeners(room: Room, channelId: string, guildId: string) {
-    room
-      .on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
-        store.setConnectionState(state);
-      })
-      .on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-        const userId = participant.identity;
-        store.setParticipant(userId, {
-          user_id: userId,
-          channel_id: channelId,
-          guild_id: guildId,
-          username: participant.name ?? userId,
-          speaking: false,
-        });
-        syncParticipantState(participant);
-      })
-      .on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-        store.removeParticipant(participant.identity);
-      })
-      .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-        const speakingIds = new Set(speakers.map((s) => s.identity));
-        store.participants.forEach((_, userId) => {
-          store.setSpeaking(userId, speakingIds.has(userId));
-        });
-        const localId = room.localParticipant.identity;
-        store.setSpeaking(localId, speakingIds.has(localId));
-      })
-      .on(
-        RoomEvent.TrackSubscribed,
-        (track: RemoteTrack, _pub: any, participant: RemoteParticipant) => {
-          const userId = participant.identity;
-          if (track.kind === Track.Kind.Audio) {
-            // If the local user is currently deafened, mute the newly subscribed track immediately
-            const latestState = useVoiceStore.getState();
-            const isDeafened =
-              latestState.selfState?.self_deaf || latestState.selfState?.server_deaf;
-            if (isDeafened && typeof (track as any).setVolume === "function") {
-              (track as any).setVolume(0.0);
-            }
-
-            if (track.source === Track.Source.ScreenShareAudio) {
-              store.setParticipant(userId, {
-                screenShareAudioTrack: track as RemoteAudioTrack,
-              });
-            } else {
-              store.setParticipant(userId, {
-                audioTrack: track as RemoteAudioTrack,
-              });
-            }
-          } else if (track.kind === Track.Kind.Video) {
-            if (track.source === Track.Source.ScreenShare) {
-              store.setParticipant(userId, {
-                screenShareTrack: track as RemoteVideoTrack,
-              });
-            } else {
-              store.setParticipant(userId, {
-                videoTrack: track as RemoteVideoTrack,
-              });
-            }
-          }
-          syncParticipantState(participant);
-        },
-      )
-      .on(
-        RoomEvent.TrackUnsubscribed,
-        (track: RemoteTrack, _pub: any, participant: RemoteParticipant) => {
-          const userId = participant.identity;
-          if (track.kind === Track.Kind.Audio) {
-            if (track.source === Track.Source.ScreenShareAudio) {
-              store.setParticipant(userId, { screenShareAudioTrack: undefined });
-            } else {
-              store.setParticipant(userId, { audioTrack: undefined });
-            }
-          } else if (track.kind === Track.Kind.Video) {
-            if (track.source === Track.Source.ScreenShare) {
-              store.setParticipant(userId, { screenShareTrack: undefined });
-            } else {
-              store.setParticipant(userId, { videoTrack: undefined });
-            }
-          }
-          syncParticipantState(participant);
-        },
-      )
-      .on(RoomEvent.LocalTrackPublished, (pub: any) => {
-        const local = room.localParticipant;
-        const track = pub.track;
-        if (!track) return;
-        const update: any = {
-          user_id: local.identity,
-          username: local.name ?? local.identity,
-          video: local.isCameraEnabled,
-          screen_share: local.isScreenShareEnabled,
-        };
-        if (track.kind === Track.Kind.Audio) {
-          update.audioTrack = track;
-        } else if (track.kind === Track.Kind.Video) {
-          if (track.source === Track.Source.ScreenShare) {
-            update.screenShareTrack = track;
-          } else {
-            update.videoTrack = track;
-          }
-        }
-        store.setParticipant(local.identity, update);
-        syncParticipantState(local);
-      })
-      .on(RoomEvent.LocalTrackUnpublished, (pub: any) => {
-        const local = room.localParticipant;
-        const update: any = {};
-        if (pub.kind === Track.Kind.Audio) {
-          update.audioTrack = undefined;
-        } else if (pub.kind === Track.Kind.Video) {
-          if (pub.source === Track.Source.ScreenShare) {
-            update.screenShareTrack = undefined;
-          } else {
-            update.videoTrack = undefined;
-          }
-        }
-        store.setParticipant(local.identity, update);
-        syncParticipantState(local);
-      })
-      .on(RoomEvent.TrackMuted, (_pub: any, participant: Participant) => {
-        syncParticipantState(participant);
-      })
-      .on(RoomEvent.TrackUnmuted, (_pub: any, participant: Participant) => {
-        syncParticipantState(participant);
-      })
-      .on(
-        RoomEvent.ParticipantMetadataChanged,
-        (_prev: string | undefined, participant: Participant) => {
-          syncParticipantState(participant);
-        },
-      )
-      .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-        store.setConnectionState(ConnectionState.Disconnected);
-        if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
-          console.warn("[Voice] Ejected from the voice channel by a moderator.");
-          useUIStore
-            .getState()
-            .showToast("Ejected from the voice channel by a moderator.", "error");
-        }
-        // Always cleanly exit and clear channel states locally on disconnect
-        leaveVoice();
-      });
-  }
-
   // Reactively synchronize local hardware states (microphone) with backend/Zustand states (selfState)
   useEffect(() => {
     const room = store.room;
@@ -416,7 +420,7 @@ export function useVoice() {
         console.error("[Voice] Failed to auto-enable microphone:", err);
       });
     }
-  }, [store.room, store.selfState?.self_mute, store.selfState?.server_mute]);
+  }, [store.room, store.selfState]);
 
   return {
     room: store.room,

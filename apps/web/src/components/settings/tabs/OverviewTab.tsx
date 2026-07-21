@@ -45,17 +45,22 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
   const bannerUploadIdRef = React.useRef<string | null>(null);
 
   // Keep refs in sync with form state
-  iconUploadIdRef.current = data.iconUploadId;
-  bannerUploadIdRef.current = data.bannerUploadId;
+  React.useEffect(() => {
+    iconUploadIdRef.current = data.iconUploadId;
+    bannerUploadIdRef.current = data.bannerUploadId;
+  }, [data.iconUploadId, data.bannerUploadId]);
 
   // Cleanup only on unmount — cancel any unsaved pending uploads
   React.useEffect(() => {
+    const saved = savedUploadIdsRef.current;
     return () => {
-      if (iconUploadIdRef.current && !savedUploadIdsRef.current.has(iconUploadIdRef.current)) {
-        mediaApi.cancelUpload(iconUploadIdRef.current).catch(() => {});
+      const iconId = iconUploadIdRef.current;
+      const bannerId = bannerUploadIdRef.current;
+      if (iconId && !saved.has(iconId)) {
+        mediaApi.cancelUpload(iconId).catch(() => {});
       }
-      if (bannerUploadIdRef.current && !savedUploadIdsRef.current.has(bannerUploadIdRef.current)) {
-        mediaApi.cancelUpload(bannerUploadIdRef.current).catch(() => {});
+      if (bannerId && !saved.has(bannerId)) {
+        mediaApi.cancelUpload(bannerId).catch(() => {});
       }
     };
   }, []);
@@ -63,7 +68,7 @@ export default function OverviewTab({ activeGuild }: OverviewTabProps) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const payload: any = {};
+      const payload: Record<string, unknown> = {};
       if (data.name !== activeGuild.name) payload.name = data.name;
       if (data.description !== activeGuild.description) payload.description = data.description;
 

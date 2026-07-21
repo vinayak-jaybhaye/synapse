@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+"use client";
 import React from "react";
 import { PendingUploadState } from "../../types";
 import { X, File, AlertCircle, RefreshCw } from "lucide-react";

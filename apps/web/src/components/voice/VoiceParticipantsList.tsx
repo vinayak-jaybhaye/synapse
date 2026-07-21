@@ -7,17 +7,13 @@ import { getChannelVoiceStates } from "../../services/api/voice";
 
 interface VoiceParticipantsListProps {
   channelId: string;
-  channelName: string;
 }
 
 /**
  * Compact inline list of voice participants shown under a voice channel in the sidebar.
  * Shows compact avatar tiles with speaking indicators.
  */
-export default function VoiceParticipantsList({
-  channelId,
-  channelName,
-}: VoiceParticipantsListProps) {
+export default function VoiceParticipantsList({ channelId }: VoiceParticipantsListProps) {
   const participants = useVoiceStore((s) => s.participants);
   const setParticipant = useVoiceStore((s) => s.setParticipant);
 

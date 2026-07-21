@@ -6,7 +6,7 @@ import { normalizeError } from "../../lib/api";
 interface JoinGuildModalProps {
   open: boolean;
   onClose: () => void;
-  onJoin: (code: string) => Promise<any>;
+  onJoin: (code: string) => Promise<unknown>;
 }
 
 export default function JoinGuildModal({ open, onClose, onJoin }: JoinGuildModalProps) {

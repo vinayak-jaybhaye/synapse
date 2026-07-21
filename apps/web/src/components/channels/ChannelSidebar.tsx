@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -10,6 +11,7 @@ import { useGuilds } from "../../services/query/useGuilds";
 import { useChannels } from "../../services/query/useChannels";
 import { useDMs } from "../../services/query/useDMs";
 import { useChannelPermissions, useGuildPermissions } from "../../hooks/usePermissions";
+import { Channel } from "../../types";
 import {
   Hash,
   Volume2,
@@ -33,13 +35,21 @@ import VoiceParticipantsList from "../voice/VoiceParticipantsList";
 import { useVoice } from "../../features/voice/useVoice";
 import { useVoiceStore } from "../../features/voice/voiceStore";
 
+interface ChannelItemProps {
+  ch: Channel;
+  activeChannelId: string | null;
+  handleChannelSelect: (id: string, type: number) => void;
+  setActiveChannelSettingsId: (id: string) => void;
+  setShowChannelSettings: (open: boolean) => void;
+}
+
 function ChannelItem({
   ch,
   activeChannelId,
   handleChannelSelect,
   setActiveChannelSettingsId,
   setShowChannelSettings,
-}: any) {
+}: ChannelItemProps) {
   const { canViewChannel, canManageChannels } = useChannelPermissions(ch.permissions);
   const activeVoiceChannelId = useVoiceStore((s) => s.activeChannelId);
 
@@ -84,7 +94,7 @@ function ChannelItem({
         </div>
       </button>
       {/* Show connected participants under voice channels */}
-      {ch.type === 1 && <VoiceParticipantsList channelId={ch.id} channelName={ch.name} />}
+      {ch.type === 1 && <VoiceParticipantsList channelId={ch.id} />}
     </>
   );
 }
@@ -99,8 +109,6 @@ export default function ChannelSidebar({ onChannelClick }: ChannelSidebarProps =
   const { activeChannelId, selectChannel } = useChannelStore();
   const {
     setShowCreateChannel,
-    setShowSettings,
-    setSettingsTab,
     setShowGuildSettings,
     setGuildSettingsTab,
     setShowCreateDM,
@@ -110,14 +118,14 @@ export default function ChannelSidebar({ onChannelClick }: ChannelSidebarProps =
   } = useUIStore();
   const { user } = useAuthStore();
 
-  const { channels, createChannel } = useChannels(activeGuildId || undefined);
+  const { channels } = useChannels(activeGuildId || undefined);
   const { dms } = useDMs();
   const safeDMs = dms || [];
 
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 
   // Real voice state from LiveKit integration
-  const { joinVoice, leaveVoice, toggleMute, toggleDeafen } = useVoice();
+  const { joinVoice, toggleMute, toggleDeafen } = useVoice();
   const activeVoiceChannelId = useVoiceStore((s) => s.activeChannelId);
   const activeVoiceGuildId = useVoiceStore((s) => s.activeGuildId);
   const selfState = useVoiceStore((s) => s.selfState);

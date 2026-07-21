@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -7,11 +8,8 @@ import {
   Headphones,
   HeadphoneOff,
   Video,
-  VideoOff,
   Monitor,
-  MonitorOff,
   UserX,
-  Shield,
   Pin,
   PinOff,
   Signal,
@@ -70,7 +68,6 @@ const getTileBgClass = (userId: string) => {
 export default function ParticipantTile({
   participant,
   channelId,
-  canModerate = false,
   canMuteMembers = false,
   canDeafenMembers = false,
   canMoveMembers = false,
@@ -84,17 +81,17 @@ export default function ParticipantTile({
   const { user } = useAuthStore();
   const { room } = useVoiceStore();
   const isSelf = participant.user_id === String(user?.id);
-  const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>(
-    ConnectionQuality.Unknown,
-  );
+  const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>(() => {
+    if (!room) return ConnectionQuality.Unknown;
+    const p = isSelf ? room.localParticipant : room.remoteParticipants.get(participant.user_id);
+    return p ? p.connectionQuality : ConnectionQuality.Unknown;
+  });
 
   // Track participant connection quality updates
   useEffect(() => {
     if (!room) return;
     const p = isSelf ? room.localParticipant : room.remoteParticipants.get(participant.user_id);
     if (!p) return;
-
-    setConnectionQuality(p.connectionQuality);
 
     const handleQualityChange = (quality: ConnectionQuality) => {
       setConnectionQuality(quality);
@@ -134,7 +131,6 @@ export default function ParticipantTile({
   );
 
   const hasVideo = !!participant.videoTrack && participant.video;
-  const hasScreenShare = !!participant.screenShareTrack && participant.screen_share;
   const { activeGuildId } = useVoiceStore();
   const guildId = participant.guild_id || activeGuildId;
   const { members } = useMembers(guildId || undefined);

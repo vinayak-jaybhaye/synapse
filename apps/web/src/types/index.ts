@@ -209,6 +209,17 @@ export interface UserGuildDTO extends Guild {
   unread_count: number;
 }
 
+export interface Invite {
+  id: string;
+  guild_id: string;
+  created_by: string;
+  code: string;
+  expires_at?: string;
+  max_uses: number;
+  uses: number;
+  created_at: string;
+}
+
 export interface InviteDetails {
   id: string;
   guild_id: string;
@@ -252,3 +263,71 @@ export interface PendingUploadState {
   previewUrl?: string; // object URL for images
   errorMessage?: string;
 }
+
+export interface AuditActorSnapshot {
+  id?: string;
+  username: string;
+  display_name?: string;
+  avatar_key?: string;
+}
+
+export interface AuditTarget {
+  type: number;
+  id?: string;
+  display?: string;
+}
+
+export interface AuditChangeValue {
+  old: unknown;
+  new: unknown;
+}
+
+export type AuditChanges = Record<string, AuditChangeValue>;
+
+export interface AuditLogEntry {
+  id: string;
+  guild_id: string;
+  actor: AuditActorSnapshot;
+  action: string;
+  action_id: number;
+  target: AuditTarget;
+  reason?: string;
+  changes?: AuditChanges;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export const AuditAction = {
+  GuildUpdate: 1,
+
+  ChannelCreate: 100,
+  ChannelUpdate: 101,
+  ChannelDelete: 102,
+  ChannelMove: 103,
+  ChannelPermissionCreate: 104,
+  ChannelPermissionUpdate: 105,
+  ChannelPermissionDelete: 106,
+
+  RoleCreate: 200,
+  RoleUpdate: 201,
+  RoleDelete: 202,
+
+  MemberKick: 300,
+  MemberBan: 301,
+  MemberUnban: 302,
+  MemberNickUpdate: 303,
+  MemberRoleAdd: 304,
+  MemberRoleRemove: 305,
+  MemberTimeout: 306,
+  MemberAdd: 307,
+  MemberLeave: 308,
+
+  InviteCreate: 400,
+  InviteDelete: 401,
+
+  MessageDelete: 500,
+
+  VoiceMove: 600,
+  VoiceDisconnect: 601,
+} as const;
+export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];

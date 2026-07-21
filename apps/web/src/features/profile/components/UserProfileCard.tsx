@@ -1,7 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
+"use client";
 import React from "react";
 import { UserProfile } from "../../../types";
 import { getMediaUrl } from "../../../lib/media";
-import { formatTimestamp } from "../../../lib/utils";
 import { MessageSquare, ShieldBan, ShieldCheck } from "lucide-react";
 import { useDMs } from "../../../services/query/useDMs";
 import { useChannelStore } from "../../../store/channel-store";
@@ -11,7 +12,7 @@ import { useBlockStore } from "../../../store/block-store";
 import { useBlockUser, useUnblockUser } from "../../../services/query/useBlocks";
 
 interface UserProfileCardProps {
-  profile: UserProfile;
+  profile: UserProfile | null;
   isLoading?: boolean;
   onClose?: () => void;
 }
@@ -62,6 +63,8 @@ export default function UserProfileCard({ profile, isLoading, onClose }: UserPro
       </div>
     );
   }
+
+  if (!profile) return null;
 
   const joinedDate = new Date(profile.created_at).toLocaleDateString(undefined, {
     year: "numeric",

@@ -1,21 +1,24 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 export interface UnsavedChanges {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function useSettingsForm<T extends UnsavedChanges>(initialData: T) {
   const [data, setData] = useState<T>(initialData);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Reset local state when initial data changes (e.g. after save)
-  const initialDataStr = JSON.stringify(initialData);
-  useEffect(() => {
-    setData(initialData);
-    setIsDirty(false);
-  }, [initialDataStr]);
+  const prevInitialDataRef = useRef(initialData);
 
-  const handleChange = useCallback((key: keyof T, value: any) => {
+  useEffect(() => {
+    if (prevInitialDataRef.current !== initialData) {
+      prevInitialDataRef.current = initialData;
+      setData(initialData);
+      setIsDirty(false);
+    }
+  }, [initialData]);
+
+  const handleChange = useCallback((key: keyof T, value: unknown) => {
     setData((prev) => {
       const next = { ...prev, [key]: value };
       return next;

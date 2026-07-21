@@ -1,4 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
+
+import { Member } from "../../types";
 
 import React, { useState } from "react";
 import { useGuildStore } from "../../store/guild-store";
@@ -41,7 +44,7 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    member: any;
+    member: Member;
   } | null>(null);
 
   const currentMember = members.find((m) => m.user_id === user?.id);
@@ -87,7 +90,7 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
     .sort((a, b) => b.position - a.position);
 
   // 2. Map members to their highest role
-  const getMemberHighestRole = (m: any) => {
+  const getMemberHighestRole = (m: Member) => {
     const userRoleIds = m.roles || [];
     if (userRoleIds.length === 0) return null;
 
@@ -105,9 +108,9 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
   };
 
   // Group members
-  const groupedMembers: Record<string, any[]> = {};
-  const onlineMembers: any[] = []; // No roles
-  const offlineMembers: any[] = [];
+  const groupedMembers: Record<string, Member[]> = {};
+  const onlineMembers: Member[] = []; // No roles
+  const offlineMembers: Member[] = [];
 
   // Extendable online status checker (placeholder for websocket connection)
   const isOnline = (userId: string) => {
@@ -130,7 +133,7 @@ export default function MembersSidebar({ onClose }: MembersSidebarProps = {}) {
     }
   });
 
-  const renderMember = (m: any, roleColor?: string) => {
+  const renderMember = (m: Member, roleColor?: string) => {
     const isOwner = m.user_id === activeGuild.owner_id;
     return (
       <UserProfilePopover key={m.user_id} userId={m.user_id} side="left" align="start">

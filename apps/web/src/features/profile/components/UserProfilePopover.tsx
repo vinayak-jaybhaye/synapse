@@ -44,7 +44,7 @@ export default function UserProfilePopover({
           collisionPadding={isMobile ? 16 : 10}
         >
           {isLoading || !profile ? (
-            <UserProfileCard profile={null as any} isLoading={true} />
+            <UserProfileCard profile={null} isLoading={true} />
           ) : (
             <UserProfileCard profile={profile} onClose={() => setIsOpen(false)} />
           )}

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -9,17 +10,7 @@ import { useChannels } from "../../services/query/useChannels";
 import { useGuilds } from "../../services/query/useGuilds";
 import { useDMs } from "../../services/query/useDMs";
 import { useUIStore } from "../../store/ui-store";
-import {
-  Hash,
-  Volume2,
-  MessageSquare,
-  Loader2,
-  ArrowDown,
-  AtSign,
-  Menu,
-  Users,
-  Bell,
-} from "lucide-react";
+import { Hash, Volume2, Loader2, ArrowDown, AtSign, Menu, Users, Bell } from "lucide-react";
 import MessageItem from "./MessageItem";
 import { getMediaUrl } from "../../lib/media";
 import MessageComposer from "../chat/MessageComposer";
@@ -100,7 +91,7 @@ export default function ChatArea() {
     if (activeChannel) {
       printPerms("Channel", activeChannel?.permissions);
     }
-  }, [activeGuild?.permissions, activeChannel?.permissions]);
+  }, [activeGuild, activeChannel]);
 
   const {
     messages,
@@ -155,12 +146,13 @@ export default function ChatArea() {
   // 2. Scroll to bottom helper
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
     }
   };
 
   // 3. Scroll to bottom on channel change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReplyTarget(null);
     if (activeChannelId) {
       scrollToBottom();
@@ -230,9 +222,12 @@ export default function ChatArea() {
     }
   };
 
-  const handleReply = React.useCallback((msg: Message) => {
-    setReplyTarget(msg);
-  }, []);
+  const handleReply = React.useCallback(
+    (msg: Message) => {
+      setReplyTarget(msg);
+    },
+    [setReplyTarget],
+  );
 
   const handleEdit = React.useCallback(
     async (messageId: string, content: string) => {
@@ -487,7 +482,9 @@ export default function ChatArea() {
                   replyTarget.author?.username ||
                   replyTarget.author_id.substring(0, 5)}
               </span>
-              <span className="truncate italic">"{replyTarget.content || "deleted message"}"</span>
+              <span className="truncate italic">
+                &quot;{replyTarget.content || "deleted message"}&quot;
+              </span>
             </div>
             <button
               onClick={() => setReplyTarget(null)}

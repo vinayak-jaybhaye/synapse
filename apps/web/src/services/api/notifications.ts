@@ -15,7 +15,7 @@ export interface NotificationModel {
   type: number;
   reference_type: number;
   reference_id: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
   read_at?: string;

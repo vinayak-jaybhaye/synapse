@@ -12,7 +12,7 @@ export const guildsApi = {
     return response.data;
   },
 
-  updateGuild: async (guildId: string, payload: any): Promise<Guild> => {
+  updateGuild: async (guildId: string, payload: Record<string, unknown>): Promise<Guild> => {
     const response = await api.patch<Guild>(`/guilds/${guildId}`, payload);
     return response.data;
   },
@@ -48,7 +48,7 @@ export const guildsApi = {
   },
 
   getBans: async (guildId: string): Promise<BanWithUser[]> => {
-    const response = await api.get<any[]>(`/guilds/${guildId}/bans`);
+    const response = await api.get<BanWithUser[]>(`/guilds/${guildId}/bans`);
     return response.data || [];
   },
 

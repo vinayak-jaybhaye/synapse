@@ -21,20 +21,7 @@ export default function InviteModal() {
 
   const activeGuild = guilds.find((g) => g.id === activeGuildId);
 
-  // Generate invite code when modal opens
-  React.useEffect(() => {
-    if (showInviteModal && activeGuildId && !inviteCode) {
-      handleGenerateInvite();
-    }
-    if (!showInviteModal) {
-      // reset state on close
-      setInviteCode(null);
-      setCopied(false);
-      setError(null);
-    }
-  }, [showInviteModal, activeGuildId]);
-
-  const handleGenerateInvite = async () => {
+  const handleGenerateInvite = React.useCallback(async () => {
     if (!activeGuildId) return;
     try {
       setError(null);
@@ -43,7 +30,21 @@ export default function InviteModal() {
     } catch (err: unknown) {
       setError(normalizeError(err).message);
     }
-  };
+  }, [activeGuildId, createInvite]);
+
+  // Generate invite code when modal opens
+  React.useEffect(() => {
+    if (showInviteModal && activeGuildId && !inviteCode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      handleGenerateInvite();
+    }
+    if (!showInviteModal) {
+      // reset state on close
+      setInviteCode(null);
+      setCopied(false);
+      setError(null);
+    }
+  }, [showInviteModal, activeGuildId, inviteCode, handleGenerateInvite]);
 
   const handleCopy = () => {
     if (!inviteCode) return;

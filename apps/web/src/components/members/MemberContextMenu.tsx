@@ -142,7 +142,7 @@ export default function MemberContextMenu({
       const isMuted = !member.is_muted;
       await guildsApi.patchGuildMember(guildId, member.user_id, {
         nickname: member.nickname || undefined,
-      } as any);
+      } as Record<string, unknown>);
 
       // Wait, patchGuildMember in service.go:
       // if req.IsMuted != nil { ... }

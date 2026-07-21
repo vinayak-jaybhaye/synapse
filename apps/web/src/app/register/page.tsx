@@ -49,6 +49,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     clearError();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalError(null);
   }, [clearError]);
   useEffect(() => {

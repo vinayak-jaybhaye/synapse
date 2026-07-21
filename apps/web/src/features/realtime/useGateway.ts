@@ -16,8 +16,11 @@ import { Message } from "../../types";
 import { useVoiceStore } from "../voice/voiceStore";
 import { useUIStore } from "../../store/ui-store";
 import { useTypingStore } from "../../store/typing-store";
-import { usePresenceStore } from "../../store/presence-store";
+import { usePresenceStore, UserPresenceStatus } from "../../store/presence-store";
 import { useGuildStore } from "../../store/guild-store";
+import { VoiceStateEvent } from "../voice/types";
+
+type InfiniteMessagesData = { pages: Message[][] };
 
 /**
  * Hook that connects the gateway to React Query's cache and voice store.
@@ -52,124 +55,149 @@ export function useGateway() {
       console.log("[Gateway Hook Received Event]", event);
       if (event.op !== GatewayOps.DISPATCH) return;
 
+      const payload = event.d as Record<string, unknown>;
+
       switch (event.t) {
         case "MESSAGE_CREATE": {
-          const msg = event.d as any;
-          queryClient.setQueryData(messagesKeys.list(String(msg.channel_id)), (old: any) => {
-            if (!old?.pages) return old;
+          const msg = payload as unknown as Message;
+          queryClient.setQueryData(
+            messagesKeys.list(String(msg.channel_id)),
+            (old: InfiniteMessagesData | undefined) => {
+              if (!old?.pages) return old;
 
-            const exists = old.pages.some((page: any[]) => page.some((m: any) => m.id === msg.id));
-            if (exists) {
+              const exists = old.pages.some((page) => page.some((m) => m.id === msg.id));
+              if (exists) {
+                return {
+                  ...old,
+                  pages: old.pages.map((page) =>
+                    page.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
+                  ),
+                };
+              }
+
+              const lastPage = old.pages[0] || [];
               return {
                 ...old,
-                pages: old.pages.map((page: any[]) =>
-                  page.map((m: any) => (m.id === msg.id ? { ...m, ...msg } : m)),
-                ),
+                pages: [[msg, ...lastPage], ...old.pages.slice(1)],
               };
-            }
-
-            const lastPage = old.pages[0] || [];
-            return {
-              ...old,
-              pages: [[msg, ...lastPage], ...old.pages.slice(1)],
-            };
-          });
+            },
+          );
           break;
         }
 
         case "MESSAGE_UPDATE": {
-          const msg = event.d as any;
-          queryClient.setQueryData(messagesKeys.list(String(msg.channel_id)), (old: any) => {
-            if (!old?.pages) return old;
-            return {
-              ...old,
-              pages: old.pages.map((page: Message[]) =>
-                page.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
-              ),
-            };
-          });
+          const msg = payload as unknown as Message;
+          queryClient.setQueryData(
+            messagesKeys.list(String(msg.channel_id)),
+            (old: InfiniteMessagesData | undefined) => {
+              if (!old?.pages) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page: Message[]) =>
+                  page.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
+                ),
+              };
+            },
+          );
           break;
         }
 
         case "MESSAGE_DELETE": {
-          const { id, channel_id } = event.d as any;
-          queryClient.setQueryData(messagesKeys.list(String(channel_id)), (old: any) => {
-            if (!old?.pages) return old;
-            return {
-              ...old,
-              pages: old.pages.map((page: Message[]) =>
-                page.map((m) => (m.id === id ? { ...m, deleted: true, content: "" } : m)),
-              ),
-            };
-          });
+          const id = payload.id as string;
+          const channel_id = payload.channel_id as string;
+          queryClient.setQueryData(
+            messagesKeys.list(String(channel_id)),
+            (old: InfiniteMessagesData | undefined) => {
+              if (!old?.pages) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page: Message[]) =>
+                  page.map((m) => (m.id === id ? { ...m, deleted: true, content: "" } : m)),
+                ),
+              };
+            },
+          );
           break;
         }
 
         case "MESSAGE_REACTION_ADD": {
-          const { message_id, channel_id, user_id, emoji } = event.d as any;
+          const message_id = payload.message_id as string;
+          const channel_id = payload.channel_id as string;
+          const user_id = payload.user_id as string;
+          const emoji = payload.emoji as string;
           const currentUserId = useAuthStore.getState().user?.id;
           const isMe = !!(currentUserId && user_id === currentUserId);
-          queryClient.setQueryData(messagesKeys.list(String(channel_id)), (old: any) => {
-            if (!old?.pages) return old;
-            return {
-              ...old,
-              pages: old.pages.map((page: Message[]) =>
-                page.map((m) => {
-                  if (m.id === message_id) {
-                    const reactions = m.reactions || [];
-                    const existing = reactions.find((r) => r.emoji === emoji);
-                    return {
-                      ...m,
-                      reactions: existing
-                        ? reactions.map((r) =>
-                            r.emoji === emoji ? { ...r, count: r.count + 1, me: r.me || isMe } : r,
-                          )
-                        : [...reactions, { emoji, count: 1, me: isMe }],
-                    };
-                  }
-                  return m;
-                }),
-              ),
-            };
-          });
+          queryClient.setQueryData(
+            messagesKeys.list(String(channel_id)),
+            (old: InfiniteMessagesData | undefined) => {
+              if (!old?.pages) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page: Message[]) =>
+                  page.map((m) => {
+                    if (m.id === message_id) {
+                      const reactions = m.reactions || [];
+                      const existing = reactions.find((r) => r.emoji === emoji);
+                      return {
+                        ...m,
+                        reactions: existing
+                          ? reactions.map((r) =>
+                              r.emoji === emoji
+                                ? { ...r, count: r.count + 1, me: r.me || isMe }
+                                : r,
+                            )
+                          : [...reactions, { emoji, count: 1, me: isMe }],
+                      };
+                    }
+                    return m;
+                  }),
+                ),
+              };
+            },
+          );
           break;
         }
 
         case "MESSAGE_REACTION_REMOVE": {
-          const { message_id, channel_id, user_id, emoji } = event.d as any;
+          const message_id = payload.message_id as string;
+          const channel_id = payload.channel_id as string;
+          const user_id = payload.user_id as string;
+          const emoji = payload.emoji as string;
           const currentUserId = useAuthStore.getState().user?.id;
           const isMe = !!(currentUserId && user_id === currentUserId);
-          queryClient.setQueryData(messagesKeys.list(String(channel_id)), (old: any) => {
-            if (!old?.pages) return old;
-            return {
-              ...old,
-              pages: old.pages.map((page: Message[]) =>
-                page.map((m) => {
-                  if (m.id === message_id) {
-                    const reactions = m.reactions || [];
-                    const existing = reactions.find((r) => r.emoji === emoji);
-                    if (existing) {
-                      const updatedReactions = reactions
-                        .map((r) =>
-                          r.emoji === emoji
-                            ? { ...r, count: r.count - 1, me: isMe ? false : r.me }
-                            : r,
-                        )
-                        .filter((r) => r.count > 0);
-                      return { ...m, reactions: updatedReactions };
+          queryClient.setQueryData(
+            messagesKeys.list(String(channel_id)),
+            (old: InfiniteMessagesData | undefined) => {
+              if (!old?.pages) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page: Message[]) =>
+                  page.map((m) => {
+                    if (m.id === message_id) {
+                      const reactions = m.reactions || [];
+                      const existing = reactions.find((r) => r.emoji === emoji);
+                      if (existing) {
+                        const updatedReactions = reactions
+                          .map((r) =>
+                            r.emoji === emoji
+                              ? { ...r, count: r.count - 1, me: isMe ? false : r.me }
+                              : r,
+                          )
+                          .filter((r) => r.count > 0);
+                        return { ...m, reactions: updatedReactions };
+                      }
                     }
-                  }
-                  return m;
-                }),
-              ),
-            };
-          });
+                    return m;
+                  }),
+                ),
+              };
+            },
+          );
           break;
         }
 
         case "CHANNEL_CREATE": {
-          const data = event.d as any;
-          const guildId = data.guild_id;
+          const guildId = payload.guild_id as string | undefined;
           if (guildId) {
             queryClient.invalidateQueries({
               queryKey: channelsKeys.list(String(guildId)),
@@ -180,8 +208,7 @@ export function useGateway() {
 
         case "CHANNEL_UPDATE":
         case "CHANNEL_DELETE": {
-          const data = event.d as any;
-          const guildId = data.guild_id;
+          const guildId = payload.guild_id as string | undefined;
           if (guildId) {
             queryClient.invalidateQueries({
               queryKey: channelsKeys.list(String(guildId)),
@@ -193,8 +220,7 @@ export function useGateway() {
         case "GUILD_MEMBER_ADD":
         case "GUILD_MEMBER_REMOVE":
         case "GUILD_MEMBER_UPDATE": {
-          const data = event.d as any;
-          const guildId = data.guild_id;
+          const guildId = payload.guild_id as string | undefined;
           if (guildId) {
             queryClient.invalidateQueries({
               queryKey: membersKeys.list(String(guildId)),
@@ -226,28 +252,27 @@ export function useGateway() {
         }
 
         case "USER_BLOCK_ADD": {
-          const data = event.d as any;
-          if (data.blocked_id) {
+          const blockedId = payload.blocked_id as string | undefined;
+          if (blockedId) {
             import("../../store/block-store").then(({ useBlockStore }) => {
-              useBlockStore.getState().addBlockedUser(data.blocked_id);
+              useBlockStore.getState().addBlockedUser(blockedId);
             });
           }
           break;
         }
 
         case "USER_BLOCK_REMOVE": {
-          const data = event.d as any;
-          if (data.blocked_id) {
+          const blockedId = payload.blocked_id as string | undefined;
+          if (blockedId) {
             import("../../store/block-store").then(({ useBlockStore }) => {
-              useBlockStore.getState().removeBlockedUser(data.blocked_id);
+              useBlockStore.getState().removeBlockedUser(blockedId);
             });
           }
           break;
         }
 
         case "GUILD_BAN_ADD": {
-          const data = event.d as any;
-          const guildId = data.guild_id;
+          const guildId = payload.guild_id as string | undefined;
           if (guildId) {
             queryClient.invalidateQueries({
               queryKey: bansKeys.list(String(guildId)),
@@ -257,12 +282,12 @@ export function useGateway() {
         }
 
         case "VOICE_STATE_UPDATE": {
-          const eventData = event.d as any;
           // Route to voice store statically — never sets `speaking` (LiveKit-local only)
-          useVoiceStore.getState().updateFromGatewayEvent(eventData);
+          useVoiceStore.getState().updateFromGatewayEvent(payload as unknown as VoiceStateEvent);
 
           // If the leave event is for the local user, we were kicked/ejected!
-          const { state, action } = eventData;
+          const action = payload.action as string;
+          const state = payload.state as { user_id?: string } | undefined;
           const localUser = useAuthStore.getState().user;
           if (action === "leave" && localUser && state && state.user_id === localUser.id) {
             const activeRoom = useVoiceStore.getState().room;
@@ -281,7 +306,8 @@ export function useGateway() {
         }
 
         case "TYPING_START": {
-          const { channel_id, user_id } = event.d as any;
+          const channel_id = payload.channel_id as string;
+          const user_id = payload.user_id as string;
           const currentUserId = useAuthStore.getState().user?.id;
           if (currentUserId && user_id === currentUserId) break;
           useTypingStore.getState().setTyping(channel_id, user_id);
@@ -289,17 +315,24 @@ export function useGateway() {
         }
 
         case "PRESENCE_UPDATE": {
-          const { user_id, status } = event.d as any;
+          const user_id = payload.user_id as string;
+          const status = payload.status as UserPresenceStatus;
           usePresenceStore.getState().setStatus(user_id, status);
           break;
         }
 
         case "GUILD_PRESENCE_BULK": {
-          const { guild_id, presences } = event.d as any;
+          const guild_id = payload.guild_id as string;
+          const presences = payload.presences as Array<{
+            user_id: string;
+            status: UserPresenceStatus;
+          }>;
           const store = usePresenceStore.getState();
-          presences.forEach((p: any) => {
-            store.setStatus(p.user_id, p.status);
-          });
+          if (Array.isArray(presences)) {
+            presences.forEach((p) => {
+              store.setStatus(p.user_id, p.status);
+            });
+          }
           useGuildStore.getState().setGuildHydration(guild_id, "hydrated");
           break;
         }

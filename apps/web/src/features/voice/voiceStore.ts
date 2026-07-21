@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { Room, ConnectionState } from "livekit-client";
 import { VoiceParticipant, VoiceState, VoiceStateEvent } from "./types";
 
+export type { VoiceParticipant, VoiceState, VoiceStateEvent };
+
 interface VoiceStore {
   // ── Connection ──────────────────────────────────────────────────────────────
   activeGuildId: string | null;
@@ -20,7 +22,7 @@ interface VoiceStore {
   clearActive(): void;
   setRoom(room: Room | null): void;
   setConnectionState(state: ConnectionState): void;
-  setSelfState(state: VoiceState | null): void;
+  setSelfState(state: Partial<VoiceState> | null): void;
 
   /** Update or insert a participant (from LiveKit participant events) */
   setParticipant(userId: string, partial: Partial<VoiceParticipant>): void;
@@ -73,7 +75,13 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   },
 
   setSelfState(state) {
-    set({ selfState: state });
+    if (!state) {
+      set({ selfState: null });
+    } else {
+      set((s) => ({
+        selfState: s.selfState ? { ...s.selfState, ...state } : (state as VoiceState),
+      }));
+    }
   },
 
   setParticipant(userId, partial) {

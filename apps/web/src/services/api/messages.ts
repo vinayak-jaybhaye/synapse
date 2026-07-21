@@ -20,7 +20,7 @@ export const messagesApi = {
     replyToMessageId?: string,
     mentions?: string[],
   ): Promise<Message> => {
-    const payload: any = { content };
+    const payload: Record<string, unknown> = { content };
     if (replyToMessageId) {
       payload.reply_to_message_id = replyToMessageId;
     }

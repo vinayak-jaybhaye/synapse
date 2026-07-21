@@ -31,7 +31,7 @@ export default function ChannelOverviewTab({ activeChannel }: ChannelOverviewTab
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const payload: any = {};
+      const payload: Record<string, unknown> = {};
       if (data.name !== activeChannel.name) payload.name = data.name;
       if (data.topic !== activeChannel.topic) payload.topic = data.topic;
 

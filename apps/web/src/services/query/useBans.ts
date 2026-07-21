@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { guildsApi } from "../api/guilds";
-import { BanWithUser } from "../../types";
 
 export const bansKeys = {
   all: ["bans"] as const,

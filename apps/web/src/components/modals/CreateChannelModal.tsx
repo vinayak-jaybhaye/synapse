@@ -7,7 +7,7 @@ import { normalizeError } from "../../lib/api";
 interface CreateChannelModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (params: { name: string; type: number; topic?: string }) => Promise<any>;
+  onCreate: (params: { name: string; type: number; topic?: string }) => Promise<unknown>;
 }
 
 export default function CreateChannelModal({ open, onClose, onCreate }: CreateChannelModalProps) {
@@ -24,10 +24,10 @@ export default function CreateChannelModal({ open, onClose, onCreate }: CreateCh
     if (!channelName.trim()) return;
 
     try {
-      const newChan = await onCreate({
+      const newChan = (await onCreate({
         name: channelName.trim(),
         type: channelType,
-      });
+      })) as { id: string };
       setChannelName("");
       onClose();
 

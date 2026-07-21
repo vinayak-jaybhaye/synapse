@@ -60,8 +60,8 @@ const getNotificationIcon = (type: number) => {
   }
 };
 
-const getNotificationText = (notif: NotificationModel) => {
-  if (notif.metadata?.content) return notif.metadata.content;
+const getNotificationText = (notif: NotificationModel): string => {
+  if (typeof notif.metadata?.content === "string") return notif.metadata.content;
 
   switch (notif.type) {
     case 1:
@@ -149,7 +149,7 @@ export default function InboxPopover({ open, onClose, anchorRef }: InboxPopoverP
         ) : !inbox || inbox.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center text-text-muted">
             <Bell className="h-10 w-10 mb-3 opacity-20" />
-            <p className="text-sm font-medium">You're all caught up!</p>
+            <p className="text-sm font-medium">You&apos;re all caught up!</p>
             <p className="text-xs mt-1">No new notifications</p>
           </div>
         ) : (

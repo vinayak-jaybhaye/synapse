@@ -1,3 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
+"use client";
+
 import React, { useState, useEffect } from "react";
 import { X, Search, Loader2 } from "lucide-react";
 import { useDMs } from "../../services/query/useDMs";
@@ -25,6 +28,7 @@ export default function CreateDMModal({ open, onClose }: CreateDMModalProps) {
 
   useEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchQuery("");
       setSearchResults([]);
       setError("");
@@ -158,7 +162,7 @@ export default function CreateDMModal({ open, onClose }: CreateDMModalProps) {
               ))
             ) : searchQuery.trim() && !isSearching ? (
               <div className="text-center text-text-muted text-sm py-8">
-                No users found matching "{searchQuery}"
+                No users found matching &quot;{searchQuery}&quot;
               </div>
             ) : null}
           </div>

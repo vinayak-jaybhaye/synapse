@@ -30,6 +30,7 @@ export default function ChannelPermissionsTab({ channelId }: { channelId: string
   useEffect(() => {
     if (roles.length > 0 && !selectedRoleId) {
       const defaultRole = roles.find((r) => r.is_default);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (defaultRole) setSelectedRoleId(defaultRole.id);
       else setSelectedRoleId(roles[0].id);
     }

@@ -33,6 +33,7 @@ export default function TypingIndicator({ channelId, dmRecipientName }: TypingIn
     const active = Object.entries(typing)
       .filter(([userId, timestamp]) => userId !== String(localUserId) && now - timestamp < 3000)
       .map(([userId]) => userId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveUsers(active);
   }, [typing, localUserId]);
 

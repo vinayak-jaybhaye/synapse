@@ -25,9 +25,8 @@ import {
 import { useUIStore } from "../../store/ui-store";
 import { useGuildStore } from "../../store/guild-store";
 import { useChannels } from "../../services/query/useChannels";
-import { ConnectionState, RoomEvent } from "livekit-client";
+import { ConnectionState, RoomEvent, RemoteTrackPublication } from "livekit-client";
 import { useVoice } from "../../features/voice/useVoice";
-import { useVoiceStore } from "../../features/voice/voiceStore";
 import ParticipantTile from "./ParticipantTile";
 import { useMessages } from "../../services/query/useMessages";
 import MessageItem from "../chat/MessageItem";
@@ -111,6 +110,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
   const startXRef = useRef(0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -146,9 +146,10 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
   }, [isResizing]);
 
   // Sync custom order when participants change
-  const participantIds = participantArray.map((p) => p.user_id);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomOrder((prev) => {
+      const participantIds = participantArray.map((p) => p.user_id);
       const filtered = prev.filter((id) => participantIds.includes(id));
       const newIds = participantIds.filter((id) => !filtered.includes(id));
       const next = [...filtered, ...newIds];
@@ -157,7 +158,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
       }
       return next;
     });
-  }, [participants]);
+  }, [participantArray]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -192,7 +193,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
   // Auto-scroll chat to bottom
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
     }
   };
 
@@ -381,7 +382,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
 
     const subscribeAllRemote = () => {
       room.remoteParticipants.forEach((participant) => {
-        participant.videoTrackPublications.forEach((pub: any) => {
+        participant.videoTrackPublications.forEach((pub: RemoteTrackPublication) => {
           if (typeof pub.setSubscribed === "function") {
             pub.setSubscribed(true);
           }
@@ -391,7 +392,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
 
     subscribeAllRemote();
 
-    const handleTrackPublished = (pub: any) => {
+    const handleTrackPublished = (pub: RemoteTrackPublication) => {
       if (pub.kind === "video" && typeof pub.setSubscribed === "function") {
         pub.setSubscribed(true);
       }
@@ -403,7 +404,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
       room.off(RoomEvent.TrackPublished, handleTrackPublished);
       // Unsubscribe all when VoiceChannelView is unmounted
       room.remoteParticipants.forEach((participant) => {
-        participant.videoTrackPublications.forEach((pub: any) => {
+        participant.videoTrackPublications.forEach((pub: RemoteTrackPublication) => {
           if (typeof pub.setSubscribed === "function") {
             pub.setSubscribed(false);
           }
@@ -837,7 +838,7 @@ export default function VoiceChannelView({ channelName }: VoiceChannelViewProps)
                         <span className="font-semibold text-text-primary">
                           @{replyTarget.author.username}
                         </span>
-                        <span className="truncate italic">"{replyTarget.content}"</span>
+                        <span className="truncate italic">&quot;{replyTarget.content}&quot;</span>
                       </div>
                       <button
                         onClick={() => setReplyTarget(null)}

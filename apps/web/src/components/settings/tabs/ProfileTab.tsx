@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useState } from "react";
@@ -86,17 +87,22 @@ export default function ProfileTab() {
   const bannerUploadIdRef = React.useRef<string | null>(null);
 
   // Keep refs in sync with form state
-  avatarUploadIdRef.current = data.avatarUploadId;
-  bannerUploadIdRef.current = data.bannerUploadId;
+  React.useEffect(() => {
+    avatarUploadIdRef.current = data.avatarUploadId;
+    bannerUploadIdRef.current = data.bannerUploadId;
+  }, [data.avatarUploadId, data.bannerUploadId]);
 
   // Cleanup only on unmount — cancel any unsaved pending uploads
   React.useEffect(() => {
+    const saved = savedUploadIdsRef.current;
     return () => {
-      if (avatarUploadIdRef.current && !savedUploadIdsRef.current.has(avatarUploadIdRef.current)) {
-        mediaApi.cancelUpload(avatarUploadIdRef.current).catch(() => {});
+      const avatarId = avatarUploadIdRef.current;
+      const bannerId = bannerUploadIdRef.current;
+      if (avatarId && !saved.has(avatarId)) {
+        mediaApi.cancelUpload(avatarId).catch(() => {});
       }
-      if (bannerUploadIdRef.current && !savedUploadIdsRef.current.has(bannerUploadIdRef.current)) {
-        mediaApi.cancelUpload(bannerUploadIdRef.current).catch(() => {});
+      if (bannerId && !saved.has(bannerId)) {
+        mediaApi.cancelUpload(bannerId).catch(() => {});
       }
     };
   }, []);
@@ -104,7 +110,7 @@ export default function ProfileTab() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const payload: any = {};
+      const payload: Record<string, unknown> = {};
       if (data.displayName !== user?.display_name) payload.display_name = data.displayName;
       if (data.bio !== user?.bio) payload.bio = data.bio;
 
@@ -289,7 +295,7 @@ export default function ProfileTab() {
               {blockedUsers && blockedUsers.length > 0 ? (
                 blockedUsers.map((id) => <BlockedUserItem key={id} userId={id} />)
               ) : (
-                <p className="text-xs text-text-muted py-2">You haven't blocked anyone.</p>
+                <p className="text-xs text-text-muted py-2">You haven&apos;t blocked anyone.</p>
               )}
             </div>
           </div>

@@ -56,6 +56,10 @@ export function useGuildPermissions(permissions?: string) {
       canKickMembers: hasPermission(permissions, PermissionFlags.KICK_MEMBERS),
       canBanMembers: hasPermission(permissions, PermissionFlags.BAN_MEMBERS),
       canCreateInstantInvite: hasPermission(permissions, PermissionFlags.CREATE_INSTANT_INVITE),
+      canViewAuditLog:
+        hasPermission(permissions, PermissionFlags.VIEW_AUDIT_LOG) ||
+        hasPermission(permissions, PermissionFlags.ADMINISTRATOR) ||
+        hasPermission(permissions, PermissionFlags.MANAGE_GUILD),
     };
   }, [permissions]);
 }

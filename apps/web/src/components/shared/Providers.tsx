@@ -16,7 +16,7 @@ function GatewayListener() {
 
 function BlockedUsersListener() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { data: _ } = useBlockedUsers();
+  useBlockedUsers();
 
   if (!isAuthenticated) return null;
   return null;

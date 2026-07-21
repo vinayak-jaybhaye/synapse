@@ -6,7 +6,7 @@ import { normalizeError } from "../../lib/api";
 interface CreateGuildModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (params: { name: string; description?: string }) => Promise<any>;
+  onCreate: (params: { name: string; description?: string }) => Promise<unknown>;
 }
 
 export default function CreateGuildModal({ open, onClose, onCreate }: CreateGuildModalProps) {
