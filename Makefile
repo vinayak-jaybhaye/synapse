@@ -36,10 +36,8 @@ db-down-data:
 	docker-compose down -v
 
 db-migrate:
-	@for file in apps/api/migrations/*.sql; do \
-		echo "Applying $$file..."; \
-		docker-compose exec -T postgres psql -U postgres -d synapse -f - < "$$file"; \
-	done
+	@echo "Running migrations with goose..."
+	cd apps/api && go run github.com/pressly/goose/v3/cmd/goose@latest -dir migrations postgres "postgres://postgres:postgres@localhost:5432/synapse?sslmode=disable" up
 
 reset-db:
 	docker-compose down -v
