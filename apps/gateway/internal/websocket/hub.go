@@ -21,10 +21,16 @@ type GuildMessage struct {
 }
 
 type Hub struct {
-	clients        map[*Client]bool
+	// clients: A master mapping of every active Client connected to this server to a boolean.
+	// <Client, bool>
+	clients map[*Client]bool
+	// channelClients: Maps a channel ID to a set of Clients currently subscribed/authorized to view it.
+	// <CHANNELID, <Client, bool>>
 	channelClients map[int64]map[*Client]bool
-	guildClients   map[int64]map[*Client]bool
-	DB             *sql.DB
+	// guildClients: Maps a guild ID to a set of Clients currently connected to that guild.
+	// <GUILDID, <Client, bool>>
+	guildClients map[int64]map[*Client]bool
+	DB           *sql.DB
 
 	mu sync.RWMutex
 
